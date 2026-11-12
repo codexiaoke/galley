@@ -30,8 +30,14 @@
   --font-ui: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
 }
 
+/*
+ * 深色的纸
+ *
+ * 默认跟着读者系统的设置走。读者在文章页的"阅读设置"里选了纸色或深色时，
+ * 页面根元素上会有 data-reader-theme，以读者的选择为准。两处的颜色要保持一致。
+ */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-reader-theme="light"]) {
     --paper: #1b1916;
     --paper-raised: #26231f;
     --paper-sunken: #141210;
@@ -40,7 +46,27 @@
     --ink-faint: #7f786c;
     --rule: #38332c;
     --accent: #d98b73;
+    color-scheme: dark;
   }
+}
+:root[data-reader-theme="dark"] {
+  --paper: #1b1916;
+  --paper-raised: #26231f;
+  --paper-sunken: #141210;
+  --ink: #d9d2c3;
+  --ink-soft: #a8a092;
+  --ink-faint: #7f786c;
+  --rule: #38332c;
+  --accent: #d98b73;
+  color-scheme: dark;
+}
+
+/* 读者在"阅读设置"里调的字号：在正文原本的大小上整体放大或缩小 */
+:root[data-reader-size="s"] {
+  --reader-scale: 0.92;
+}
+:root[data-reader-size="l"] {
+  --reader-scale: 1.12;
 }
 
 /*
@@ -858,7 +884,91 @@ body {
   padding-top: 2.75rem;
 }
 .galley-article-header {
+  position: relative;
   margin-bottom: 2.25rem;
+}
+/* 文章页的标题右边留出"阅读设置"按钮的位置 */
+.galley-article-header:has(.galley-reader) {
+  padding-right: 2.75rem;
+}
+
+/* ---- 阅读设置：标题右上角的 Aa，点开一个小面板 -------------------------- */
+
+.galley-reader {
+  position: absolute;
+  top: 0.35rem;
+  right: 0;
+  font-family: var(--font-ui);
+}
+.galley-reader-toggle {
+  border-radius: 4px;
+  padding: 0.2rem 0.45rem;
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  line-height: 1.2;
+  color: var(--ink-faint);
+  transition:
+    color var(--dur-fast),
+    background-color var(--dur-fast);
+}
+.galley-reader-toggle:hover,
+.galley-reader-toggle[aria-expanded="true"] {
+  background: var(--paper-sunken);
+  color: var(--ink);
+}
+.galley-reader-panel {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 0.7rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper-raised);
+  padding: 0.85rem 1rem;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  color: var(--ink-soft);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.08);
+  animation: galley-reader-in var(--dur-fast) var(--ease-out);
+}
+@keyframes galley-reader-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+.galley-reader-options {
+  display: flex;
+  gap: 0.25rem;
+}
+.galley-reader-options button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 4px;
+  padding: 0.2rem 0.55rem;
+  color: var(--ink-soft);
+  transition:
+    color var(--dur-fast),
+    background-color var(--dur-fast);
+}
+.galley-reader-options button:hover {
+  color: var(--ink);
+}
+.galley-reader-options button[aria-pressed="true"] {
+  background: var(--paper-sunken);
+  color: var(--ink);
+}
+/* 底色选项前面的小圆点：画出那种底色的样子 */
+.galley-reader-swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
 }
 .galley-article-header .galley-meta {
   margin-top: 0.9rem;
@@ -985,7 +1095,7 @@ body {
 
 .galley-prose {
   font-family: var(--font-serif);
-  font-size: var(--prose-size, 1.125rem);
+  font-size: calc(var(--prose-size, 1.125rem) * var(--reader-scale, 1));
   line-height: 1.95;
   text-align: justify;
   line-break: strict;

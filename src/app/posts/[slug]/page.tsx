@@ -4,6 +4,7 @@ import { Suspense, ViewTransition, type CSSProperties } from "react";
 import { Markdown } from "@/render/Markdown";
 import { loadPublishedDocument } from "../../data";
 import { tagPath } from "@/core/tags";
+import { ReaderSettings } from "../../reader-settings";
 import { loadSite } from "../../site";
 import { SiteFooter } from "../../site-footer";
 import { TrackView } from "../../track-view";
@@ -42,6 +43,7 @@ async function Post({ params }: { params: Promise<{ slug: string }> }) {
       <article className="galley-article">
         <title>{`${doc.title} · ${site.name}`}</title>
         <header className="galley-article-header">
+          <ReaderSettings />
           <ViewTransition name={`post-title-${doc.id}`} share="morph-title" default="none">
             <h1 className="galley-title">{doc.title}</h1>
           </ViewTransition>

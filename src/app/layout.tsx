@@ -30,9 +30,20 @@ async function WaitForRequest() {
   return null;
 }
 
+/**
+ * 页面一打开就用上读者在"阅读设置"里的选择，避免先闪一下默认的样子。
+ * 作用和 reader-settings.tsx 里的 apply 一样，只是要在页面显示之前运行，所以写成一段内联的小脚本。
+ * 后台不受影响。
+ */
+const APPLY_READER_SETTINGS = `try{if(!location.pathname.startsWith("/admin")){var s=JSON.parse(localStorage.getItem("galley-reader")||"{}"),d=document.documentElement;if(s.size==="s"||s.size==="l")d.dataset.readerSize=s.size;if(s.theme==="light"||s.theme==="dark")d.dataset.readerTheme=s.theme}}catch(e){}`;
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="zh-CN" className={`${geistMono.variable} h-full antialiased`}>
+    // 根元素上的阅读设置由上面的脚本在浏览器里加上，和服务端渲染的不一样是正常的。
+    <html lang="zh-CN" className={`${geistMono.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: APPLY_READER_SETTINGS }} />
+      </head>
       <body className="min-h-full flex flex-col">
         {children}
         <Suspense fallback={null}>
