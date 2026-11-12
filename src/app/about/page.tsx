@@ -31,7 +31,7 @@ async function About() {
         <header className="galley-article-header">
           <h1 className="galley-title">{doc.title}</h1>
         </header>
-        <Markdown body={doc.body} blocks={doc.blocks} />
+        <Markdown body={doc.body} blocks={doc.blocks} posts={doc.posts} />
       </article>
       <SiteFooter from="/about" />
       <TrackView path="/about" />

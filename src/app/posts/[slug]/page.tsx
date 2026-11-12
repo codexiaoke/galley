@@ -61,7 +61,7 @@ async function Post({ params }: { params: Promise<{ slug: string }> }) {
           </p>
         </header>
         <div className="galley-rise" style={{ "--i": 2 } as CSSProperties}>
-          <Markdown body={doc.body} blocks={doc.blocks} />
+          <Markdown body={doc.body} blocks={doc.blocks} posts={doc.posts} />
         </div>
         {doc.tags.length > 0 && (
           <p className="galley-tags">

@@ -6,13 +6,14 @@ import { useRouter } from "next/navigation";
 import { Component, useEffect, useRef, useState, useTransition, type CSSProperties, type ReactNode } from "react";
 import type { MarkupIssue } from "@/core/markup/parse";
 import type { BlockView } from "@/core/services/blocks";
+import type { PostCard } from "@/core/services/documents";
 import { Markdown } from "@/render/Markdown";
 import { previewBody, saveDocumentEdit } from "../../../../actions";
 import { Select } from "../../../../select";
 import { useToast } from "../../../../toast";
 import { Badge, buttonClass } from "../../../../ui";
 
-type Preview = { body: string; issues: MarkupIssue[]; blocks: Record<string, BlockView> };
+type Preview = { body: string; issues: MarkupIssue[]; blocks: Record<string, BlockView>; posts: Record<string, PostCard> };
 
 /** 正文写到一半时可能出现渲染不了的内容。预览出错不应该让整个编辑器跟着崩掉。 */
 class PreviewBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -34,6 +35,10 @@ const HELP: [string, string][] = [
   ["::block{id=知识块编号}", "把整个知识块嵌进正文，比如一段代码"],
   [":::callout{type=tip}", "提示框，另起一行以 ::: 结束。type 可以是 info、tip、warning"],
   ["![说明](/media/文件名)", "插入图片。图片先传到媒体库，那里可以直接复制这一段写法"],
+  ["| 列 | 列 |", "表格，第二行写 |---|---|，适合做对比"],
+  [":::timeline", "时间线，里面写列表，每项以 **时间** 开头，另起一行以 ::: 结束"],
+  ["::quote{b=知识块编号}", "把一个知识块作为突出的引文"],
+  ["::post{slug=网址别名}", "站内另一篇文章的卡片"],
 ];
 
 /**
@@ -284,7 +289,7 @@ export function DocumentEditor({
           {/* 预览按前台的样子显示：纸张底色和宋体，和读者看到的一致 */}
           <div className="galley-site rounded-lg border border-a-border bg-paper px-6 py-7 text-ink xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">
             <PreviewBoundary key={preview.body}>
-              <Markdown body={preview.body} blocks={preview.blocks} review />
+              <Markdown body={preview.body} blocks={preview.blocks} posts={preview.posts} review />
             </PreviewBoundary>
           </div>
         </div>

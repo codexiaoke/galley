@@ -1,5 +1,6 @@
 import type { Root } from "mdast";
 import remarkDirective from "remark-directive";
+import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 import { visit } from "unist-util-visit";
@@ -27,7 +28,10 @@ export type MarkupIssue = { level: "error" | "warning"; message: string; line?: 
 /** 正文里的一张图片。name 是媒体库里的文件名。 */
 export type ParsedImage = { name: string; line?: number };
 
-export type ParsedMarkup = { refs: ParsedRef[]; images: ParsedImage[]; issues: MarkupIssue[] };
+/** 正文里对站内另一篇文章的引用（文章卡片）。 */
+export type ParsedPostRef = { slug: string; line?: number };
+
+export type ParsedMarkup = { refs: ParsedRef[]; images: ParsedImage[]; posts: ParsedPostRef[]; issues: MarkupIssue[] };
 
 /** 媒体库里图片的地址：/media/ 加上程序生成的文件名。 */
 export const MEDIA_URL_PATTERN = /^\/media\/([a-z0-9]+\.[a-z0-9]+)$/;
@@ -52,7 +56,8 @@ export function isBareText(d: { type: string; attributes?: object | null; childr
   return d.type === "textDirective" && Object.keys(d.attributes ?? {}).length === 0 && d.children.length === 0;
 }
 
-export const markdownProcessor = () => unified().use(remarkParse).use(remarkDirective);
+/** 表格、删除线这些 GitHub 风格的写法也支持，和页面上渲染时用的是同一套。 */
+export const markdownProcessor = () => unified().use(remarkParse).use(remarkGfm).use(remarkDirective);
 
 export function parseToTree(body: string): Root {
   return markdownProcessor().parse(body) as Root;
@@ -65,6 +70,7 @@ export function parseToTree(body: string): Root {
 export function parseMarkup(body: string): ParsedMarkup {
   const refs: ParsedRef[] = [];
   const images: ParsedImage[] = [];
+  const posts: ParsedPostRef[] = [];
   const issues: MarkupIssue[] = [];
   let ordinal = 0;
 
@@ -131,6 +137,10 @@ export function parseMarkup(body: string): ParsedMarkup {
       const detail = parsed.error.issues.map((i) => `${i.path.join(".") || "参数"}: ${i.message}`).join("；");
       return error(`${component.name} 的参数不合法：${detail}`, line);
     }
+    for (const param of component.postParams ?? []) {
+      const slug = (parsed.data as Record<string, unknown>)[param];
+      if (typeof slug === "string") posts.push({ slug, line });
+    }
     for (const param of Object.keys(component.blockParams ?? {})) {
       const blockId = (parsed.data as Record<string, unknown>)[param];
       if (typeof blockId === "string") addRef({ mode: "embed", blockId, directive: component.name, param, line });
@@ -149,5 +159,5 @@ export function parseMarkup(body: string): ParsedMarkup {
     }
   });
 
-  return { refs, images, issues };
+  return { refs, images, posts, issues };
 }

@@ -139,7 +139,7 @@ async function ChangeSetDetail({ params }: { params: Promise<{ id: string }> }) 
                 <div className="galley-site rounded-lg border border-a-border bg-paper px-6 py-7 text-ink sm:px-9">
                   {preview && (
                     <Commentable changeSetId={changeSet.id} targetType="document" targetRevisionId={revision.id} comments={commentsOn(revision.id)} enabled={inReview}>
-                      <Markdown body={preview.body} blocks={preview.blocks} review />
+                      <Markdown body={preview.body} blocks={preview.blocks} posts={preview.posts} review />
                     </Commentable>
                   )}
                 </div>

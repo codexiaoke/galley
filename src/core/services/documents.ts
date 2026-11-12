@@ -13,7 +13,7 @@ import {
 import { conflict, forbidden, invalid, notFound } from "../errors";
 import { newId } from "../ids";
 import { getComponent } from "../markup/components";
-import { parseMarkup, type MarkupIssue, type ParsedRef } from "../markup/parse";
+import { parseMarkup, type MarkupIssue, type ParsedPostRef, type ParsedRef } from "../markup/parse";
 import { getBlockView, getBlockViewAtRevision, type BlockView } from "./blocks";
 import { findCategoryBySlug, listCategories } from "./categories";
 import { applyOwnerChange, assertNotLockedElsewhere, requireEditable } from "./changeSets";
@@ -150,9 +150,37 @@ function citationStyleWarnings(body: string, parsed: ParsedRef[]): MarkupIssue[]
  * 检查一段正文：标记写得对不对、引用的知识块在不在、依据用得是否得当。
  * 保存时用它，Agent 提交前自查时也用它，两处的结论一致。
  */
+/** 文章卡片引用的文章：要是已经发布的文章。 */
+function checkPostRefs(db: Db, posts: ParsedPostRef[]): MarkupIssue[] {
+  return posts
+    .filter((post) => !publishedSlugExists(db, post.slug))
+    .map((post) => ({ level: "error" as const, message: `文章卡片引用的 ${post.slug} 不是已发布的文章。用 list_documents 查看站里已有的文章。`, line: post.line }));
+}
+
+/** 正文引用到的站内文章，供文章卡片显示。只包含已发布的：之后下线了的，卡片就不再显示。 */
+export type PostCard = { slug: string; title: string; summary: string; publishedAt: Date | null };
+
+function resolvePostCards(db: Db, posts: ParsedPostRef[]): Record<string, PostCard> {
+  const slugs = [...new Set(posts.map((p) => p.slug))];
+  if (slugs.length === 0) return {};
+  const rows = db
+    .select({ slug: documents.slug, title: documentRevisions.title, summary: documentRevisions.summary, publishedAt: documents.publishedAt })
+    .from(documents)
+    .innerJoin(documentRevisions, eq(documents.currentRevisionId, documentRevisions.id))
+    .where(and(inArray(documents.slug, slugs), eq(documents.status, "published"), eq(documents.kind, "article")))
+    .all();
+  return Object.fromEntries(rows.map((row) => [row.slug, row]));
+}
+
 export function checkDocumentBody(db: Db, changeSetId: string, body: string): MarkupIssue[] {
   const parsed = parseMarkup(body);
-  return [...parsed.issues, ...checkRefs(db, changeSetId, parsed.refs).issues, ...checkImages(db, parsed.images), ...citationStyleWarnings(body, parsed.refs)];
+  return [
+    ...parsed.issues,
+    ...checkRefs(db, changeSetId, parsed.refs).issues,
+    ...checkImages(db, parsed.images),
+    ...checkPostRefs(db, parsed.posts),
+    ...citationStyleWarnings(body, parsed.refs),
+  ];
 }
 
 /**
@@ -199,7 +227,13 @@ export function saveDocument(db: Db, actor: Actor, input: SaveDocumentInput): Sa
   const tags = input.tags === undefined ? undefined : normalizeTags(input.tags);
   const parsed = parseMarkup(input.body);
   const checked = checkRefs(db, input.changeSetId, parsed.refs);
-  const issues = [...parsed.issues, ...checked.issues, ...checkImages(db, parsed.images), ...citationStyleWarnings(input.body, parsed.refs)];
+  const issues = [
+    ...parsed.issues,
+    ...checked.issues,
+    ...checkImages(db, parsed.images),
+    ...checkPostRefs(db, parsed.posts),
+    ...citationStyleWarnings(input.body, parsed.refs),
+  ];
   if (issues.some((i) => i.level === "error")) return { saved: false, issues };
 
   const who = actorColumns(actor);
@@ -381,8 +415,9 @@ export function previewDocumentBody(db: Db, body: string, changeSetId = "") {
   const blockMap: Record<string, BlockView> = {};
   for (const { block } of checked.resolved) blockMap[block.id] ??= block;
   return {
-    issues: [...parsed.issues, ...checked.issues, ...checkImages(db, parsed.images), ...citationStyleWarnings(body, parsed.refs)],
+    issues: [...parsed.issues, ...checked.issues, ...checkImages(db, parsed.images), ...checkPostRefs(db, parsed.posts), ...citationStyleWarnings(body, parsed.refs)],
     blocks: blockMap,
+    posts: resolvePostCards(db, parsed.posts),
   };
 }
 
@@ -400,6 +435,8 @@ export type RenderableDocument = {
   revisedAt: Date;
   /** 正文引用到的知识块，键是知识块编号 */
   blocks: Record<string, BlockView>;
+  /** 正文里文章卡片引用到的站内文章，键是网址别名 */
+  posts: Record<string, PostCard>;
   /** 依据引用锁定的版本已经不是当前版本的知识块编号 */
   staleBlockIds: string[];
 };
@@ -437,6 +474,7 @@ function assemble(
     publishedAt: doc.publishedAt,
     revisedAt: rev.createdAt,
     blocks: blockMap,
+    posts: resolvePostCards(db, parseMarkup(rev.body).posts),
     staleBlockIds: [...stale],
   };
 }

@@ -1287,6 +1287,120 @@ body {
   --callout-color: #b07a1e;
 }
 
+/* 宽表格：在自己的框里左右滑动 */
+.galley-table-wrap {
+  margin: 1.8em 0;
+  overflow-x: auto;
+}
+.galley-table-wrap table {
+  min-width: 100%;
+  width: max-content;
+  max-width: none;
+}
+.galley-prose .galley-table-wrap td,
+.galley-prose .galley-table-wrap th {
+  vertical-align: top;
+}
+
+/* 时间线：左边一条细线，每一项前面一个小圆点，加粗的时间放在第一行 */
+.galley-timeline {
+  margin: 2em 0;
+}
+.galley-timeline ul,
+.galley-timeline ol {
+  margin: 0;
+  border-left: 1px solid var(--rule);
+  padding-left: 1.5em;
+  list-style: none;
+}
+.galley-timeline li {
+  position: relative;
+}
+.galley-timeline li + li {
+  margin-top: 1.1em;
+}
+.galley-timeline li::before {
+  content: "";
+  position: absolute;
+  top: 0.75em;
+  left: calc(-1.5em - 3.5px);
+  width: 7px;
+  height: 7px;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  background: var(--paper);
+}
+.galley-timeline li > strong:first-child,
+.galley-timeline li > p:first-child > strong:first-child {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: 0.8em;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+
+/* 引文：大一号的楷体，左边一条朱红短线 */
+.galley-quote {
+  margin: 2.4em 0;
+}
+.galley-quote blockquote {
+  border-left: 2px solid var(--accent);
+  padding: 0.1em 0 0.1em 1.1em;
+  font-family: var(--font-kai);
+  font-size: 1.12em;
+  line-height: 1.9;
+  white-space: pre-wrap;
+  color: var(--ink);
+}
+.galley-quote .galley-figcaption {
+  margin-top: 0.6em;
+  padding-left: 1.3em;
+}
+
+/* 文章卡片：一个细线框，悬停时标题变成朱红 */
+.galley-post-card {
+  display: block;
+  margin: 2em 0;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.9em 1.15em 1em;
+  text-decoration: none;
+  transition: border-color var(--dur-fast);
+}
+.galley-prose .galley-post-card {
+  color: inherit;
+  text-decoration: none;
+}
+.galley-post-card:hover {
+  border-color: var(--ink-faint);
+}
+.galley-post-card-title {
+  display: block;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  line-height: 1.5;
+  transition: color var(--dur-fast);
+}
+.galley-post-card:hover .galley-post-card-title {
+  color: var(--accent);
+}
+.galley-post-card-summary {
+  display: block;
+  margin-top: 0.25em;
+  font-size: 0.9em;
+  line-height: 1.75;
+  color: var(--ink-soft);
+}
+.galley-post-card-meta {
+  display: block;
+  margin-top: 0.45em;
+  font-family: var(--font-ui);
+  font-size: 0.75em;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+
 /* ---- 依据与悬浮卡片 ------------------------------------------------------ */
 
 /* 依据标记：不显眼的点状下划线，表示这段话有知识块支撑 */

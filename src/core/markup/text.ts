@@ -10,6 +10,8 @@ export function plainText(source: string): string {
     .replace(/\]\{[^}]*\}/g, "") // ]{b=...}
     .replace(/:{1,3}[a-z]+\{[^}]*\}/gi, "") // :value{...}
     .replace(/\]\([^)]*\)/g, "") // 链接的地址
+    .replace(/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/gm, "") // 表格的分隔行
     .replace(/[*_`#>[\]]/g, "")
+    .replace(/\|/g, " ") // 表格的竖线换成空格，免得两格的字连在一起
     .replace(/[ \t]+/g, " ");
 }

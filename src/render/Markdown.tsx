@@ -2,7 +2,9 @@ import { toJsxRuntime } from "hast-util-to-jsx-runtime";
 import type { Root as MdastRoot } from "mdast";
 import type { ReactNode } from "react";
 import { Fragment, jsx, jsxs } from "react/jsx-runtime";
+import Link from "next/link";
 import remarkDirective from "remark-directive";
+import remarkGfm from "remark-gfm";
 import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
 import { unified } from "unified";
@@ -10,6 +12,7 @@ import { visit } from "unist-util-visit";
 import { BUILTIN_DIRECTIVES, getComponent } from "@/core/markup/components";
 import { isBareText, isDirective } from "@/core/markup/parse";
 import type { BlockView } from "@/core/services/blocks";
+import type { PostCard } from "@/core/services/documents";
 import { CiteHover } from "./CiteHover";
 
 /**
@@ -59,7 +62,7 @@ const formatDate = (d: Date) => new Date(d).toISOString().slice(0, 10);
  * 正文里只保留读者关心的东西（内容本身和数据的出处）。
  * 这些系统信息只在后台的审阅预览里显示，由 Markdown 的 review 参数打开。
  */
-type Ctx = { blocks: Record<string, BlockView>; review: boolean };
+type Ctx = { blocks: Record<string, BlockView>; posts: Record<string, PostCard>; review: boolean };
 
 function Sources({ block }: { block: BlockView }) {
   if (block.sources.length === 0) return null;
@@ -210,6 +213,44 @@ function Chart({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
   );
 }
 
+/** 时间线：作者写的是一个列表，样式把它画成一条竖线和一串节点。 */
+function Timeline({ props }: { props: ElementProps }) {
+  return <div className="galley-timeline">{props.children}</div>;
+}
+
+/**
+ * 引文：把一个知识块作为一段突出的引文。观点和经历就是站长自己的话，不加署名；
+ * 事实和概念带上出处。
+ */
+function Quote({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
+  const block = ctx.blocks[attrsOf(props).b];
+  if (!block) return null;
+  return (
+    <figure className="galley-quote">
+      <blockquote>{block.body}</blockquote>
+      {(block.sources.length > 0 || ctx.review) && (
+        <figcaption className="galley-figcaption">
+          <Sources block={block} />
+          {ctx.review && <SystemInfo block={block} />}
+        </figcaption>
+      )}
+    </figure>
+  );
+}
+
+/** 文章卡片：站内另一篇已发布的文章。那篇文章下线了就不显示。 */
+function Post({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
+  const post = ctx.posts[attrsOf(props).slug];
+  if (!post) return null;
+  return (
+    <Link href={`/posts/${post.slug}`} className="galley-post-card">
+      <span className="galley-post-card-title">{post.title}</span>
+      {post.summary && <span className="galley-post-card-summary">{post.summary}</span>}
+      {post.publishedAt && <span className="galley-post-card-meta">{formatDate(post.publishedAt)}</span>}
+    </Link>
+  );
+}
+
 const CALLOUT_TYPES = ["info", "tip", "warning"];
 
 function Callout({ props }: { props: ElementProps }) {
@@ -220,15 +261,18 @@ function Callout({ props }: { props: ElementProps }) {
 export function Markdown({
   body,
   blocks,
+  posts = {},
   review = false,
 }: {
   body: string;
   blocks: Record<string, BlockView>;
+  /** 文章卡片引用到的站内文章 */
+  posts?: Record<string, PostCard>;
   /** 审阅预览：额外显示知识块的编号、内部标题、核实日期和过期状态。前台阅读时不显示。 */
   review?: boolean;
 }) {
-  const ctx: Ctx = { blocks, review };
-  const processor = unified().use(remarkParse).use(remarkDirective).use(remarkGalley, { source: body }).use(remarkRehype);
+  const ctx: Ctx = { blocks, posts, review };
+  const processor = unified().use(remarkParse).use(remarkGfm).use(remarkDirective).use(remarkGalley, { source: body }).use(remarkRehype);
   const tree = processor.runSync(processor.parse(body));
   const components = {
     "galley-cite": (props: ElementProps) => <Cite ctx={ctx} props={props} />,
@@ -236,6 +280,15 @@ export function Markdown({
     "galley-block": (props: ElementProps) => <BlockEmbed ctx={ctx} props={props} />,
     "galley-chart": (props: ElementProps) => <Chart ctx={ctx} props={props} />,
     "galley-callout": (props: ElementProps) => <Callout props={props} />,
+    "galley-timeline": (props: ElementProps) => <Timeline props={props} />,
+    "galley-quote": (props: ElementProps) => <Quote ctx={ctx} props={props} />,
+    "galley-post": (props: ElementProps) => <Post ctx={ctx} props={props} />,
+    // 宽表格在窄屏上左右滑动，不撑破版面
+    table: (props: { children?: ReactNode }) => (
+      <div className="galley-table-wrap">
+        <table>{props.children}</table>
+      </div>
+    ),
   };
   return (
     <div className="galley-prose">
