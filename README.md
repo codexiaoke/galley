@@ -78,22 +78,39 @@ pnpm dev
 
 ## 用 Docker 部署
 
-需要 Docker。在项目目录下建一个 `.env` 文件，写上后台密码（至少 12 位）：
+服务器上需要装好 Docker。把代码拿到服务器上，在项目目录里运行：
 
 ```bash
-echo "GALLEY_ADMIN_PASSWORD=换成你自己的密码" > .env
+git clone https://github.com/codexiaoke/galley.git && cd galley
 ```
 
 ```bash
-docker compose up -d --build
+./deploy.sh
 ```
 
-站点在 http://localhost:3000 ，后台在 `/admin`。
+脚本会问三个问题：对外开放的端口（默认 3000）、域名（可以不填）、后台密码（可以让它自动生成），写进 `.env`，然后构建、启动、等服务就绪，最后告诉你访问地址。本机防火墙（ufw、firewalld）开着时，它会问你要不要放行端口。
 
-- **数据**在 `galley-data` 这个卷里（数据库和上传的图片），升级镜像不会丢。升级时重新执行上面的启动命令即可，数据库结构会在启动时自动更新。
-- **对外提供服务**时，在前面放一个带 HTTPS 的反向代理（Caddy、Nginx 等），把请求转到 3000 端口，并在后台的"站点设置"里填上网站地址。反向代理需要带上 `X-Forwarded-Proto` 和 `X-Forwarded-Host` 请求头，Caddy 默认会带。
+两种对外开放的方式：
+
+- **直接开放端口**：不填域名。读者访问 `http://服务器地址:端口`，没有 HTTPS，适合先跑起来看看。
+- **域名加 HTTPS**：填上域名（要先解析到这台服务器）。会多起一个 Caddy 占用 80 和 443 端口，自动申请和续期证书；Galley 自己的端口只在本机能访问。部署完在后台的"站点设置"里把网站地址填成 `https://你的域名`。
+
+用云服务器（阿里云、腾讯云、AWS 等）时，还要在控制台的"安全组"里放行对应的端口（直接开放时是你填的端口，用域名时是 80 和 443），脚本改不了这个。
+
+之后的日常操作：
+
+| 命令 | 作用 |
+|---|---|
+| `./deploy.sh` | 改了 `.env`（端口、域名、密码）之后重新启动 |
+| `./deploy.sh update` | 拉取最新代码，重新构建并启动 |
+| `./deploy.sh status` | 运行状态和健康检查 |
+| `./deploy.sh logs` | 看日志 |
+| `./deploy.sh stop` | 停止，数据保留 |
+
+- **数据**在 `galley-data` 这个卷里（数据库和上传的图片），升级、重建都不会丢，数据库结构会在启动时自动更新。
 - **备份**在后台的"备份与导出"页：下载的压缩包里是数据库的完整快照和全部图片，换服务器时在新站点的同一个页面上传它就能原样恢复。
 - **健康检查**地址是 `/healthz`，镜像里已经配好。
+- 不想用脚本的话，`docker-compose.yml` 开头的注释里写了手动部署的步骤。用自己的 Nginx 做反向代理时，要带上 `X-Forwarded-Proto` 和 `X-Forwarded-Host` 请求头。
 
 环境变量：
 
@@ -101,7 +118,9 @@ docker compose up -d --build
 |---|---|
 | `GALLEY_ADMIN_PASSWORD` | 后台管理员密码，至少 12 位。不设置时后台不可用 |
 | `GALLEY_DATA_DIR` | 数据目录。镜像里默认是 `/data`，本地运行时默认是项目下的 `data` |
-| `PORT` | 监听的端口，默认 3000 |
+| `GALLEY_PORT` | 用 Docker 部署时对外开放的端口，默认 3000（写在 `.env` 里，`deploy.sh` 会帮你填） |
+| `GALLEY_DOMAIN` | 用 Docker 部署时绑定的域名。填了就自动配置 HTTPS |
+| `PORT` | 程序在容器里监听的端口，默认 3000，一般不用改 |
 | `GALLEY_SMTP_URL` | 可选。发通知邮件用的 SMTP 地址，例如 `smtps://用户名:密码@smtp.example.com:465`。也可以不用环境变量，直接在后台"站点设置"里填；两边都有时以环境变量为准 |
 | `GALLEY_NOTIFY_TO` | 可选。收通知的邮箱。和上一项一起配置才会发邮件 |
 | `GALLEY_MAIL_FROM` | 可选。发件人，不填时用收件人 |

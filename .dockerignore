@@ -10,4 +10,6 @@ data
 next-env.d.ts
 Dockerfile
 docker-compose.yml
+deploy.sh
+deploy
 .dockerignore

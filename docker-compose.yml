@@ -1,12 +1,18 @@
 # 用 Docker 运行 Galley。
 #
-# 1. 在同一个目录下建一个 .env 文件，写上后台密码（至少 12 位）：
-#      GALLEY_ADMIN_PASSWORD=换成你自己的密码
-# 2. 启动：docker compose up -d --build
-# 3. 打开 http://localhost:3000 ，后台在 /admin
+# 最省事的办法是运行项目根目录下的 ./deploy.sh，它会帮你生成配置、构建、启动，并检查能不能访问。
+# 也可以手动来：
+#   1. 在同一个目录下建一个 .env 文件，至少写上后台密码（12 位以上）：
+#        GALLEY_ADMIN_PASSWORD=换成你自己的密码
+#   2. 启动：docker compose up -d --build
+#   3. 打开 http://服务器地址:3000 ，后台在 /admin
 #
-# 数据（数据库和上传的图片）在 galley-data 这个卷里，升级镜像不会丢。
-# 对外提供服务时，请在前面放一个带 HTTPS 的反向代理（Caddy、Nginx 等）。
+# 两种对外开放的方式：
+#   - 直接开放端口（默认）：读者访问 http://服务器地址:端口。端口用 .env 里的 GALLEY_PORT 改，默认 3000。
+#   - 用域名加 HTTPS：在 .env 里写上 GALLEY_DOMAIN=你的域名，启动时加 --profile https，
+#     会多起一个 Caddy，占用 80 和 443 端口，自动申请和续期证书。这时 Galley 自己的端口只在本机能访问。
+#
+# 数据（数据库和上传的图片）在 galley-data 这个卷里，升级、重建都不会丢。
 
 services:
   galley:
@@ -14,16 +20,38 @@ services:
     image: galley:latest
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      # 绑定的地址：默认 0.0.0.0，所有人都能访问；用 HTTPS 时 deploy.sh 会改成 127.0.0.1，只让 Caddy 访问。
+      - "${GALLEY_BIND:-0.0.0.0}:${GALLEY_PORT:-3000}:3000"
     environment:
       # 后台管理员密码，至少 12 位。不设置时后台不可用。
       GALLEY_ADMIN_PASSWORD: ${GALLEY_ADMIN_PASSWORD:?请在 .env 文件里设置 GALLEY_ADMIN_PASSWORD}
-      # 邮件通知，可以不配。配置方法见 .env.example
+      # 下面几项都可以不配。邮件也可以在后台的「站点设置」里填，配置方法见 .env.example
       GALLEY_SMTP_URL: ${GALLEY_SMTP_URL:-}
       GALLEY_NOTIFY_TO: ${GALLEY_NOTIFY_TO:-}
       GALLEY_MAIL_FROM: ${GALLEY_MAIL_FROM:-}
+      GALLEY_SECRET_KEY: ${GALLEY_SECRET_KEY:-}
     volumes:
       - galley-data:/data
 
+  # 用域名加 HTTPS 时才启动（docker compose --profile https up -d）。
+  caddy:
+    image: caddy:2
+    profiles: ["https"]
+    restart: unless-stopped
+    depends_on:
+      - galley
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      GALLEY_DOMAIN: ${GALLEY_DOMAIN:-}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
 volumes:
   galley-data:
+  caddy-data:
+  caddy-config:

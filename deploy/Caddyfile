@@ -1,0 +1,7 @@
+# Caddy 的配置：把你的域名转给 Galley，并自动申请、续期 HTTPS 证书。
+# 域名来自 .env 里的 GALLEY_DOMAIN。域名要先解析到这台服务器，80 和 443 端口要能从外面访问，证书才申请得下来。
+{$GALLEY_DOMAIN} {
+	encode zstd gzip
+	# Caddy 会带上 X-Forwarded-Proto 和 X-Forwarded-Host，Galley 靠它们知道读者是通过 HTTPS 访问的。
+	reverse_proxy galley:3000
+}
