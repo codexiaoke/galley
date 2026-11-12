@@ -1,0 +1,984 @@
+@import "tailwindcss";
+
+/*
+ * Galley 的书卷式风格
+ *
+ * 纸张底色、宋体正文、窄栏宽、大行距，页面上除了文字几乎没有别的东西。
+ * 唯一的强调色是校样上批注用的朱红，只用在链接、列表符号和阅读进度上。
+ */
+:root {
+  --paper: #f6f1e6; /* 页面底色：暖色纸张 */
+  --paper-raised: #fbf8f0; /* 浮在纸上的东西：悬浮卡片 */
+  --paper-sunken: #ede6d6; /* 压进纸里的东西：代码块 */
+  --ink: #29241e; /* 正文 */
+  --ink-soft: #5a5247; /* 次要文字 */
+  --ink-faint: #81786a; /* 日期、说明 */
+  --rule: #dcd3c0; /* 分隔线 */
+  --accent: #a63d2a; /* 朱红 */
+
+  /* 沿用骨架阶段的变量名，后台页面还在用 */
+  --background: var(--paper);
+  --foreground: var(--ink);
+
+  /* 西文在前：字母和数字用西文衬线体，汉字落到宋体上 */
+  --font-serif:
+    Charter, "Bitstream Charter", Cambria, "Galley Song", "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", STSong,
+    SimSun, serif;
+  /* 标题里的西文也用宋体自带的字母：西文衬线体的粗体比宋体的粗体重得多，混排会一深一浅 */
+  --font-heading: "Galley Song", "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", STSong, SimSun, serif;
+  --font-kai: Charter, Cambria, "Kaiti SC", STKaiti, KaiTi, "Songti SC", serif;
+  --font-ui: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #1b1916;
+    --paper-raised: #26231f;
+    --paper-sunken: #141210;
+    --ink: #d9d2c3;
+    --ink-soft: #a8a092;
+    --ink-faint: #7f786c;
+    --rule: #38332c;
+    --accent: #d98b73;
+  }
+}
+
+/*
+ * 宋体的粗体
+ *
+ * Chromium 在 macOS 上按字重找不到"Songti SC"的粗体，标题里的汉字会显示成常规粗细。
+ * 这里按字体的具体名称把常规体和粗体分别登记到一个自定义的字体名下，字重才能对上。
+ * 都是读者电脑上已有的字体，不需要下载。
+ */
+@font-face {
+  font-family: "Galley Song";
+  font-weight: 400;
+  src:
+    local("Songti SC Regular"), local("STSongti-SC-Regular"), local("Noto Serif CJK SC"), local("Source Han Serif SC"),
+    local("Source Han Serif CN");
+}
+@font-face {
+  font-family: "Galley Song";
+  font-weight: 700;
+  src:
+    local("Songti SC Bold"), local("STSongti-SC-Bold"), local("Noto Serif CJK SC Bold"), local("Source Han Serif SC Bold"),
+    local("Source Han Serif CN Bold");
+}
+@font-face {
+  font-family: "Galley Song";
+  font-weight: 900;
+  src:
+    local("Songti SC Black"), local("STSongti-SC-Black"), local("Noto Serif CJK SC Black"),
+    local("Source Han Serif SC Heavy"), local("Source Han Serif CN Heavy");
+}
+
+/*
+ * 后台的配色
+ *
+ * 参照 Notion 和飞书这一类文档工具：白底，几乎看不见的边框，暖灰色的文字，
+ * 不用投影和色块堆出层次，而是靠留白、字号和对齐。颜色只出现在标签和主按钮上。
+ * 后台是每天要长时间使用的工具，耐看比抢眼重要。
+ * 这些变量只在 .admin 之内生效。
+ */
+.admin {
+  --a-bg: #ffffff;
+  --a-sidebar: #fbfbfa;
+  --a-surface: #ffffff;
+  --a-subtle: #f6f6f4;
+  --a-border: #ebebe9;
+  --a-text: #37352f;
+  --a-muted: #84827c;
+  --a-primary: #2383e2;
+  --a-primary-strong: #1670cc;
+  --a-primary-soft: #e9f2fc;
+  --a-danger: #d44c47;
+  --a-danger-soft: #fdebec;
+  --a-success: #448361;
+  --a-success-soft: #edf3ec;
+  --a-warning: #b87514;
+  --a-warning-soft: #fbf3db;
+  /* 标签用的几种淡色，取自 Notion 的选项颜色 */
+  --a-tag-gray: #f1f1ef;
+  --a-tag-gray-text: #5f5e5b;
+  --a-tag-blue: #e7f3f8;
+  --a-tag-blue-text: #2e6e93;
+  --a-tag-green: #edf3ec;
+  --a-tag-green-text: #3d7558;
+  --a-tag-yellow: #fbf3db;
+  --a-tag-yellow-text: #a67a1f;
+  --a-tag-orange: #fbecdd;
+  --a-tag-orange-text: #bd650f;
+  --a-tag-red: #fdebec;
+  --a-tag-red-text: #c2413c;
+  --a-tag-purple: #f6f3f9;
+  --a-tag-purple-text: #80589f;
+  --a-tag-pink: #faf1f5;
+  --a-tag-pink-text: #b0477c;
+  min-height: 100vh;
+  background: var(--a-bg);
+  color: var(--a-text);
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+@media (prefers-color-scheme: dark) {
+  .admin {
+    --a-bg: #191919;
+    --a-sidebar: #202020;
+    --a-surface: #191919;
+    --a-subtle: #252525;
+    --a-border: #2f2f2f;
+    --a-text: #e3e2df;
+    --a-muted: #9b9a97;
+    --a-primary: #3b93ea;
+    --a-primary-strong: #5aa6f0;
+    --a-primary-soft: #1d2f43;
+    --a-danger: #e2615c;
+    --a-danger-soft: #3b2423;
+    --a-success: #5fa37a;
+    --a-success-soft: #223329;
+    --a-warning: #cf9a3c;
+    --a-warning-soft: #372d18;
+    --a-tag-gray: #2f2f2f;
+    --a-tag-gray-text: #b5b4b0;
+    --a-tag-blue: #1f3340;
+    --a-tag-blue-text: #6fb0d6;
+    --a-tag-green: #223329;
+    --a-tag-green-text: #76b890;
+    --a-tag-yellow: #372d18;
+    --a-tag-yellow-text: #d9ad55;
+    --a-tag-orange: #3b2a1b;
+    --a-tag-orange-text: #e09a54;
+    --a-tag-red: #3b2423;
+    --a-tag-red-text: #e5807b;
+    --a-tag-purple: #2e2738;
+    --a-tag-purple-text: #b594d1;
+    --a-tag-pink: #37252e;
+    --a-tag-pink-text: #dd86b1;
+  }
+}
+
+/* ---- 后台的动效 ---------------------------------------------------------- */
+
+/* 弹框：居中、带模糊的遮罩；打开时轻微上浮放大，关闭时原路收回 */
+.admin-dialog {
+  margin: auto;
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+  border: 0;
+  border-radius: 10px;
+  background: var(--a-surface);
+  padding: 0;
+  color: var(--a-text);
+  box-shadow:
+    0 0 0 1px rgb(15 15 15 / 0.06),
+    0 5px 14px rgb(15 15 15 / 0.08),
+    0 18px 40px rgb(15 15 15 / 0.14);
+}
+.admin-dialog[data-size="wide"] {
+  width: min(44rem, calc(100vw - 2rem));
+}
+.admin-dialog::backdrop {
+  background: rgb(15 15 15 / 0.38);
+}
+.admin-dialog[open] {
+  animation: admin-dialog-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.admin-dialog[open]::backdrop {
+  animation: admin-fade-in 200ms ease-out;
+}
+.admin-dialog[data-closing] {
+  animation: admin-dialog-out 150ms ease-in forwards;
+}
+.admin-dialog[data-closing]::backdrop {
+  animation: admin-fade-out 150ms ease-in forwards;
+}
+@keyframes admin-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+}
+@keyframes admin-dialog-out {
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+@keyframes admin-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes admin-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* 下拉选择的选项列表：打开时轻微下滑淡入 */
+.admin-select-list {
+  animation: admin-select-in 140ms cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: top center;
+}
+@keyframes admin-select-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+/* 提示条：从右侧滑入，离开时淡出上移 */
+.admin-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border-radius: 8px;
+  background: var(--a-surface);
+  padding: 0.6rem 0.9rem;
+  font-size: 0.875rem;
+  color: var(--a-text);
+  box-shadow:
+    0 0 0 1px rgb(15 15 15 / 0.07),
+    0 6px 20px rgb(15 15 15 / 0.12);
+  animation: admin-toast-in 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.admin-toast[data-leaving] {
+  animation: admin-toast-out 200ms ease-in forwards;
+}
+@keyframes admin-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+@keyframes admin-toast-out {
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+/* 切换页面时，新内容轻微上浮淡入。只在开始前保持起始状态，结束后不残留位移。 */
+.admin-enter {
+  animation: admin-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+@keyframes admin-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* 菜单里选中项的底色块，切换时滑动过去 */
+::view-transition-group(.admin-pill) {
+  animation-duration: 260ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 加载占位：灰色块上一道缓慢扫过的光 */
+.admin-skeleton {
+  background: linear-gradient(90deg, var(--a-subtle) 25%, color-mix(in srgb, var(--a-subtle) 55%, var(--a-surface)) 50%, var(--a-subtle) 75%);
+  background-size: 200% 100%;
+  animation: admin-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes admin-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* 从 0 滚动到目标值的数字 */
+@property --n {
+  syntax: "<integer>";
+  initial-value: 0;
+  inherits: false;
+}
+.admin-count {
+  counter-reset: n var(--n);
+  animation: admin-count 700ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+.admin-count::after {
+  content: counter(n);
+}
+@keyframes admin-count {
+  from {
+    --n: 0;
+  }
+}
+
+/* 可以点的卡片：悬停时底色轻微加深。文档类工具不用"抬起"的效果。 */
+.admin-lift {
+  transition:
+    background-color 120ms,
+    box-shadow 120ms;
+}
+.admin-lift:hover {
+  background: var(--a-subtle);
+}
+
+.admin-logo {
+  background: var(--a-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-dialog,
+  .admin-dialog::backdrop,
+  .admin-select-list,
+  .admin-toast,
+  .admin-enter,
+  .admin-skeleton,
+  .admin-count {
+    animation: none !important;
+  }
+}
+
+@theme inline {
+  --color-a-bg: var(--a-bg);
+  --color-a-sidebar: var(--a-sidebar);
+  --color-a-surface: var(--a-surface);
+  --color-a-subtle: var(--a-subtle);
+  --color-a-border: var(--a-border);
+  --color-a-text: var(--a-text);
+  --color-a-muted: var(--a-muted);
+  --color-a-primary: var(--a-primary);
+  --color-a-primary-strong: var(--a-primary-strong);
+  --color-a-primary-soft: var(--a-primary-soft);
+  --color-a-danger: var(--a-danger);
+  --color-a-danger-soft: var(--a-danger-soft);
+  --color-a-success: var(--a-success);
+  --color-a-success-soft: var(--a-success-soft);
+  --color-a-warning: var(--a-warning);
+  --color-a-warning-soft: var(--a-warning-soft);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-paper: var(--paper);
+  --color-paper-raised: var(--paper-raised);
+  --color-paper-sunken: var(--paper-sunken);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-rule: var(--rule);
+  --color-accent: var(--accent);
+  --font-sans: var(--font-ui);
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-geist-mono);
+}
+
+/*
+ * 动画
+ *
+ * 原则：动画只用来说明"发生了什么"，不用来装饰。幅度小、时间短，不让读者等。
+ * 一共四类：
+ *   1. 进入：内容出现时轻微上浮并淡入，列表各行依次出现；
+ *   2. 延续：点进文章时，列表里的标题移动放大成文章标题；切换分类时红线滑过去；
+ *   3. 反馈：鼠标悬停时的颜色、下划线、位移；
+ *   4. 进度：页面顶部的阅读进度线。
+ * 读者在系统里设置了"减少动态效果"时，全部关闭。
+ */
+:root {
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 160ms;
+  --dur-base: 320ms;
+  --dur-slow: 460ms;
+}
+
+@keyframes galley-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/*
+ * 只在动画开始前保持起始状态（backwards），结束后不保留任何位移。
+ * 如果用 both，元素结束后仍然算作"有位移"，它里面按窗口定位的东西都会错位。
+ */
+.galley-rise {
+  animation: galley-rise var(--dur-slow) var(--ease-out) backwards;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+/* 标题从列表移动到文章页 */
+::view-transition-group(.morph-title) {
+  animation-duration: 420ms;
+  animation-timing-function: var(--ease-out);
+}
+::view-transition-old(.morph-title),
+::view-transition-new(.morph-title) {
+  /* 两个标题的字号不同，按高度对齐、保持比例，避免文字被拉扁 */
+  height: 100%;
+  width: auto;
+  object-fit: contain;
+  object-position: left center;
+}
+
+/* 分类导航的红线滑动 */
+::view-transition-group(.slide-marker) {
+  animation-duration: var(--dur-base);
+  animation-timing-function: var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .galley-rise {
+    animation: none;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+  }
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-ui);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* ---- 前台的版面 ---------------------------------------------------------- */
+
+.galley-site {
+  font-family: var(--font-serif);
+  /* 中英文之间自动留出间距、行首的标点收紧：浏览器支持时才生效 */
+  text-autospace: normal;
+  text-spacing-trim: trim-start;
+}
+
+/*
+ * 阅读区域的宽度
+ *
+ * 屏幕越宽，栏宽和字号一起放大，让文字占据更多版面，
+ * 同时每行保持在 38 到 40 个汉字：再长，眼睛换行时容易串行。
+ */
+.galley-page {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 46rem;
+  padding-inline: 1.5rem;
+  --prose-size: 1.125rem;
+}
+@media (min-width: 900px) {
+  .galley-page {
+    max-width: 49rem;
+    --prose-size: 1.1875rem;
+  }
+}
+@media (min-width: 1400px) {
+  .galley-page {
+    max-width: 53rem;
+    --prose-size: 1.25rem;
+  }
+}
+
+/* 阅读进度：页面顶部一条朱红细线，随滚动变长。浏览器不支持时不显示。 */
+.galley-progress {
+  display: none;
+}
+@supports (animation-timeline: scroll()) {
+  .galley-progress {
+    display: block;
+    position: fixed;
+    inset: 0 0 auto 0;
+    z-index: 40;
+    height: 2px;
+    background: var(--accent);
+    transform-origin: 0 50%;
+    animation: galley-progress linear both;
+    animation-timeline: scroll(root);
+  }
+}
+@keyframes galley-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.galley-title {
+  font-family: var(--font-heading);
+  width: fit-content;
+  max-width: 100%;
+  font-size: clamp(1.8rem, 1.3rem + 2.2vw, 2.6rem);
+  font-weight: 900;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  text-wrap: balance;
+}
+
+.galley-meta {
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- 页面顶部的一行：网站名和分类导航 -------------------------------------- */
+
+.galley-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem 2rem;
+  /* 分隔线用浅色：当前分类的朱红线压在上面，深色的线会把它盖住 */
+  border-bottom: 1px solid var(--rule);
+  padding: 1.6rem 0 0.9rem;
+}
+.galley-sitename {
+  font-family: var(--font-heading);
+  font-size: 1.55rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  line-height: 1.3;
+  transition: color 0.15s;
+}
+.galley-sitename:hover {
+  color: var(--accent);
+}
+.galley-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 1.75rem;
+  font-size: 0.95rem;
+}
+.galley-nav a {
+  position: relative;
+  padding: 0.1rem 0;
+  color: var(--ink-soft);
+  transition: color var(--dur-fast);
+}
+.galley-nav a:hover {
+  color: var(--ink);
+}
+.galley-nav a[aria-current="page"] {
+  color: var(--ink);
+  font-weight: 700;
+}
+/* 悬停时，文字下面一条细线从左向右展开 */
+.galley-nav a:not([aria-current="page"])::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 calc(-0.9rem - 1px) 0;
+  height: 3px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.galley-nav a:not([aria-current="page"]):hover::after {
+  transform: scaleX(1);
+}
+/* 当前分类下面的朱红线，正好压在顶部那条浅色分隔线上 */
+.galley-nav-marker {
+  position: absolute;
+  inset: auto 0 calc(-0.9rem - 1px) 0;
+  height: 3px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+
+/* ---- 首页和分类页：文章列表，一篇一行 ------------------------------------ */
+
+.galley-home {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 60rem;
+  padding: 0 1.5rem 4rem;
+}
+.galley-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.3rem 2.5rem;
+  border-bottom: 1px solid var(--rule);
+  padding: 1.15rem 0 1.2rem;
+}
+.galley-row-main {
+  display: block;
+  min-width: 0;
+}
+.galley-row-title {
+  /* 宽度贴合文字：标题移动到文章页时，起点和终点的形状才对得上 */
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  font-family: var(--font-heading);
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.45;
+  transition:
+    color var(--dur-fast),
+    transform var(--dur-base) var(--ease-out);
+}
+.galley-row-summary {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 1rem;
+  line-height: 1.75;
+  color: var(--ink-soft);
+}
+.galley-row-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.galley-row-category {
+  color: var(--accent);
+}
+.galley-row:hover .galley-row-title {
+  color: var(--accent);
+  transform: translateX(5px);
+}
+.galley-row-summary {
+  transition: color var(--dur-fast);
+}
+.galley-row:hover .galley-row-summary {
+  color: var(--ink);
+}
+@media (max-width: 639px) {
+  .galley-row {
+    grid-template-columns: 1fr;
+  }
+  .galley-row-meta {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.9rem;
+    margin-top: 0.15rem;
+  }
+}
+
+.galley-empty {
+  padding: 4rem 0;
+  text-align: center;
+  color: var(--ink-faint);
+}
+
+/* ---- 文章页的标题区 ------------------------------------------------------ */
+
+.galley-article {
+  padding-top: 2.75rem;
+}
+.galley-article-header {
+  margin-bottom: 2.25rem;
+}
+.galley-article-header .galley-meta {
+  margin-top: 0.9rem;
+}
+.galley-meta-category {
+  color: var(--accent);
+}
+.galley-meta-category:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* ---- 文章正文 ------------------------------------------------------------ */
+
+.galley-prose {
+  font-family: var(--font-serif);
+  font-size: var(--prose-size, 1.125rem);
+  line-height: 1.95;
+  text-align: justify;
+  line-break: strict;
+  overflow-wrap: break-word;
+  hanging-punctuation: allow-end;
+}
+.galley-prose > * + * {
+  margin-top: 1.25em;
+}
+.galley-prose h2,
+.galley-prose h3 {
+  font-family: var(--font-heading);
+}
+.galley-prose h2 {
+  margin-top: 2.1em;
+  font-size: 1.4em;
+  font-weight: 700;
+  line-height: 1.5;
+  text-align: left;
+}
+.galley-prose h3 {
+  margin-top: 1.7em;
+  font-size: 1.15em;
+  font-weight: 700;
+  line-height: 1.6;
+  text-align: left;
+}
+.galley-prose h2 + *,
+.galley-prose h3 + * {
+  margin-top: 0.9em;
+}
+.galley-prose strong {
+  font-weight: 700;
+}
+.galley-prose a {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  transition: color 0.15s;
+}
+.galley-prose a {
+  transition:
+    color var(--dur-fast),
+    text-decoration-color var(--dur-fast);
+}
+.galley-prose a:hover {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
+.galley-prose ul,
+.galley-prose ol {
+  padding-left: 1.5em;
+}
+.galley-prose ul {
+  list-style: disc;
+}
+.galley-prose ol {
+  list-style: decimal;
+}
+.galley-prose li + li {
+  margin-top: 0.35em;
+}
+.galley-prose li::marker {
+  color: var(--accent);
+}
+/* 引文用楷体，和正文的宋体区分开 */
+.galley-prose blockquote {
+  border-left: 2px solid var(--rule);
+  padding-left: 1.2em;
+  font-family: var(--font-kai);
+  color: var(--ink-soft);
+}
+.galley-prose hr {
+  margin: 3em auto;
+  width: 4rem;
+  border: 0;
+  border-top: 1px solid var(--rule);
+}
+.galley-prose code {
+  font-family: var(--font-geist-mono), "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.84em;
+}
+.galley-prose :not(pre) > code {
+  border-radius: 4px;
+  background: var(--paper-sunken);
+  padding: 0.12em 0.4em;
+}
+.galley-prose pre {
+  overflow-x: auto;
+  border-radius: 6px;
+  background: var(--paper-sunken);
+  padding: 1.1em 1.25em;
+  line-height: 1.7;
+  text-align: left;
+}
+.galley-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+  text-align: left;
+}
+.galley-prose th {
+  border-bottom: 1px solid var(--ink-faint);
+  padding: 0.4em 0.6em;
+  font-weight: 700;
+}
+.galley-prose td {
+  border-bottom: 1px solid var(--rule);
+  padding: 0.4em 0.6em;
+}
+
+/* ---- 嵌入的内容 ---------------------------------------------------------- */
+
+/* 数据、图表、概念：上下各一条细线，像书里的插图 */
+.galley-figure {
+  margin: 2.2em 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  padding: 1.3em 0 1.1em;
+  text-align: left;
+}
+.galley-figcaption {
+  margin-top: 1em;
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  line-height: 1.7;
+  color: var(--ink-faint);
+}
+.galley-figcaption-title {
+  display: block;
+  color: var(--ink-soft);
+}
+.galley-figcaption a {
+  text-decoration-color: color-mix(in srgb, var(--ink-faint) 60%, transparent);
+}
+
+.galley-chart {
+  display: grid;
+  gap: 0.7em;
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+}
+.galley-chart-row {
+  display: grid;
+  grid-template-columns: minmax(4rem, 8rem) 1fr 3rem;
+  align-items: center;
+  gap: 0.9rem;
+}
+.galley-chart-bar {
+  height: 0.55rem;
+  border-radius: 1px;
+  background: var(--ink);
+}
+.galley-chart-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
+
+/* 提示框：左侧一条色线，底色只比纸张深一点 */
+.galley-callout {
+  margin: 2em 0;
+  border-left: 2px solid var(--callout-color, var(--ink-faint));
+  background: color-mix(in srgb, var(--callout-color, var(--ink-faint)) 7%, transparent);
+  padding: 0.9em 1.2em;
+  font-size: 0.95em;
+  line-height: 1.85;
+}
+.galley-callout > * + * {
+  margin-top: 0.8em;
+}
+.galley-callout-info {
+  --callout-color: #4a6f8a;
+}
+.galley-callout-tip {
+  --callout-color: #5b7a4b;
+}
+.galley-callout-warning {
+  --callout-color: #b07a1e;
+}
+
+/* ---- 依据与悬浮卡片 ------------------------------------------------------ */
+
+/* 依据标记：不显眼的点状下划线，表示这段话有知识块支撑 */
+.galley-cite {
+  cursor: help;
+  border-radius: 2px;
+  text-decoration: underline dotted;
+  text-decoration-color: color-mix(in srgb, var(--ink) 38%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 5px;
+  outline: none;
+  transition: background-color 0.12s;
+}
+.galley-cite:hover,
+.galley-cite:focus-visible,
+.galley-cite[aria-describedby] {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  text-decoration-color: var(--accent);
+}
+/* 只在后台的审阅预览里出现：依据已过期的句子 */
+.galley-cite-stale {
+  text-decoration-color: #c47a12;
+  text-decoration-style: wavy;
+}
+
+/* 依据的悬浮卡片。位置由 CiteHover 计算后写入，算好之前不可见，避免闪一下。 */
+.galley-cite-card {
+  position: fixed;
+  z-index: 50;
+  left: 0;
+  top: 0;
+  width: 21rem;
+  max-width: calc(100vw - 24px);
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(3px);
+  transition:
+    opacity 0.12s ease-out,
+    transform 0.12s ease-out;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper-raised);
+  padding: 0.95rem 1.1rem;
+  box-shadow:
+    0 12px 32px rgb(40 30 15 / 0.14),
+    0 2px 6px rgb(40 30 15 / 0.07);
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  line-height: 1.7;
+  text-align: left;
+  color: var(--ink-faint);
+  cursor: default;
+}
+.galley-cite-card[data-ready] {
+  visibility: visible;
+  opacity: 1;
+  transform: none;
+}
+/* 卡片和句子之间的空隙上铺一层看不见的"桥"，鼠标从句子移到卡片时不会中途掉出去 */
+.galley-cite-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 14px;
+}
+.galley-cite-card[data-side="below"]::before {
+  top: -14px;
+}
+.galley-cite-card[data-side="above"]::before {
+  bottom: -14px;
+}
+.galley-cite-card a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.galley-cite-card a:hover {
+  color: var(--accent);
+}
+.galley-cite-item {
+  display: block;
+}
+.galley-cite-item + .galley-cite-item {
+  margin-top: 0.8em;
+  border-top: 1px solid var(--rule);
+  padding-top: 0.8em;
+}
+.galley-cite-statement {
+  display: block;
+  margin-bottom: 0.3em;
+  font-family: var(--font-serif);
+  font-size: 0.9rem;
+  line-height: 1.75;
+  color: var(--ink);
+}
