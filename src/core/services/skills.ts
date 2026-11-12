@@ -142,6 +142,17 @@ export function skillHistory(db: Db, name: string) {
   return db.select().from(skillRevisions).where(eq(skillRevisions.name, name)).orderBy(desc(skillRevisions.createdAt), desc(skillRevisions.id)).all();
 }
 
+/**
+ * 把现在的全部技能导出成标准的技能文件夹（每个技能一个目录，里面一个 SKILL.md），
+ * 给不通过 MCP 读技能的 Agent 产品手动安装用。导出的是下发给 Agent 的版本，程序生成的部分已经填好。
+ */
+export function exportSkillFiles(db: Db): { path: string; content: string }[] {
+  return listSkills(db).map(({ name }) => {
+    const skill = getSkill(db, name)!;
+    return { path: `${name}/SKILL.md`, content: `---\nname: ${name}\ndescription: ${skill.description}\n---\n\n${skill.content.trim()}\n` };
+  });
+}
+
 // ---- 修改建议 --------------------------------------------------------------
 
 /** 一个 Agent 同时最多留这么多条还没处理的建议，避免刷屏。 */

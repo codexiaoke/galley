@@ -1,0 +1,20 @@
+{
+  "name": "galley-site",
+  "interface": {
+    "displayName": "我的博客"
+  },
+  "plugins": [
+    {
+      "name": "galley",
+      "source": {
+        "source": "local",
+        "path": "./plugins/galley"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

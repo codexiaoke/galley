@@ -18,6 +18,10 @@ services:
     environment:
       # 后台管理员密码，至少 12 位。不设置时后台不可用。
       GALLEY_ADMIN_PASSWORD: ${GALLEY_ADMIN_PASSWORD:?请在 .env 文件里设置 GALLEY_ADMIN_PASSWORD}
+      # 邮件通知，可以不配。配置方法见 .env.example
+      GALLEY_SMTP_URL: ${GALLEY_SMTP_URL:-}
+      GALLEY_NOTIFY_TO: ${GALLEY_NOTIFY_TO:-}
+      GALLEY_MAIL_FROM: ${GALLEY_MAIL_FROM:-}
     volumes:
       - galley-data:/data
 

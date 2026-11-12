@@ -1,4 +1,4 @@
-import { BookMarked, Plus } from "lucide-react";
+import { BookMarked, Download, Plus } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { getDb } from "@/core/db/client";
@@ -35,10 +35,17 @@ async function Skills() {
         title="技能"
         description="写给 Agent 的运营要求。它每次连接都会先读这些，所以想让它换个做法，改这里比每次在批注里说一遍有效。"
         actions={
-          <Link href="/admin/skills/new" className={buttonClass("primary")}>
-            <Plus size={16} />
-            新建技能
-          </Link>
+          <>
+            {/* 给不通过 MCP 读技能的 Agent 产品手动安装用 */}
+            <a href="/admin/skills-export" className={buttonClass("secondary")} title="导出成标准的技能文件夹，给不通过 MCP 读技能的 Agent 产品手动安装">
+              <Download size={15} />
+              导出技能文件夹
+            </a>
+            <Link href="/admin/skills/new" className={buttonClass("primary")}>
+              <Plus size={16} />
+              新建技能
+            </Link>
+          </>
         }
       />
 

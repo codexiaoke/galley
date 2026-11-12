@@ -16,6 +16,7 @@ import { deleteMessage, setMessageStatus } from "@/core/services/messages";
 import { addMaterial, deleteMaterial, setMaterialStatus } from "@/core/services/materials";
 import { deleteMedia, saveMedia, updateMediaAlt } from "@/core/services/media";
 import { updateSiteSettings } from "@/core/services/settings";
+import { mailConfig, smtpSender } from "@/core/services/notify";
 import { setHiddenFromLog } from "@/core/services/oplog";
 import { resetSkill, resolveSkillSuggestion, saveSkill } from "@/core/services/skills";
 import { renameTag } from "@/core/services/tags";
@@ -284,6 +285,8 @@ export async function saveSettings(_prev: FormState, formData: FormData) {
         author: text(formData, "author"),
         url: text(formData, "url"),
         showLog: text(formData, "showLog") === "off" ? "off" : "on",
+        notifyReview: text(formData, "notifyReview") === "off" ? "off" : "on",
+        notifyMessages: text(formData, "notifyMessages") === "off" ? "off" : "on",
       }),
     { touchesPublic: true },
   );
@@ -358,4 +361,19 @@ export async function changeTag(_prev: FormState, formData: FormData) {
 
 export async function toggleLogEntry(_prev: FormState, formData: FormData) {
   return run((db, actor) => setHiddenFromLog(db, actor, text(formData, "id"), text(formData, "hidden") === "true"), { touchesPublic: true });
+}
+
+// ---- 邮件通知 ----
+
+/** 发一封测试邮件，确认 SMTP 的配置能用。失败时把服务器给的原因告诉站长。 */
+export async function sendTestMail(): Promise<FormState> {
+  await requireOwner();
+  const config = mailConfig();
+  if (!config) return { error: "还没有配置邮件。" };
+  try {
+    await smtpSender(config)({ subject: "Galley 测试邮件", text: "收到这封邮件，说明你的站点能正常发出通知。" });
+    return { ok: true };
+  } catch (e) {
+    return { error: `没有发出去：${e instanceof Error ? e.message : String(e)}` };
+  }
 }

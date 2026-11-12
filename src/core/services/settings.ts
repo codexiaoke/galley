@@ -17,10 +17,22 @@ export type SiteSettings = {
   url: string;
   /** 是否公开运营日志页（/log）。值是 "on" 或 "off" */
   showLog: "on" | "off";
+  /** 有改动等待审阅时发邮件通知 */
+  notifyReview: "on" | "off";
+  /** 有新留言时发邮件通知 */
+  notifyMessages: "on" | "off";
 };
 
 /** 还没设置过时的默认值。 */
-export const DEFAULT_SETTINGS: SiteSettings = { name: "我的博客", description: "", author: "", url: "", showLog: "on" };
+export const DEFAULT_SETTINGS: SiteSettings = {
+  name: "我的博客",
+  description: "",
+  author: "",
+  url: "",
+  showLog: "on",
+  notifyReview: "on",
+  notifyMessages: "on",
+};
 
 const KEYS = Object.keys(DEFAULT_SETTINGS) as (keyof SiteSettings)[];
 
@@ -28,7 +40,7 @@ export function getSiteSettings(db: Db): SiteSettings {
   const stored = new Map(db.select().from(settings).all().map((row) => [row.key, row.value]));
   const result = { ...DEFAULT_SETTINGS };
   for (const key of KEYS) (result as Record<string, string>)[key] = stored.get(key) ?? DEFAULT_SETTINGS[key];
-  if (result.showLog !== "off") result.showLog = "on";
+  for (const key of ["showLog", "notifyReview", "notifyMessages"] as const) if (result[key] !== "off") result[key] = "on";
   return result;
 }
 
@@ -62,7 +74,9 @@ export function updateSiteSettings(db: Db, actor: Actor, input: Partial<SiteSett
   }
   if (input.author !== undefined) next.author = input.author.trim().slice(0, 60);
   if (input.url !== undefined) next.url = normalizeUrl(input.url);
-  if (input.showLog !== undefined) next.showLog = input.showLog === "off" ? "off" : "on";
+  for (const key of ["showLog", "notifyReview", "notifyMessages"] as const) {
+    if (input[key] !== undefined) next[key] = input[key] === "off" ? "off" : "on";
+  }
 
   db.transaction((tx) => {
     for (const key of KEYS) {

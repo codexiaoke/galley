@@ -4,6 +4,7 @@ import type { Actor } from "../actor";
 import type { Db } from "../db/client";
 import { messages, type MessageStatus } from "../db/schema";
 import { forbidden, invalid, notFound } from "../errors";
+import { emitEvent } from "../events";
 import { newId } from "../ids";
 
 /**
@@ -61,9 +62,10 @@ export function submitMessage(db: Db, input: SubmitMessageInput): { accepted: tr
 
   // 只接受站内的路径，其余的丢掉：这个值会显示在后台，不能让人塞进任意内容。
   const fromPath = input.fromPath && /^\/[A-Za-z0-9\-_/]{0,120}$/.test(input.fromPath) ? input.fromPath : null;
+  const id = newId();
   db.insert(messages)
     .values({
-      id: newId(),
+      id,
       name: (input.name ?? "").trim().slice(0, 40),
       contact: (input.contact ?? "").trim().slice(0, 100),
       body,
@@ -73,6 +75,7 @@ export function submitMessage(db: Db, input: SubmitMessageInput): { accepted: tr
       createdAt: new Date(now),
     })
     .run();
+  emitEvent({ type: "message_received", messageId: id, name: (input.name ?? "").trim().slice(0, 40), body, fromPath });
   return { accepted: true, stored: true };
 }
 

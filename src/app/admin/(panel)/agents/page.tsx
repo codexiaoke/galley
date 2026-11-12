@@ -1,14 +1,15 @@
-import { Activity, Bot, CircleCheck, CircleX, Link2, Plus } from "lucide-react";
-import { headers } from "next/headers";
+import { Activity, Bot, CircleCheck, Download, CircleX, Link2, Plus } from "lucide-react";
 import { Suspense } from "react";
 import { getDb } from "@/core/db/client";
 import { listAgents, recentAgentCalls } from "@/core/services/agents";
+import { getSiteSettings } from "@/core/services/settings";
 import { TOOLS } from "@/core/tools";
 import { addAgent, resetAgentToken, saveAgentTools, setAgentStatus } from "../../actions";
 import { requireOwner } from "../../auth";
 import { CopyBlock } from "../../copy";
+import { siteMcpUrl } from "../../mcp-url";
 import { ModalForm } from "../../modal";
-import { Badge, Card, DetailRow, EmptyState, Field, formatRelative, formatTime, IconTile, INPUT, PageHeader, PageSkeleton, PrimaryCell, RowActions, Table } from "../../ui";
+import { Badge, buttonClass, Card, DetailRow, EmptyState, Field, formatRelative, formatTime, IconTile, INPUT, PageHeader, PageSkeleton, PrimaryCell, RowActions, Table } from "../../ui";
 
 export default function AgentsPage() {
   return (
@@ -20,10 +21,7 @@ export default function AgentsPage() {
 
 async function Agents() {
   await requireOwner();
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
-  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
-  const mcpUrl = `${proto}://${host}/mcp`;
+  const mcpUrl = await siteMcpUrl(getSiteSettings(getDb()).url);
   const codexConfig = `[mcp_servers.galley]\nurl = "${mcpUrl}"\nbearer_token_env_var = "GALLEY_TOKEN"\ndefault_tools_approval_mode = "approve"`;
   const db = getDb();
   const agents = listAgents(db);
@@ -62,7 +60,17 @@ async function Agents() {
             <DetailRow label="服务地址">
               <CopyBlock text={mcpUrl} />
             </DetailRow>
-            <DetailRow label="Codex 配置">
+            <DetailRow label="Codex 插件">
+              <div className="flex flex-wrap items-center gap-3">
+                {/* 普通链接而不是 Link：这是下载文件 */}
+                <a href="/admin/plugin/codex" className={buttonClass("secondary")}>
+                  <Download size={15} />
+                  下载插件
+                </a>
+                <span className="text-xs leading-relaxed text-a-muted">已经填好本站的地址。装上之后不用手动改配置，还能在任何项目里说「记到博客素材」。安装步骤在压缩包里的 README。</span>
+              </div>
+            </DetailRow>
+            <DetailRow label="手动配置 Codex">
               <CopyBlock text={codexConfig} multiline />
               <p className="mt-2 text-xs leading-relaxed text-a-muted">
                 访问密钥放在环境变量 GALLEY_TOKEN 里，不要写进配置文件。最后一行让 Codex 调用本站的工具时不再逐次询问：定时自动运行时没有人能点批准，缺了这一行它什么都做不了。放行是安全的，因为这些工具里没有发布的能力，内容仍然要你在这里批准才会上线。

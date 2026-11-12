@@ -15,6 +15,7 @@ import {
   type ChangeSetStatus,
 } from "../db/schema";
 import { conflict, forbidden, invalid, notFound } from "../errors";
+import { emitEvent } from "../events";
 import { newId } from "../ids";
 
 export type ChangeSet = typeof changeSets.$inferSelect;
@@ -178,6 +179,8 @@ export function submitChangeSet(db: Db, actor: Actor, id: string): ChangeSet {
     .set({ status: "in_review", submittedAt: new Date(), decisionNote: null })
     .where(eq(changeSets.id, id))
     .run();
+  // 站长自己的直接修改也走提交这一步，但那是他自己做的事，不用通知他。
+  if (actor.kind === "agent") emitEvent({ type: "review_requested", changeSetId: id, title: cs.title, agentName: actor.name });
   return { ...cs, status: "in_review" };
 }
 

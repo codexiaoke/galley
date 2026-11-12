@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "galley": {
+      "url": "http://localhost:3000/mcp",
+      "bearer_token_env_var": "GALLEY_TOKEN",
+      "default_tools_approval_mode": "approve"
+    }
+  }
+}
