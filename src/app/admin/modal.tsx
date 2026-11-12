@@ -171,6 +171,8 @@ function ModalFormBody({
 
   return (
     <form
+      // 页面脚本还没加载好时点了提交，浏览器会按默认方式提交表单。写明用 POST，填的内容（包括密码）就不会出现在网址里。
+      method="post"
       // 自己提交而不是交给 form 的 action：那样的话提交失败后浏览器会清空表单，站长要把内容重填一遍。
       onSubmit={(e) => {
         e.preventDefault();

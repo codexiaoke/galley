@@ -1,48 +1,38 @@
 import nodemailer from "nodemailer";
 import type { Db } from "../db/client";
 import { onEvent, type GalleyEvent } from "../events";
+import { resolveMailConfig, type MailConfig } from "./mail";
 import { getSiteSettings } from "./settings";
 
 /**
  * 邮件通知（需求文档 5.13）：有内容等站长审阅、有新留言时发邮件。
  *
- * 用标准的 SMTP，通过环境变量配置，不绑定邮件服务商：
- * - GALLEY_SMTP_URL：例如 smtps://用户名:密码@smtp.example.com:465
- * - GALLEY_NOTIFY_TO：收通知的邮箱
- * - GALLEY_MAIL_FROM：发件人，不填时用收件人
+ * 用标准的 SMTP，不绑定邮件服务商。可以在后台的"站点设置"里填，也可以用环境变量，见 services/mail.ts。
  *
  * 事情发生后先等几分钟再发，这段时间里的事合成一封：Agent 一轮运营可能连着提交好几项，不要连发好几封。
  */
-
-export type MailConfig = { url: string; to: string; from: string };
-
-export function mailConfig(env: Record<string, string | undefined> = process.env): MailConfig | null {
-  const url = env.GALLEY_SMTP_URL?.trim();
-  const to = env.GALLEY_NOTIFY_TO?.trim();
-  if (!url || !to) return null;
-  return { url, to, from: env.GALLEY_MAIL_FROM?.trim() || to };
-}
-
-/** 给站长看的配置情况。SMTP 地址里有密码，只显示服务器的地址。 */
-export function describeMailConfig(config: MailConfig | null) {
-  if (!config) return null;
-  let server = "";
-  try {
-    const parsed = new URL(config.url);
-    server = `${parsed.hostname}${parsed.port ? `:${parsed.port}` : ""}`;
-  } catch {
-    server = "（地址格式不对）";
-  }
-  return { server, to: config.to, from: config.from };
-}
 
 export type Mail = { subject: string; text: string };
 export type SendMail = (mail: Mail) => Promise<void>;
 
 export function smtpSender(config: MailConfig): SendMail {
-  const transport = nodemailer.createTransport(config.url);
+  // 连不上的服务器不要一直等着：通知是在后台发的，但测试邮件要让站长尽快看到结果。
+  const timeouts = { connectionTimeout: 15_000, greetingTimeout: 15_000, socketTimeout: 30_000 };
+  const transport =
+    typeof config.transport === "string" ? nodemailer.createTransport(config.transport) : nodemailer.createTransport({ ...config.transport, ...timeouts });
   return async ({ subject, text }) => {
     await transport.sendMail({ from: config.from, to: config.to, subject, text });
+  };
+}
+
+/**
+ * 按发信那一刻的配置发信。站长在后台改了邮件设置之后不用重启，下一封就用新的配置；
+ * 没有配置时什么都不做。
+ */
+export function configuredSender(db: Db): SendMail {
+  return async (mail) => {
+    const config = resolveMailConfig(db);
+    if (config) await smtpSender(config)(mail);
   };
 }
 

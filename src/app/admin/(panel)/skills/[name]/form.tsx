@@ -26,6 +26,8 @@ export function SkillForm({ skill, isNew }: { skill: { name: string; description
 
   return (
     <form
+      // 页面脚本还没加载好时点了提交，浏览器会按默认方式提交表单。写明用 POST，填的内容（包括密码）就不会出现在网址里。
+      method="post"
       onChange={() => {
         setDirty(true);
         setError(undefined);

@@ -1,13 +1,12 @@
 /**
- * 服务启动时运行一次。在这里开启邮件通知：配置了 SMTP 才开，没配置时什么都不做。
+ * 服务启动时运行一次。在这里开始监听需要通知站长的事。
+ * 发不发邮件、发给谁，在发的那一刻按后台的邮件设置（或者环境变量）决定，没有配置时什么都不发。
  */
 export async function register() {
   // 邮件只能在 Node.js 里发。
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
-  const { mailConfig, smtpSender, startNotifications } = await import("./core/services/notify");
+  const { configuredSender, startNotifications } = await import("./core/services/notify");
   const { getDb } = await import("./core/db/client");
-  const config = mailConfig();
-  if (!config) return;
-  startNotifications(getDb(), smtpSender(config));
-  console.log(`[galley] 邮件通知已开启，发给 ${config.to}`);
+  const db = getDb();
+  startNotifications(db, configuredSender(db));
 }

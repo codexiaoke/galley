@@ -17,6 +17,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - 新增 MCP 工具时，先在 `src/core/tools.ts` 的清单里登记（名字、分类、说明、能不能关），否则注册时会报错：站长在后台按这份清单开关工具。
 - 页面里读取数据库之前，必须先访问请求数据（`cookies()`）或调用 `await connection()`：数据库驱动是同步的，否则页面会在构建时被预渲染成固定内容。
 - 前台带缓存的读取函数（`src/app/data.ts`、`src/app/site.ts`）一律写成两层：外层 `await connection()`，内层才是 `'use cache'`。构建时执行到的缓存函数，结果会被带到线上；Docker 镜像构建时数据库是空的，站名和文章列表就会停在构建时的样子。
+- 页面上由脚本处理提交的表单（`onSubmit` 里 `preventDefault`）都要写 `method="post"`：脚本还没加载好时点了提交，浏览器会按默认的 GET 提交，填的内容（包括密码）会出现在网址里。表单里也不能再套表单（`ModalForm` 自带表单，要放在外面）。
 - 运行时要从磁盘读的东西（`drizzle/`、`skills/`）不在构建产物里，新增这类目录时要同时加进 `Dockerfile`。
 - 前台和后台是两套界面：前台用 `galley-` 开头的样式（纸张色、宋体），后台用 `src/app/admin/ui.tsx` 和 `modal.tsx` 里的零件（`a-` 开头的配色）。不要混用。
 - 后台的列表用表格，新建、编辑、确认类操作用 `ModalForm` 弹框；服务端操作统一走 `actions.ts` 里的 `run`。

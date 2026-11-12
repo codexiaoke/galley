@@ -182,6 +182,8 @@ export function Commentable({
         <div data-comment-ui className="absolute z-20 font-sans" style={{ top: draft.top, left: draft.left }}>
           {composing ? (
             <form
+              // 页面脚本还没加载好时点了提交，浏览器会按默认方式提交表单。写明用 POST，填的内容（包括密码）就不会出现在网址里。
+              method="post"
               className="admin-pop w-72 rounded-lg bg-a-surface p-3 text-sm text-a-text shadow-[0_0_0_1px_rgb(15_15_15/0.08),0_6px_20px_rgb(15_15_15/0.14)]"
               onSubmit={(e) => {
                 e.preventDefault();

@@ -101,13 +101,19 @@ export function Sidebar() {
       pill.style.opacity = "0";
       return;
     }
-    // 横排放不下时菜单可以左右滑动。选中的那一项如果有一部分在外面，先把它滑进来。
+    // 菜单放不下时可以滑动：窄屏上左右滑，宽屏上窗口太矮时上下滑。
+    // 选中的那一项如果有一部分在外面，先把它滑进来。
+    // 菜单是定位元素，所以 offsetLeft、offsetTop 就是这一项相对菜单内容的位置。
+    const margin = 12;
     if (nav.scrollWidth > nav.clientWidth) {
-      // 菜单是定位元素，所以 offsetLeft 就是这一项相对菜单内容左边的距离。
       const start = link.offsetLeft;
-      const margin = 12;
       if (start - margin < nav.scrollLeft) nav.scrollLeft = start - margin;
       else if (start + link.offsetWidth + margin > nav.scrollLeft + nav.clientWidth) nav.scrollLeft = start + link.offsetWidth + margin - nav.clientWidth;
+    }
+    if (nav.scrollHeight > nav.clientHeight) {
+      const top = link.offsetTop;
+      if (top - margin < nav.scrollTop) nav.scrollTop = top - margin;
+      else if (top + link.offsetHeight + margin > nav.scrollTop + nav.clientHeight) nav.scrollTop = top + link.offsetHeight + margin - nav.clientHeight;
     }
     const navBox = nav.getBoundingClientRect();
     const box = link.getBoundingClientRect();
@@ -147,13 +153,20 @@ export function Sidebar() {
 
   return (
     <aside className="border-b border-a-border bg-a-sidebar lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:border-b-0 lg:border-r">
-      <div className="flex items-center gap-2.5 px-5 py-4">
+      <div className="flex shrink-0 items-center gap-2.5 px-5 py-4">
         <span className="admin-logo grid size-7 place-items-center rounded-md text-sm font-bold text-white">G</span>
         <span className="font-semibold">Galley</span>
         <span className="text-xs text-a-muted">后台</span>
       </div>
 
-      <nav ref={navRef} className="relative flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-1 lg:flex-col lg:gap-5 lg:overflow-visible lg:pb-0">
+      {/*
+        宽屏上侧栏和窗口一样高：上面是站点名，下面是"查看前台""退出登录"，中间的菜单占满剩下的高度。
+        窗口太矮、菜单放不下时，只有菜单这一段上下滑动，上下两头保持不动，也不会互相盖住。
+      */}
+      <nav
+        ref={navRef}
+        className="relative flex gap-1 overflow-x-auto px-3 pb-3 lg:min-h-0 lg:flex-1 lg:flex-col lg:gap-5 lg:overflow-x-hidden lg:overflow-y-auto lg:overscroll-contain lg:pb-4"
+      >
         <span
           ref={pillRef}
           aria-hidden="true"
@@ -186,7 +199,7 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="hidden space-y-0.5 border-t border-a-border p-3 lg:block">
+      <div className="hidden shrink-0 space-y-0.5 border-t border-a-border bg-a-sidebar p-3 lg:block">
         <Link href="/" target="_blank" className={`${ITEM} text-a-muted hover:bg-a-subtle hover:text-a-text`}>
           <ExternalLink size={17} strokeWidth={1.8} />
           查看前台

@@ -44,6 +44,8 @@ export function RestoreBackup() {
         </div>
       ) : (
         <form
+          // 页面脚本还没加载好时点了提交，浏览器会按默认方式提交表单。写明用 POST，填的内容（包括密码）就不会出现在网址里。
+          method="post"
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
