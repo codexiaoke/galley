@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Suspense, ViewTransition, type CSSProperties } from "react";
 import { Markdown } from "@/render/Markdown";
 import { loadPublishedDocument } from "../../data";
+import { tagPath } from "@/core/tags";
 import { loadSite } from "../../site";
 import { SiteFooter } from "../../site-footer";
 import { TrackView } from "../../track-view";
@@ -60,6 +61,15 @@ async function Post({ params }: { params: Promise<{ slug: string }> }) {
         <div className="galley-rise" style={{ "--i": 2 } as CSSProperties}>
           <Markdown body={doc.body} blocks={doc.blocks} />
         </div>
+        {doc.tags.length > 0 && (
+          <p className="galley-tags">
+            {doc.tags.map((tag) => (
+              <Link key={tag} href={tagPath(tag)}>
+                {tag}
+              </Link>
+            ))}
+          </p>
+        )}
       </article>
       <SiteFooter from={`/posts/${doc.slug}`} />
       <TrackView path={`/posts/${doc.slug}`} />

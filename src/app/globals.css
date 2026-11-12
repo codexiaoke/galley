@@ -871,6 +871,116 @@ body {
   text-underline-offset: 4px;
 }
 
+/* 文章末尾的标签：一行小字，每个标签前面一个淡淡的 # */
+.galley-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.1rem;
+  margin-top: 3rem;
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+}
+.galley-tags a {
+  color: var(--ink-soft);
+  transition: color var(--dur-fast);
+}
+.galley-tags a::before {
+  content: "#";
+  margin-right: 0.15em;
+  color: var(--ink-faint);
+}
+.galley-tags a:hover {
+  color: var(--accent);
+}
+
+/* 标签页列表上方的一行："标签 · SQLite  3 篇" */
+.galley-index-heading {
+  margin: 1.75rem 0 0.25rem;
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+.galley-index-heading strong {
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--ink);
+}
+.galley-index-count {
+  margin-left: 0.9em;
+}
+
+/* ---- 运营日志 ------------------------------------------------------------ */
+
+.galley-log-month + .galley-log-month {
+  margin-top: 2.75rem;
+}
+.galley-log-month h2 {
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 0.5rem;
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+.galley-log-entry {
+  display: grid;
+  grid-template-columns: 3.25rem minmax(0, 1fr);
+  gap: 0 1rem;
+  border-bottom: 1px solid var(--rule);
+  padding: 1.1rem 0;
+}
+.galley-log-date {
+  padding-top: 0.2rem;
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+.galley-log-title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1.6;
+}
+.galley-log-kind {
+  margin-right: 0.6em;
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+.galley-log-summary {
+  margin-top: 0.3rem;
+  font-size: 0.9875rem;
+  line-height: 1.8;
+  color: var(--ink-soft);
+}
+.galley-log-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 1rem;
+  margin-top: 0.45rem;
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  letter-spacing: 0.03em;
+  color: var(--ink-faint);
+}
+.galley-log-meta a {
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-underline-offset: 3px;
+  transition: color var(--dur-fast);
+}
+.galley-log-meta a:hover {
+  color: var(--accent);
+}
+
 /* ---- 文章正文 ------------------------------------------------------------ */
 
 .galley-prose {

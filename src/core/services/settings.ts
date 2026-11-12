@@ -15,17 +15,20 @@ export type SiteSettings = {
   author: string;
   /** 网站对外的地址，例如 https://example.com。订阅源和站点地图里的链接以它开头 */
   url: string;
+  /** 是否公开运营日志页（/log）。值是 "on" 或 "off" */
+  showLog: "on" | "off";
 };
 
 /** 还没设置过时的默认值。 */
-export const DEFAULT_SETTINGS: SiteSettings = { name: "我的博客", description: "", author: "", url: "" };
+export const DEFAULT_SETTINGS: SiteSettings = { name: "我的博客", description: "", author: "", url: "", showLog: "on" };
 
 const KEYS = Object.keys(DEFAULT_SETTINGS) as (keyof SiteSettings)[];
 
 export function getSiteSettings(db: Db): SiteSettings {
   const stored = new Map(db.select().from(settings).all().map((row) => [row.key, row.value]));
   const result = { ...DEFAULT_SETTINGS };
-  for (const key of KEYS) result[key] = stored.get(key) ?? DEFAULT_SETTINGS[key];
+  for (const key of KEYS) (result as Record<string, string>)[key] = stored.get(key) ?? DEFAULT_SETTINGS[key];
+  if (result.showLog !== "off") result.showLog = "on";
   return result;
 }
 
@@ -59,6 +62,7 @@ export function updateSiteSettings(db: Db, actor: Actor, input: Partial<SiteSett
   }
   if (input.author !== undefined) next.author = input.author.trim().slice(0, 60);
   if (input.url !== undefined) next.url = normalizeUrl(input.url);
+  if (input.showLog !== undefined) next.showLog = input.showLog === "off" ? "off" : "on";
 
   db.transaction((tx) => {
     for (const key of KEYS) {

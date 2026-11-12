@@ -9,7 +9,8 @@ import { changeSetContents } from "@/core/services/changeSets";
 import { listComments } from "@/core/services/comments";
 import { getDocumentRevision } from "@/core/services/documents";
 import { Markdown } from "@/render/Markdown";
-import { changeReviewComment, saveBlockEdit } from "../../../actions";
+import { changeReviewComment, saveBlockEdit, toggleLogEntry } from "../../../actions";
+import { QuickAction } from "../../../quick-action";
 import { requireOwner } from "../../../auth";
 import { DiffView, diffSummary } from "../../../diff";
 import { DecisionForm } from "../../../forms";
@@ -120,6 +121,12 @@ async function ChangeSetDetail({ params }: { params: Promise<{ id: string }> }) 
                   <dd className="font-mono text-xs">/posts/{document.slug}</dd>
                   <dt className="text-a-muted">分类</dt>
                   <dd>{preview?.category ? preview.category.name : <span className="text-a-danger">未分类</span>}</dd>
+                  {document.kind === "article" && (
+                    <>
+                      <dt className="text-a-muted">标签</dt>
+                      <dd>{revision.tags.length > 0 ? revision.tags.join("、") : <span className="text-a-muted">没有</span>}</dd>
+                    </>
+                  )}
                   {revision.summary && (
                     <>
                       <dt className="text-a-muted">摘要</dt>
@@ -223,9 +230,26 @@ async function ChangeSetDetail({ params }: { params: Promise<{ id: string }> }) 
         <aside className="space-y-4 xl:sticky xl:top-8 xl:self-start">
           <Card title="结论">
             {inReview ? (
-              <DecisionForm changeSetId={changeSet.id} openComments={openComments} />
+              <>
+                <DecisionForm changeSetId={changeSet.id} openComments={openComments} />
+                {changeSet.createdByKind === "agent" && (
+                  <p className="mt-3 text-xs leading-relaxed text-a-muted">批准后，这项改动的标题和说明会出现在公开的运营日志里。说明里有不想公开的内容，可以批准后在这里把它隐藏。</p>
+                )}
+              </>
             ) : (
               <p className="text-a-muted">当前状态是「{status.label}」，只有待审的改动可以批准或打回。</p>
+            )}
+            {changeSet.status === "approved" && changeSet.createdByKind === "agent" && (
+              <div className="mt-3 flex items-center justify-between gap-2 border-t border-a-border pt-3 text-xs text-a-muted">
+                <span>{changeSet.hiddenFromLog ? "没有出现在运营日志里" : "出现在公开的运营日志里"}</span>
+                <QuickAction
+                  action={toggleLogEntry}
+                  fields={{ id: changeSet.id, hidden: changeSet.hiddenFromLog ? "false" : "true" }}
+                  successMessage={changeSet.hiddenFromLog ? "已在运营日志里恢复显示" : "已从运营日志里隐藏"}
+                >
+                  {changeSet.hiddenFromLog ? "恢复显示" : "从日志里隐藏"}
+                </QuickAction>
+              </div>
             )}
           </Card>
           {comments.length > 0 && (

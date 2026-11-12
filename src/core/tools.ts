@@ -21,6 +21,7 @@ export const TOOLS: ToolInfo[] = [
   { name: "suggest_skill_change", group: "入门", label: "对技能提修改建议" },
   { name: "list_components", group: "入门", label: "查看正文里可用的组件" },
   { name: "list_categories", group: "入门", label: "查看分类" },
+  { name: "list_tags", group: "入门", label: "查看已有的标签" },
 
   { name: "open_change_set", group: "变更集", label: "开启一个变更集", required: true },
   { name: "get_change_set", group: "变更集", label: "查看变更集的内容和批注", required: true },

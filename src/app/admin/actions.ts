@@ -16,7 +16,9 @@ import { deleteMessage, setMessageStatus } from "@/core/services/messages";
 import { addMaterial, deleteMaterial, setMaterialStatus } from "@/core/services/materials";
 import { deleteMedia, saveMedia, updateMediaAlt } from "@/core/services/media";
 import { updateSiteSettings } from "@/core/services/settings";
+import { setHiddenFromLog } from "@/core/services/oplog";
 import { resetSkill, resolveSkillSuggestion, saveSkill } from "@/core/services/skills";
+import { renameTag } from "@/core/services/tags";
 import { TOOLS } from "@/core/tools";
 import { createTopic, decideTopic, updateTopic } from "@/core/services/topics";
 import { PUBLIC_CONTENT_TAG } from "../data";
@@ -146,6 +148,8 @@ export async function saveDocumentEdit(_prev: FormState, formData: FormData) {
         title: text(formData, "title"),
         summary: text(formData, "summary"),
         category: text(formData, "category") || undefined,
+        // 页面没有标签输入框，这时不改标签；有输入框时按逗号、顿号拆开。
+        tags: formData.has("tags") ? text(formData, "tags").split(/[,，、]/) : undefined,
         body: text(formData, "body").replace(/\r\n/g, "\n"),
       };
       const result = changeSetId
@@ -279,6 +283,7 @@ export async function saveSettings(_prev: FormState, formData: FormData) {
         description: text(formData, "description"),
         author: text(formData, "author"),
         url: text(formData, "url"),
+        showLog: text(formData, "showLog") === "off" ? "off" : "on",
       }),
     { touchesPublic: true },
   );
@@ -334,4 +339,23 @@ export async function restoreSkill(_prev: FormState, formData: FormData) {
 
 export async function handleSkillSuggestion(_prev: FormState, formData: FormData) {
   return run((db, actor) => resolveSkillSuggestion(db, actor, text(formData, "id"), text(formData, "status") === "done" ? "done" : "dismissed"));
+}
+
+// ---- 标签 ----
+
+/** 改名或合并标签（带 to），或者删掉它（不带 to）。会修改所有用到它的已发布文章。 */
+export async function changeTag(_prev: FormState, formData: FormData) {
+  return run(
+    (db, actor) => {
+      const to = text(formData, "op") === "delete" ? null : text(formData, "to");
+      renameTag(db, actor, text(formData, "from"), to);
+    },
+    { touchesPublic: true },
+  );
+}
+
+// ---- 运营日志 ----
+
+export async function toggleLogEntry(_prev: FormState, formData: FormData) {
+  return run((db, actor) => setHiddenFromLog(db, actor, text(formData, "id"), text(formData, "hidden") === "true"), { touchesPublic: true });
 }

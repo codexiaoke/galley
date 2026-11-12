@@ -57,6 +57,13 @@
       "when": 1794490915101,
       "tag": "0007_careful_shinobi_shaw",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1794491844938,
+      "tag": "0008_dark_the_captain",
+      "breakpoints": true
     }
   ]
 }

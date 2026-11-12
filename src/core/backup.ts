@@ -150,6 +150,7 @@ export function exportContent(db: Db, actor: Actor): { filename: string; archive
       `slug: ${yaml(doc.slug)}`,
       rev.summary ? `summary: ${yaml(rev.summary)}` : "",
       category ? `category: ${yaml(category)}` : "",
+      rev.tags.length ? `tags: [${rev.tags.map(yaml).join(", ")}]` : "",
       doc.publishedAt ? `date: ${doc.publishedAt.toISOString()}` : "",
       `updated: ${rev.createdAt.toISOString()}`,
       "---",

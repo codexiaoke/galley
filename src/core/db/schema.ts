@@ -73,6 +73,10 @@ export const changeSets = sqliteTable(
     /** 这个变更集是为哪个选题而开的。批准后选题完成，撤回后选题回到选题池 */
     topicId: text("topic_id"),
     decisionNote: text("decision_note"),
+    /** 被站长打回过几次 */
+    rejectCount: integer("reject_count").notNull().default(0),
+    /** 站长把它从公开的运营日志里隐藏了 */
+    hiddenFromLog: integer("hidden_from_log", { mode: "boolean" }).notNull().default(false),
     createdAt: createdAt(),
     submittedAt: integer("submitted_at", { mode: "timestamp_ms" }),
     decidedAt: integer("decided_at", { mode: "timestamp_ms" }),
@@ -200,6 +204,8 @@ export const documentRevisions = sqliteTable(
     body: text("body").notNull(),
     /** 分类记在版本上：改分类和改正文一样，要经过站长审阅 */
     categoryId: text("category_id"),
+    /** 标签，同样记在版本上。规则见 core/tags.ts */
+    tags: text("tags", { mode: "json" }).$type<string[]>().notNull().default([]),
     /** 上一次被打回时的正文，用途同知识块版本上的同名字段 */
     rejectedBody: text("rejected_body"),
     authorKind: text("author_kind", { enum: ACTOR_KINDS }).notNull(),

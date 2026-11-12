@@ -45,6 +45,7 @@ export function searchPublished(db: Db, query: string, limit = 30): SearchResult
       title: documentRevisions.title,
       summary: documentRevisions.summary,
       body: documentRevisions.body,
+      tags: documentRevisions.tags,
       publishedAt: documents.publishedAt,
       categoryName: categories.name,
     })
@@ -59,12 +60,13 @@ export function searchPublished(db: Db, query: string, limit = 30): SearchResult
     .map((row) => {
       const title = row.title.toLowerCase();
       const summary = row.summary.toLowerCase();
+      const tags = row.tags.join(" ").toLowerCase();
       const text = plainText(row.body);
       const lower = text.toLowerCase();
       // 每个词都要在这篇文章里出现；出现在标题里的分量最重，其次是摘要，再次是正文。
       let score = 0;
       for (const term of terms) {
-        const hit = (title.includes(term) ? 5 : 0) + (summary.includes(term) ? 2 : 0) + (lower.includes(term) ? 1 : 0);
+        const hit = (title.includes(term) ? 5 : 0) + (tags.includes(term) ? 3 : 0) + (summary.includes(term) ? 2 : 0) + (lower.includes(term) ? 1 : 0);
         if (hit === 0) return undefined;
         score += hit;
       }

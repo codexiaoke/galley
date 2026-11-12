@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import type { SiteSettings } from "@/core/services/settings";
 import { saveSettings } from "../../actions";
 import { useToast } from "../../toast";
+import { Select } from "../../select";
 import { buttonClass, Field, INPUT } from "../../ui";
 
 /** 站点设置的表单。设置项不多，直接排在页面上，改完点保存。 */
@@ -36,6 +37,16 @@ export function SettingsForm({ settings }: { settings: SiteSettings }) {
       </Field>
       <Field label="网站地址" hint="读者访问这个站用的地址，例如 https://example.com。订阅源和站点地图里的链接以它开头；不填时用访问时的地址。">
         <input name="url" type="url" placeholder="https://" defaultValue={settings.url} className={INPUT} />
+      </Field>
+      <Field label="运营日志" hint="公开的 /log 页面，列出每一次上线的改动：做了什么、为什么、改了几轮。内容来自 Agent 写的改动说明，只列你批准过的。">
+        <Select
+          name="showLog"
+          defaultValue={settings.showLog}
+          options={[
+            { value: "on", label: "公开，页脚里有入口" },
+            { value: "off", label: "不公开" },
+          ]}
+        />
       </Field>
       {error && <p className="rounded-md bg-a-danger-soft px-3 py-2 text-a-danger">{error}</p>}
       <button disabled={pending} className={buttonClass("primary")}>

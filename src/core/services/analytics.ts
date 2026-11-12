@@ -1,7 +1,7 @@
 import { and, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
 import { createHash, randomBytes } from "node:crypto";
 import type { Db } from "../db/client";
-import { blockRevisions, changeSets, documentRevisions, documents, pageViews, settings, topics } from "../db/schema";
+import { blockRevisions, categories, changeSets, documentRevisions, documents, pageViews, settings, topics } from "../db/schema";
 
 /**
  * 运营分析（需求文档 5.11）：访问统计由程序自己记录，不接第三方服务，不使用 Cookie。
@@ -17,8 +17,8 @@ const addDays = (date: Date, days: number) => new Date(date.getFullYear(), date.
 /** 自动程序的浏览器标识里常见的字样。它们的访问不算读者。 */
 const BOT = /bot|crawl|spider|slurp|preview|monitor|curl|wget|python|java\/|go-http|headless|lighthouse|facebookexternalhit|feedfetcher|rss|scrapy|httpclient/i;
 
-/** 只记这几类页面的访问：首页、关于页、文章页、分类页。别的路径一律不记，免得被人灌进垃圾数据。 */
-const TRACKED = /^\/(about|posts\/[a-z0-9-]{1,120}|category\/[a-z0-9-]{1,120})?$/;
+/** 只记这几类页面的访问：首页、关于页、运营日志、文章页、分类页、标签页。别的路径一律不记，免得被人灌进垃圾数据。 */
+const TRACKED = /^\/(about|log|posts\/[a-z0-9-]{1,120}|category\/[a-z0-9-]{1,120}|tag\/(?:%[0-9A-F]{2}|[A-Za-z0-9._~+-]){1,200})?$/;
 
 const SALT_KEY = "visit_salt";
 
@@ -107,8 +107,27 @@ export function topPages(db: Db, days = 30, limit = 10, today = new Date()): { p
           .all()
           .map((d) => [d.slug, d.title]),
   );
+  const decode = (text: string) => {
+    try {
+      return decodeURIComponent(text);
+    } catch {
+      return text;
+    }
+  };
   const label = (path: string) =>
-    path === "/" ? "首页" : path === "/about" ? "关于" : path.startsWith("/posts/") ? (titles.get(path.slice(7)) ?? path) : path.startsWith("/category/") ? `分类：${path.slice(10)}` : path;
+    path === "/"
+      ? "首页"
+      : path === "/about"
+        ? "关于"
+        : path === "/log"
+          ? "运营日志"
+          : path.startsWith("/posts/")
+            ? (titles.get(path.slice(7)) ?? path)
+            : path.startsWith("/category/")
+              ? `分类：${path.slice(10)}`
+              : path.startsWith("/tag/")
+                ? `标签：${decode(path.slice(5))}`
+                : path;
   return rows.map((r) => ({ path: r.path, title: label(r.path), views: r.views }));
 }
 
@@ -180,4 +199,37 @@ export function operationStats(db: Db, weeks = 8, now = new Date()) {
     review: { approved: approved.length, firstPass: approved.length - rejectedOnce.size, revised: rejectedOnce.size },
     topics: { finished: finished.length, averageLeadDays: leadDays.length ? leadDays.reduce((a, b) => a + b, 0) / leadDays.length : null },
   };
+}
+
+/**
+ * 最近若干天，各分类、各标签下的文章一共被看了多少次（只算文章页的浏览）。
+ * 文章按它现在的分类和标签归类。
+ */
+export function viewsByGroup(db: Db, days = 30, today = new Date()) {
+  const since = dayKey(addDays(today, -(days - 1)));
+  const views = new Map(
+    db
+      .select({ path: pageViews.path, views: sql<number>`count(*)` })
+      .from(pageViews)
+      .where(and(gte(pageViews.day, since), sql`${pageViews.path} like '/posts/%'`))
+      .groupBy(pageViews.path)
+      .all()
+      .map((r) => [r.path.slice("/posts/".length), r.views]),
+  );
+  const docs = db
+    .select({ slug: documents.slug, category: categories.name, tags: documentRevisions.tags })
+    .from(documents)
+    .innerJoin(documentRevisions, eq(documents.currentRevisionId, documentRevisions.id))
+    .leftJoin(categories, eq(documentRevisions.categoryId, categories.id))
+    .where(and(eq(documents.kind, "article"), eq(documents.status, "published")))
+    .all();
+  const byCategory = new Map<string, number>();
+  const byTag = new Map<string, number>();
+  for (const doc of docs) {
+    const n = views.get(doc.slug) ?? 0;
+    byCategory.set(doc.category ?? "未分类", (byCategory.get(doc.category ?? "未分类") ?? 0) + n);
+    for (const tag of doc.tags) byTag.set(tag, (byTag.get(tag) ?? 0) + n);
+  }
+  const sorted = (m: Map<string, number>) => [...m].map(([name, views]) => ({ name, views })).sort((a, b) => b.views - a.views || a.name.localeCompare(b.name, "zh-CN"));
+  return { categories: sorted(byCategory), tags: sorted(byTag) };
 }

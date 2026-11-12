@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { getDb } from "@/core/db/client";
 import { listCategories } from "@/core/services/categories";
 import { getPublishedDocument, listPublished, publishedSlugExists } from "@/core/services/documents";
+import { listOperationLog } from "@/core/services/oplog";
 
 /**
  * 前台读取的数据都带缓存，并打上同一个标签。
@@ -16,17 +17,30 @@ import { getPublishedDocument, listPublished, publishedSlugExists } from "@/core
  */
 export const PUBLIC_CONTENT_TAG = "public-content";
 
-async function cachedPublishedList(categorySlug?: string) {
+async function cachedPublishedList(categorySlug?: string, tag?: string) {
   "use cache";
   cacheLife("max");
   cacheTag(PUBLIC_CONTENT_TAG);
-  return listPublished(getDb(), "article", { categorySlug });
+  return listPublished(getDb(), "article", { categorySlug, tag });
 }
 
-/** 已发布的文章，新的在前。给出分类时只返回该分类下的。 */
-export async function loadPublishedList(categorySlug?: string) {
+/** 已发布的文章，新的在前。给出分类或标签时只返回其中的。 */
+export async function loadPublishedList(categorySlug?: string, tag?: string) {
   await connection();
-  return cachedPublishedList(categorySlug);
+  return cachedPublishedList(categorySlug, tag);
+}
+
+async function cachedOperationLog() {
+  "use cache";
+  cacheLife("max");
+  cacheTag(PUBLIC_CONTENT_TAG);
+  return listOperationLog(getDb());
+}
+
+/** 公开的运营日志。 */
+export async function loadOperationLog() {
+  await connection();
+  return cachedOperationLog();
 }
 
 async function cachedCategories() {

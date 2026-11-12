@@ -52,7 +52,7 @@ description: 运营总览。每次连接后先读这个技能，了解这个站�
 
 ## 一次修改的基本步骤
 
-1. `open_change_set`：说明这次要做什么。写选题对应的新文章时改用 `claim_topic`，它会替你开好变更集。
+1. `open_change_set`：说明这次要做什么。站长批准后，变更集的标题和说明会出现在公开的运营日志里，所以说明要写给读者也看得懂：做了什么、为什么。不要写私密的内容。写选题对应的新文章时改用 `claim_topic`，它会替你开好变更集。
 2. 在变更集里工作：`create_block`、`propose_block_update`、`save_document`。
 3. `submit_change_set`：提交给站长审阅。
 

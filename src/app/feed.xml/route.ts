@@ -22,6 +22,7 @@ export async function GET(request: Request) {
       post.publishedAt ? `<pubDate>${new Date(post.publishedAt).toUTCString()}</pubDate>` : "",
       post.summary ? `<description>${xml(post.summary)}</description>` : "",
       post.categoryName ? `<category>${xml(post.categoryName)}</category>` : "",
+      ...post.tags.map((tag) => `<category>${xml(tag)}</category>`),
       site.author ? `<dc:creator>${xml(site.author)}</dc:creator>` : "",
       "</item>",
     ].join("");

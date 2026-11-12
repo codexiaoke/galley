@@ -18,6 +18,7 @@ import { getBlockView, getBlockViewAtRevision, type BlockView } from "./blocks";
 import { findCategoryBySlug, listCategories } from "./categories";
 import { applyOwnerChange, assertNotLockedElsewhere, requireEditable } from "./changeSets";
 import { checkImages } from "./media";
+import { normalizeTags, sameTag } from "../tags";
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -31,6 +32,8 @@ export type SaveDocumentInput = {
   summary?: string;
   /** 分类的网址别名。省略时沿用文档当前的分类 */
   category?: string;
+  /** 标签。省略时沿用文档当前的标签，传空数组表示去掉全部标签 */
+  tags?: string[];
   body: string;
 };
 
@@ -193,6 +196,7 @@ export function saveDocument(db: Db, actor: Actor, input: SaveDocumentInput): Sa
     }
   }
 
+  const tags = input.tags === undefined ? undefined : normalizeTags(input.tags);
   const parsed = parseMarkup(input.body);
   const checked = checkRefs(db, input.changeSetId, parsed.refs);
   const issues = [...parsed.issues, ...checked.issues, ...checkImages(db, parsed.images), ...citationStyleWarnings(input.body, parsed.refs)];
@@ -241,7 +245,7 @@ export function saveDocument(db: Db, actor: Actor, input: SaveDocumentInput): Sa
     if (draft) {
       revisionId = draft.id;
       tx.update(documentRevisions)
-        .set(categoryId === undefined ? content : { ...content, categoryId })
+        .set({ ...content, ...(categoryId === undefined ? {} : { categoryId }), ...(tags === undefined ? {} : { tags }) })
         .where(eq(documentRevisions.id, draft.id))
         .run();
       tx.delete(refs).where(eq(refs.documentRevisionId, draft.id)).run();
@@ -254,7 +258,7 @@ export function saveDocument(db: Db, actor: Actor, input: SaveDocumentInput): Sa
         .get();
       const current = existing?.currentRevisionId
         ? tx
-            .select({ categoryId: documentRevisions.categoryId })
+            .select({ categoryId: documentRevisions.categoryId, tags: documentRevisions.tags })
             .from(documentRevisions)
             .where(eq(documentRevisions.id, existing.currentRevisionId))
             .get()
@@ -266,6 +270,7 @@ export function saveDocument(db: Db, actor: Actor, input: SaveDocumentInput): Sa
           revNo: (last?.n ?? 0) + 1,
           ...content,
           categoryId: categoryId === undefined ? (current?.categoryId ?? null) : categoryId,
+          tags: tags ?? current?.tags ?? [],
           authorKind: who.kind,
           authorId: who.id,
           changeSetId: input.changeSetId,
@@ -330,7 +335,7 @@ export function replaceInDocument(
 export function editDocumentAsOwner(
   db: Db,
   actor: Actor,
-  input: { documentId: string; title: string; summary?: string; category?: string; body: string },
+  input: { documentId: string; title: string; summary?: string; category?: string; tags?: string[]; body: string },
 ) {
   if (actor.kind !== "owner") throw forbidden("只有站长可以不经审阅直接修改文档。");
   const doc = db.select().from(documents).where(eq(documents.id, input.documentId)).get();
@@ -353,7 +358,7 @@ export function editDocumentAsOwner(
 export function createDocumentAsOwner(
   db: Db,
   actor: Actor,
-  input: { kind: DocumentKind; slug: string; title: string; summary?: string; category?: string; body: string },
+  input: { kind: DocumentKind; slug: string; title: string; summary?: string; category?: string; tags?: string[]; body: string },
 ) {
   if (actor.kind !== "owner") throw forbidden("只有站长可以不经审阅直接发布文档。");
   const outcome = applyOwnerChange(
@@ -390,6 +395,7 @@ export type RenderableDocument = {
   body: string;
   revNo: number;
   category: { slug: string; name: string } | null;
+  tags: string[];
   publishedAt: Date | null;
   revisedAt: Date;
   /** 正文引用到的知识块，键是知识块编号 */
@@ -427,6 +433,7 @@ function assemble(
     body: rev.body,
     revNo: rev.revNo,
     category: category ?? null,
+    tags: rev.tags,
     publishedAt: doc.publishedAt,
     revisedAt: rev.createdAt,
     blocks: blockMap,
@@ -492,15 +499,16 @@ export function getDocumentForEditing(db: Db, key: { documentId?: string; slug?:
     category: rev.categoryId
       ? (db.select({ slug: categories.slug }).from(categories).where(eq(categories.id, rev.categoryId)).get()?.slug ?? null)
       : null,
+    tags: rev.tags,
     body: rev.body,
   };
 }
 
 /** 已发布的文档，新的在前。给出分类时只返回该分类下的。 */
-export function listPublished(db: Db, kind: DocumentKind = "article", opts: { categorySlug?: string } = {}) {
+export function listPublished(db: Db, kind: DocumentKind = "article", opts: { categorySlug?: string; tag?: string } = {}) {
   const conditions = [eq(documents.kind, kind), eq(documents.status, "published")];
   if (opts.categorySlug) conditions.push(eq(categories.slug, opts.categorySlug));
-  return db
+  const rows = db
     .select({
       id: documents.id,
       slug: documents.slug,
@@ -509,6 +517,7 @@ export function listPublished(db: Db, kind: DocumentKind = "article", opts: { ca
       publishedAt: documents.publishedAt,
       /** 当前版本的时间，也就是最后一次修改的时间 */
       revisedAt: documentRevisions.createdAt,
+      tags: documentRevisions.tags,
       categorySlug: categories.slug,
       categoryName: categories.name,
     })
@@ -518,6 +527,8 @@ export function listPublished(db: Db, kind: DocumentKind = "article", opts: { ca
     .where(and(...conditions))
     .orderBy(desc(documents.publishedAt))
     .all();
+  // 标签存在每个版本的 JSON 里，个人站点的文章不多，取出来再筛最简单。
+  return opts.tag ? rows.filter((row) => row.tags.some((t) => sameTag(t, opts.tag!))) : rows;
 }
 
 /** 这个网址别名下有没有已发布的文档。用来在渲染页面之前判断该不该返回 404。 */

@@ -52,7 +52,7 @@ export function DocumentEditor({
   backHref,
   initialPreview,
 }: {
-  document: { id: string; slug: string; kind: string; title: string; summary: string; category: string | null; body: string; revNo: number };
+  document: { id: string; slug: string; kind: string; title: string; summary: string; category: string | null; tags: string[]; body: string; revNo: number };
   categories: { slug: string; name: string }[];
   changeSetId?: string;
   isNew?: boolean;
@@ -192,6 +192,18 @@ export function DocumentEditor({
             <span onClick={edited}>
               <Select name="category" ariaLabel="分类" defaultValue={document.category ?? ""} options={categories.map((c) => ({ value: c.slug, label: c.name }))} className="w-40" />
             </span>
+          </label>
+        )}
+        {document.kind === "article" && (
+          <label className="flex items-center gap-2">
+            <span className="text-xs text-a-muted">标签</span>
+            <input
+              name="tags"
+              defaultValue={document.tags.join("，")}
+              onChange={edited}
+              placeholder="用逗号隔开，最多 5 个"
+              className="w-64 rounded-md bg-a-subtle/70 px-2.5 py-1 text-xs shadow-[inset_0_0_0_1px_var(--a-border)] focus:bg-a-surface focus:shadow-[inset_0_0_0_1px_var(--a-primary),0_0_0_3px_var(--a-primary-soft)] focus:outline-none"
+            />
           </label>
         )}
         {isNew && document.kind === "article" ? (

@@ -32,7 +32,7 @@ async function NewDocument({ searchParams }: { searchParams: Promise<Record<stri
   return (
     <DocumentEditor
       isNew
-      document={{ id: "", slug: isPage ? "about" : "", kind: isPage ? "page" : "article", title: isPage ? "关于" : "", summary: "", category: null, body: "", revNo: 0 }}
+      document={{ id: "", slug: isPage ? "about" : "", kind: isPage ? "page" : "article", title: isPage ? "关于" : "", summary: "", category: null, tags: [], body: "", revNo: 0 }}
       categories={listCategories(db)}
       backHref="/admin/documents"
       initialPreview={{ issues: [], blocks: {} }}

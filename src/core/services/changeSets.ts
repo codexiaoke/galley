@@ -44,6 +44,8 @@ export function openChangeSet(
     createdById: who.id,
     topicId: input.topicId ?? null,
     decisionNote: null,
+    rejectCount: 0,
+    hiddenFromLog: false,
     createdAt: new Date(),
     submittedAt: null,
     decidedAt: null,
@@ -218,7 +220,7 @@ export function decideChangeSet(
   if (decision === "reject") {
     db.transaction((tx) => {
       tx.update(changeSets)
-        .set({ status: "rejected", decisionNote: note?.trim() || null, decidedAt: now })
+        .set({ status: "rejected", decisionNote: note?.trim() || null, decidedAt: now, rejectCount: sql`${changeSets.rejectCount} + 1` })
         .where(eq(changeSets.id, id))
         .run();
       // 记下被打回时的正文。Agent 改完重新提交后，站长只需要看改了什么，不用从头再读一遍。

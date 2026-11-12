@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense, type ReactNode } from "react";
 import { getDb } from "@/core/db/client";
-import { operationStats, topPages, topReferrers, visitTrend } from "@/core/services/analytics";
+import { operationStats, topPages, topReferrers, viewsByGroup, visitTrend } from "@/core/services/analytics";
 import { requireOwner } from "../../auth";
 import { PageHeader, PageSkeleton } from "../../ui";
 import { ColumnChart } from "./charts";
@@ -41,7 +41,8 @@ function Section({ title, description, children }: { title: string; description:
 /** 排行：每行是名称、一条横条和数字，横条从同一条线出发，长短可以直接比较。 */
 function Ranked({ rows, empty }: { rows: { key: string; label: ReactNode; value: number }[]; empty: string }) {
   if (rows.length === 0) return <p className="py-6 text-a-muted">{empty}</p>;
-  const max = Math.max(...rows.map((r) => r.value));
+  // 全是 0 的时候也要有个分母，否则横条的宽度算不出来。
+  const max = Math.max(1, ...rows.map((r) => r.value));
   return (
     <ul className="space-y-2.5">
       {rows.map((row) => (
@@ -91,6 +92,7 @@ async function Analytics() {
   const pages = topPages(db, DAYS, 8);
   const referrers = topReferrers(db, DAYS, 8);
   const ops = operationStats(db, WEEKS);
+  const groups = viewsByGroup(db, DAYS);
 
   const visitors = trend.reduce((sum, d) => sum + d.visitors, 0);
   const views = trend.reduce((sum, d) => sum + d.views, 0);
@@ -141,6 +143,15 @@ async function Analytics() {
           </Section>
           <Section title="读者从哪里来" description={`最近 ${DAYS} 天从别的网站点过来的次数。直接输入网址、从收藏夹打开的不在这里。`}>
             <Ranked empty="还没有从别的网站过来的访问。" rows={referrers.map((r) => ({ key: r.referrer, label: r.referrer, value: r.views }))} />
+          </Section>
+        </div>
+
+        <div className="grid gap-x-12 gap-y-12 xl:grid-cols-2">
+          <Section title="各分类的阅读" description={`最近 ${DAYS} 天，每个分类下的文章一共被看了多少次。`}>
+            <Ranked empty="还没有分类。" rows={groups.categories.map((c) => ({ key: c.name, label: c.name, value: c.views }))} />
+          </Section>
+          <Section title="各标签的阅读" description={`最近 ${DAYS} 天，带这个标签的文章一共被看了多少次。一篇文章有几个标签就算进几个。`}>
+            <Ranked empty="还没有标签。" rows={groups.tags.slice(0, 10).map((t) => ({ key: t.name, label: t.name, value: t.views }))} />
           </Section>
         </div>
 

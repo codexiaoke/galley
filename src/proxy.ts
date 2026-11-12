@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getDb } from "@/core/db/client";
 import { findCategoryBySlug } from "@/core/services/categories";
-import { publishedSlugExists } from "@/core/services/documents";
+import { listPublished, publishedSlugExists } from "@/core/services/documents";
+import { getSiteSettings } from "@/core/services/settings";
 
 /**
  * 文章或分类不存在时，返回真正的 404 状态码。
@@ -15,6 +16,8 @@ export function proxy(request: NextRequest) {
   const [, section, rawSlug, ...rest] = request.nextUrl.pathname.split("/");
   // "关于"页是站长自己建的，没建的时候它不存在。
   if (section === "about" && !rawSlug) return publishedSlugExists(getDb(), "about", "page") ? NextResponse.next() : missing(request);
+  // 运营日志可以在站点设置里关掉。
+  if (section === "log" && !rawSlug) return getSiteSettings(getDb()).showLog === "on" ? NextResponse.next() : missing(request);
   if (!rawSlug || rest.length > 0) return NextResponse.next();
   let slug: string;
   try {
@@ -23,11 +26,18 @@ export function proxy(request: NextRequest) {
     return missing(request);
   }
   const db = getDb();
-  const exists = section === "posts" ? publishedSlugExists(db, slug) : section === "category" ? !!findCategoryBySlug(db, slug) : true;
+  const exists =
+    section === "posts"
+      ? publishedSlugExists(db, slug)
+      : section === "category"
+        ? !!findCategoryBySlug(db, slug)
+        : section === "tag"
+          ? listPublished(db, "article", { tag: slug }).length > 0
+          : true;
   return exists ? NextResponse.next() : missing(request);
 }
 
 /** 以下划线开头的目录不会成为页面，所以这个地址一定匹配不到任何路由。 */
 const missing = (request: NextRequest) => NextResponse.rewrite(new URL("/_missing", request.url));
 
-export const config = { matcher: ["/posts/:slug", "/category/:slug", "/about"] };
+export const config = { matcher: ["/posts/:slug", "/category/:slug", "/tag/:slug", "/about", "/log"] };

@@ -16,6 +16,7 @@ import { addMaterial, getMaterial, listMaterials, markMaterialProcessed } from "
 import { getNextTasks } from "@/core/services/tasks";
 import { claimTopic, createTopic, listTopics } from "@/core/services/topics";
 import { getSkill, listSkills, suggestSkillChange } from "@/core/services/skills";
+import { listTags } from "@/core/services/tags";
 import { findTool } from "@/core/tools";
 
 type AgentActor = Extract<Actor, { kind: "agent" }>;
@@ -33,6 +34,7 @@ const READ_ONLY_TOOLS = new Set([
   "get_skill",
   "list_components",
   "list_categories",
+  "list_tags",
   "get_change_set",
   "search_blocks",
   "get_block",
@@ -135,6 +137,10 @@ export function createMcpServer(
 
   tool("list_components", "列出正文里可以使用的组件及其参数。", {}, () => describeComponents());
 
+  tool("list_tags", "列出已发布文章用到的标签和各自的文章数，用得多的在前。给文章打标签前先看这里，能复用已有的就不要新起。", {}, () =>
+    listTags(db),
+  );
+
   tool("list_categories", "列出站点的分类。每篇文章都要归入其中一个；新分类只能由站长在后台创建。", {}, () =>
     listCategories(db).map((c) => ({ slug: c.slug, name: c.name, publishedCount: c.publishedCount })),
   );
@@ -146,7 +152,10 @@ export function createMcpServer(
     {
       kind: z.enum(CHANGE_SET_KINDS).describe("article 新文章（来自选题的新文章请改用 claim_topic）；document_edit 修改已有文章；page 页面调整；knowledge 整理知识块；block_update 更新知识块及受影响的文章"),
       title: z.string().describe("一句话说明这次要做什么，站长会在看板上看到"),
-      summary: z.string().optional().describe("补充说明：为什么做、做了哪些取舍"),
+      summary: z
+        .string()
+        .optional()
+        .describe("补充说明：为什么做、做了哪些取舍。批准后标题和这段说明会出现在公开的运营日志里，读者能看到，不要写私密的内容"),
     },
     (args) => {
       const cs = openChangeSet(db, actor, args);
@@ -204,6 +213,7 @@ export function createMcpServer(
         title: revision.title,
         summary: revision.summary,
         category: categoryById.get(revision.categoryId ?? "") ?? null,
+        tags: revision.tags,
         body: revision.body,
         isNew: revision.revNo === 1,
         // 按当前的知识库重新检查一遍正文。提交之后就不能改了，提交前先看这里有没有问题。
@@ -414,6 +424,10 @@ export function createMcpServer(
       title: z.string(),
       summary: z.string().optional().describe("一两句话的摘要，显示在文章列表里。修改文章时省略表示不变"),
       category: z.string().optional().describe("分类的网址别名，见 list_categories。新文章必须给出；修改文章时省略表示不变"),
+      tags: z
+        .array(z.string())
+        .optional()
+        .describe("标签，最多 5 个，先用 list_tags 看已有的，能复用就复用。修改文章时省略表示不变，传空数组表示去掉全部标签"),
       body: z.string().describe("正文，Markdown 加引用标记，语法见 writing 技能"),
     },
     (args) => saveDocument(db, actor, args),
