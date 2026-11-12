@@ -21,6 +21,10 @@ export type SiteSettings = {
   notifyReview: "on" | "off";
   /** 有新留言时发邮件通知 */
   notifyMessages: "on" | "off";
+  /** 前台每个页面最底部的一段文字，例如版权声明或备案号。空表示不显示 */
+  footerText: string;
+  /** 点那段文字时打开的网址。空表示只显示文字、不能点 */
+  footerUrl: string;
 };
 
 /** 还没设置过时的默认值。 */
@@ -32,6 +36,8 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   showLog: "on",
   notifyReview: "on",
   notifyMessages: "on",
+  footerText: "",
+  footerUrl: "",
 };
 
 const KEYS = Object.keys(DEFAULT_SETTINGS) as (keyof SiteSettings)[];
@@ -58,6 +64,20 @@ function normalizeUrl(input: string): string {
   return parsed.origin;
 }
 
+/** 页脚链接：要是完整的 http(s) 网址，可以带路径，比如备案号链接到工信部的查询页。 */
+function normalizeLink(input: string): string {
+  const text = input.trim();
+  if (!text) return "";
+  let parsed: URL;
+  try {
+    parsed = new URL(text);
+  } catch {
+    throw invalid("页脚链接不是一个合法的网址。请写完整，例如 https://beian.miit.gov.cn/。");
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw invalid("页脚链接需要以 http:// 或 https:// 开头。");
+  return parsed.href;
+}
+
 export function updateSiteSettings(db: Db, actor: Actor, input: Partial<SiteSettings>): SiteSettings {
   if (actor.kind !== "owner") throw forbidden("只有站长可以修改站点设置。");
   const next = { ...getSiteSettings(db) };
@@ -73,6 +93,12 @@ export function updateSiteSettings(db: Db, actor: Actor, input: Partial<SiteSett
     next.description = description;
   }
   if (input.author !== undefined) next.author = input.author.trim().slice(0, 60);
+  if (input.footerText !== undefined) {
+    const footerText = input.footerText.trim().replace(/\s+/g, " ");
+    if ([...footerText].length > 120) throw invalid("页脚文字最多 120 个字。");
+    next.footerText = footerText;
+  }
+  if (input.footerUrl !== undefined) next.footerUrl = normalizeLink(input.footerUrl);
   if (input.url !== undefined) next.url = normalizeUrl(input.url);
   for (const key of ["showLog", "notifyReview", "notifyMessages"] as const) {
     if (input[key] !== undefined) next[key] = input[key] === "off" ? "off" : "on";

@@ -76,6 +76,24 @@ describe("站点设置", () => {
   });
 });
 
+describe("页脚文字", () => {
+  it("可以写一段文字和一个链接；链接要是完整的 http(s) 网址，可以带路径", () => {
+    expect(getSiteSettings(db)).toMatchObject({ footerText: "", footerUrl: "" });
+    updateSiteSettings(db, OWNER, { footerText: "  京ICP备  12345678号  ", footerUrl: "https://beian.miit.gov.cn/#/Integrated/index" });
+    expect(getSiteSettings(db)).toMatchObject({ footerText: "京ICP备 12345678号", footerUrl: "https://beian.miit.gov.cn/#/Integrated/index" });
+
+    expectError(() => updateSiteSettings(db, OWNER, { footerUrl: "beian.miit.gov.cn" }), "invalid", /合法的网址/);
+    expectError(() => updateSiteSettings(db, OWNER, { footerUrl: "javascript:alert(1)" }), "invalid", /http/);
+    expectError(() => updateSiteSettings(db, OWNER, { footerText: "字".repeat(121) }), "invalid", /120/);
+
+    // 只改别的设置时，页脚保持不变；清空就是不显示。
+    updateSiteSettings(db, OWNER, { name: "新名字" });
+    expect(getSiteSettings(db).footerText).toBe("京ICP备 12345678号");
+    updateSiteSettings(db, OWNER, { footerText: "", footerUrl: "" });
+    expect(getSiteSettings(db)).toMatchObject({ footerText: "", footerUrl: "" });
+  });
+});
+
 describe("媒体库", () => {
   it("按文件内容认格式，文件名由程序生成", () => {
     const item = saveMedia(db, OWNER, { bytes: PNG, originalName: "../../evil.svg", alt: "一张图" });

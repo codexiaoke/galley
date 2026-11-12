@@ -286,6 +286,8 @@ export async function saveSettings(_prev: FormState, formData: FormData) {
         author: text(formData, "author"),
         url: text(formData, "url"),
         showLog: text(formData, "showLog") === "off" ? "off" : "on",
+        footerText: text(formData, "footerText"),
+        footerUrl: text(formData, "footerUrl"),
       }),
     { touchesPublic: true },
   );

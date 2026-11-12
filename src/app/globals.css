@@ -672,6 +672,18 @@ body {
 .galley-footer a:hover {
   color: var(--accent);
 }
+/* 站长写的页脚文字（版权、备案号）：比上面那行链接更淡、更小 */
+.galley-footer-note {
+  margin-top: 0.9rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+  opacity: 0.85;
+}
+.galley-footer-note a:hover {
+  color: var(--accent);
+}
+
 /* 链接之间的间隔号 */
 .galley-footer a + a::before {
   content: "·";

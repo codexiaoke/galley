@@ -40,6 +40,12 @@ export function SettingsForm({ settings }: { settings: SiteSettings }) {
       <Field label="网站地址" hint="读者访问这个站用的地址，例如 https://example.com。订阅源和站点地图里的链接以它开头；不填时用访问时的地址。">
         <input name="url" type="url" placeholder="https://" defaultValue={settings.url} className={INPUT} />
       </Field>
+      <Field label="页脚文字" hint="显示在前台每个页面的最底部，例如「© 2026 程序员小柯」或者备案号。留空就不显示。">
+        <input name="footerText" maxLength={120} defaultValue={settings.footerText} placeholder="© 2026 程序员小柯" className={INPUT} />
+      </Field>
+      <Field label="页脚链接" hint="点页脚文字时打开的网址，比如备案号链接到 https://beian.miit.gov.cn/。可以不填，不填就只显示文字。">
+        <input name="footerUrl" type="url" defaultValue={settings.footerUrl} placeholder="https://" className={INPUT} />
+      </Field>
       <Field label="运营日志" hint="公开的 /log 页面，列出每一次上线的改动：做了什么、为什么、改了几轮。内容来自 Agent 写的改动说明，只列你批准过的。">
         <Select
           name="showLog"
