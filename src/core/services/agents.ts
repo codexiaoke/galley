@@ -5,6 +5,7 @@ import type { Db } from "../db/client";
 import { agentCalls, agents } from "../db/schema";
 import { forbidden, invalid, notFound } from "../errors";
 import { newId } from "../ids";
+import { normalizeDisabledTools } from "../tools";
 
 const hashToken = (token: string) => createHash("sha256").update(token).digest("hex");
 
@@ -22,6 +23,7 @@ export function createAgent(db: Db, actor: Actor, name: string) {
     name: trimmed,
     tokenHash: hashToken(token),
     disabled: false,
+    disabledTools: [],
     lastSeenAt: null,
     createdAt: new Date(),
   };
@@ -44,12 +46,28 @@ export function listAgents(db: Db) {
       id: agents.id,
       name: agents.name,
       disabled: agents.disabled,
+      disabledTools: agents.disabledTools,
       lastSeenAt: agents.lastSeenAt,
       createdAt: agents.createdAt,
     })
     .from(agents)
     .orderBy(desc(agents.createdAt))
     .all();
+}
+
+/** 站长对某个 Agent 关掉一部分工具。运营流程离不开的工具关不掉。传空数组表示全部打开。 */
+export function setAgentDisabledTools(db: Db, actor: Actor, agentId: string, toolNames: string[]): string[] {
+  if (actor.kind !== "owner") throw forbidden("只有站长可以调整 Agent 能用哪些工具。");
+  const disabledTools = normalizeDisabledTools(toolNames);
+  const result = db.update(agents).set({ disabledTools }).where(eq(agents.id, agentId)).run();
+  if (result.changes === 0) throw notFound(`Agent ${agentId} 不存在。`);
+  return disabledTools;
+}
+
+/** 某个 Agent 被关掉的工具。 */
+export function disabledToolsOf(db: Db, agentId: string): Set<string> {
+  const row = db.select({ disabledTools: agents.disabledTools }).from(agents).where(eq(agents.id, agentId)).get();
+  return new Set(row?.disabledTools ?? []);
 }
 
 export function setAgentDisabled(db: Db, actor: Actor, agentId: string, disabled: boolean) {

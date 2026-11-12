@@ -1,10 +1,10 @@
-import { Activity, Bot, BookMarked, CircleCheck, CircleX, Link2, Plus } from "lucide-react";
+import { Activity, Bot, CircleCheck, CircleX, Link2, Plus } from "lucide-react";
 import { headers } from "next/headers";
 import { Suspense } from "react";
 import { getDb } from "@/core/db/client";
 import { listAgents, recentAgentCalls } from "@/core/services/agents";
-import { listSkills } from "@/core/skills";
-import { addAgent, resetAgentToken, setAgentStatus } from "../../actions";
+import { TOOLS } from "@/core/tools";
+import { addAgent, resetAgentToken, saveAgentTools, setAgentStatus } from "../../actions";
 import { requireOwner } from "../../auth";
 import { CopyBlock } from "../../copy";
 import { ModalForm } from "../../modal";
@@ -27,7 +27,7 @@ async function Agents() {
   const codexConfig = `[mcp_servers.galley]\nurl = "${mcpUrl}"\nbearer_token_env_var = "GALLEY_TOKEN"\ndefault_tools_approval_mode = "approve"`;
   const db = getDb();
   const agents = listAgents(db);
-  const skills = listSkills();
+  const groups = [...new Set(TOOLS.map((tool) => tool.group))];
   const calls = recentAgentCalls(db, 50);
   const now = new Date();
 
@@ -99,6 +99,40 @@ async function Agents() {
                 <td>
                   <RowActions>
                     <ModalForm
+                      triggerLabel={agent.disabledTools.length > 0 ? `工具（关了 ${agent.disabledTools.length} 个）` : "工具"}
+                      triggerVariant="link"
+                      title={`「${agent.name}」可以用的工具`}
+                      action={saveAgentTools}
+                      hidden={{ id: agent.id }}
+                      successMessage="工具设置已保存"
+                      wide
+                    >
+                      <p className="text-a-muted">取消勾选的工具，这个 Agent 就看不到也用不了。灰色的几个是运营流程离不开的，不能关。下次连接时生效。</p>
+                      {groups.map((group) => (
+                        <fieldset key={group}>
+                          <legend className="mb-1.5 text-xs text-a-muted">{group}</legend>
+                          <div className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
+                            {TOOLS.filter((tool) => tool.group === group).map((tool) => (
+                              <label key={tool.name} className={`flex items-start gap-2 ${tool.required ? "text-a-muted" : ""}`}>
+                                <input
+                                  type="checkbox"
+                                  name="tool"
+                                  value={tool.name}
+                                  defaultChecked={tool.required || !agent.disabledTools.includes(tool.name)}
+                                  disabled={tool.required}
+                                  className="mt-1 size-3.5 accent-[var(--a-primary)]"
+                                />
+                                <span className="min-w-0">
+                                  <span className="block">{tool.label}</span>
+                                  <span className="block font-mono text-[11px] text-a-muted">{tool.name}</span>
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </fieldset>
+                      ))}
+                    </ModalForm>
+                    <ModalForm
                       triggerLabel="重新生成密钥"
                       triggerVariant="link"
                       title="重新生成访问密钥？"
@@ -140,20 +174,6 @@ async function Agents() {
               </tr>
             ))}
           </Table>
-        </Card>
-
-        <Card icon={BookMarked} title="下发的技能" description="Agent 连接后读取的运营说明" footer="技能目前保存在代码仓库的 skills 目录里，之后会改为在这里编辑。">
-          <ul className="grid gap-3 md:grid-cols-2">
-            {skills.map((skill) => (
-              <li key={skill.name} className="flex gap-2.5 rounded-md p-3 shadow-[inset_0_0_0_1px_var(--a-border)]">
-                <IconTile icon={BookMarked} />
-                <div className="min-w-0">
-                  <p className="font-medium">{skill.name}</p>
-                  <p className="mt-1 text-xs leading-relaxed text-a-muted">{skill.description}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
         </Card>
 
         <Card icon={Activity} title="调用记录" description="最近 50 次" flush>

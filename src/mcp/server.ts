@@ -5,7 +5,7 @@ import type { Db } from "@/core/db/client";
 import { BLOCK_TYPES, CHANGE_SET_KINDS, DOCUMENT_KINDS, VISIBILITIES } from "@/core/db/schema";
 import { GalleyError, notFound } from "@/core/errors";
 import { describeComponents } from "@/core/markup/components";
-import { logAgentCall } from "@/core/services/agents";
+import { disabledToolsOf, logAgentCall } from "@/core/services/agents";
 import { createBlock, markBlockStale, proposeBlockUpdate, readBlockAsAgent, searchBlocks } from "@/core/services/blocks";
 import { listCategories } from "@/core/services/categories";
 import { changeSetContents, findChangeSet, openChangeSet, submitChangeSet, withdrawChangeSet } from "@/core/services/changeSets";
@@ -15,7 +15,8 @@ import { listMedia } from "@/core/services/media";
 import { addMaterial, getMaterial, listMaterials, markMaterialProcessed } from "@/core/services/materials";
 import { getNextTasks } from "@/core/services/tasks";
 import { claimTopic, createTopic, listTopics } from "@/core/services/topics";
-import { getSkill, listSkills } from "@/core/skills";
+import { getSkill, listSkills, suggestSkillChange } from "@/core/services/skills";
+import { findTool } from "@/core/tools";
 
 type AgentActor = Extract<Actor, { kind: "agent" }>;
 
@@ -42,6 +43,10 @@ const READ_ONLY_TOOLS = new Set([
   "list_media",
 ]);
 
+/** 每个服务实例实际注册了哪些工具。测试用它来确认工具清单和开关是否生效。 */
+const REGISTERED = new WeakMap<McpServer, string[]>();
+export const registeredTools = (server: McpServer): string[] => REGISTERED.get(server) ?? [];
+
 const INSTRUCTIONS = [
   "这是 Galley 博客的运营接口。你负责准备内容，站长负责审阅和批准，你不能发布。",
   "开始工作前，先调用 get_skill 读取 overview 技能，再调用 get_next_tasks 查看待办。",
@@ -67,6 +72,10 @@ export function createMcpServer(
   hooks: { /** 线上内容的显示发生了变化，需要刷新页面缓存 */ onPublicChange?: () => void } = {},
 ): McpServer {
   const server = new McpServer({ name: "galley", version: "0.1.0" }, { instructions: INSTRUCTIONS });
+  // 站长对这个 Agent 关掉的工具：不注册，它的工具列表里就没有。
+  const disabled = disabledToolsOf(db, actor.id);
+  const registered: string[] = [];
+  REGISTERED.set(server, registered);
 
   function tool<S extends z.ZodRawShape>(
     name: string,
@@ -74,6 +83,10 @@ export function createMcpServer(
     shape: S,
     handler: (args: z.infer<z.ZodObject<S>>) => unknown,
   ) {
+    // 每个工具都要先登记在核心层的清单里：站长在后台按这份清单开关工具，漏登记的工具就管不到。
+    if (!findTool(name)) throw new Error(`工具 ${name} 没有登记在 core/tools.ts 里。`);
+    if (disabled.has(name)) return;
+    registered.push(name);
     const annotations = READ_ONLY_TOOLS.has(name)
       ? { readOnlyHint: true, openWorldHint: false }
       : // 写入类的工具都只是在变更集里追加内容，不会删除或覆盖已上线的东西，也不访问站点以外的系统。
@@ -101,13 +114,24 @@ export function createMcpServer(
     () => getNextTasks(db, actor),
   );
 
-  tool("list_skills", "列出站点提供的技能（运营说明）。", {}, () => listSkills());
+  tool("list_skills", "列出站点提供的技能（运营说明）。", {}, () => listSkills(db).map((s) => ({ name: s.name, description: s.description })));
 
   tool("get_skill", "读取一个技能的完整内容。", { name: z.string().describe("技能名，例如 overview、writing") }, ({ name }) => {
-    const skill = getSkill(name);
-    if (!skill) throw notFound(`技能 ${name} 不存在。可用的技能：${listSkills().map((s) => s.name).join("、")}。`);
-    return skill;
+    const skill = getSkill(db, name);
+    if (!skill) throw notFound(`技能 ${name} 不存在。可用的技能：${listSkills(db).map((s) => s.name).join("、")}。`);
+    return { name: skill.name, description: skill.description, content: skill.content };
   });
+
+  tool(
+    "suggest_skill_change",
+    "对某个技能提出修改建议：哪里应该改、为什么。你不能直接修改技能，建议要等站长看过之后由他决定。适合的时机：同一类问题被打回了不止一次，或者技能里的说明和工具的实际行为对不上。",
+    {
+      skill: z.string().describe("技能名，例如 writing"),
+      suggestion: z.string().describe("建议改成什么，或者加上什么。写具体，最好给出可以直接放进技能里的句子"),
+      reason: z.string().optional().describe("为什么需要改：遇到了什么情况"),
+    },
+    (args) => suggestSkillChange(db, actor, args),
+  );
 
   tool("list_components", "列出正文里可以使用的组件及其参数。", {}, () => describeComponents());
 

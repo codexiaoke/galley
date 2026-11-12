@@ -133,8 +133,9 @@ export function DocumentEditor({
       {isNew && <input type="hidden" name="kind" value={document.kind} />}
       {isNew && document.kind === "page" && <input type="hidden" name="slug" value={document.slug} />}
 
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <Link href={backHref} className="-ml-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-a-muted transition-colors hover:bg-a-subtle hover:text-a-text">
+      {/* 这一行固定在顶部：正文很长时，不用滚回最上面才能保存 */}
+      <div className="sticky top-0 z-10 -mx-2 mb-6 flex flex-wrap items-center justify-between gap-3 bg-a-bg/95 px-2 py-3 backdrop-blur-sm">
+        <Link href={backHref} className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-a-muted transition-colors hover:bg-a-subtle hover:text-a-text">
           <ArrowLeft size={15} />
           {changeSetId ? "返回这份改动" : "返回文章列表"}
         </Link>

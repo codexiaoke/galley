@@ -14,6 +14,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - 业务规则和权限判断只写在 `src/core`。`src/mcp` 和 `src/app` 只调用核心层，不重复实现规则。
 - `src/core` 不依赖 Next.js，内部使用相对路径导入。
 - MCP 接口里不能出现批准、发布、下线、读取留言、修改技能、修改权限这些能力。
+- 新增 MCP 工具时，先在 `src/core/tools.ts` 的清单里登记（名字、分类、说明、能不能关），否则注册时会报错：站长在后台按这份清单开关工具。
 - 页面里读取数据库之前，必须先访问请求数据（`cookies()`）或调用 `await connection()`：数据库驱动是同步的，否则页面会在构建时被预渲染成固定内容。
 - 前台带缓存的读取函数（`src/app/data.ts`、`src/app/site.ts`）一律写成两层：外层 `await connection()`，内层才是 `'use cache'`。构建时执行到的缓存函数，结果会被带到线上；Docker 镜像构建时数据库是空的，站名和文章列表就会停在构建时的样子。
 - 运行时要从磁盘读的东西（`drizzle/`、`skills/`）不在构建产物里，新增这类目录时要同时加进 `Dockerfile`。

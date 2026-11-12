@@ -1,6 +1,6 @@
 "use client";
 
-import { Archive, Boxes, ChartColumn, MessageSquare, ExternalLink, FileText, FolderTree, Image as ImageIcon, Inbox, LayoutDashboard, ListTodo, LoaderCircle, LogOut, PlugZap, Settings, type LucideIcon } from "lucide-react";
+import { Archive, BookMarked, Boxes, ChartColumn, MessageSquare, ExternalLink, FileText, FolderTree, Image as ImageIcon, Inbox, LayoutDashboard, ListTodo, LoaderCircle, LogOut, PlugZap, Settings, type LucideIcon } from "lucide-react";
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -32,6 +32,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
     title: "站点",
     items: [
       { href: "/admin/agents", label: "MCP 管理", icon: PlugZap },
+      { href: "/admin/skills", label: "技能", icon: BookMarked },
       { href: "/admin/settings", label: "站点设置", icon: Settings },
       { href: "/admin/backup", label: "备份与导出", icon: Archive },
     ],

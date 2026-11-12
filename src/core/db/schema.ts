@@ -39,6 +39,8 @@ export const agents = sqliteTable("agents", {
   name: text("name").notNull(),
   tokenHash: text("token_hash").notNull().unique(),
   disabled: integer("disabled", { mode: "boolean" }).notNull().default(false),
+  /** 站长对这个 Agent 关掉的工具名。空表示全部可用。有哪些工具见 core/tools.ts */
+  disabledTools: text("disabled_tools", { mode: "json" }).$type<string[]>().notNull().default([]),
   lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }),
   createdAt: createdAt(),
 });
@@ -328,4 +330,48 @@ export const pageViews = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("page_views_unique_idx").on(t.day, t.path, t.visitor), index("page_views_day_idx").on(t.day)],
+);
+
+/**
+ * 站长改过或者自己新建的技能。程序自带的默认技能在仓库的 skills/ 目录里，不在这张表里；
+ * 这张表里有同名的一行时，以这里的为准。
+ */
+export const skills = sqliteTable("skills", {
+  name: text("name").primaryKey(),
+  description: text("description").notNull().default(""),
+  body: text("body").notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+/** 技能每次保存留下的一个版本，用来回看改过什么。 */
+export const skillRevisions = sqliteTable(
+  "skill_revisions",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    body: text("body").notNull(),
+    /** 这次改了什么，站长自己写的一句话 */
+    note: text("note").notNull().default(""),
+    createdAt: createdAt(),
+  },
+  (t) => [index("skill_revisions_name_idx").on(t.name, t.createdAt)],
+);
+
+/**
+ * Agent 对技能提出的修改建议。Agent 不能改技能，只能在这里说"哪里应该改、为什么"，
+ * 由站长看过之后自己决定改不改、怎么改。
+ */
+export const skillSuggestions = sqliteTable(
+  "skill_suggestions",
+  {
+    id: text("id").primaryKey(),
+    skillName: text("skill_name").notNull(),
+    suggestion: text("suggestion").notNull(),
+    reason: text("reason").notNull().default(""),
+    agentId: text("agent_id").notNull(),
+    status: text("status", { enum: ["open", "done", "dismissed"] }).notNull().default("open"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("skill_suggestions_status_idx").on(t.status)],
 );

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import type { Actor } from "@/core/actor";
 import { getDb, type Db } from "@/core/db/client";
 import { GalleyError } from "@/core/errors";
-import { createAgent, regenerateAgentToken, setAgentDisabled } from "@/core/services/agents";
+import { createAgent, regenerateAgentToken, setAgentDisabled, setAgentDisabledTools } from "@/core/services/agents";
 import type { MarkupIssue } from "@/core/markup/parse";
 import { confirmBlockVerified, editBlockAsOwner, editDraftBlock, markBlockStale, setBlockVisibility } from "@/core/services/blocks";
 import { createCategory, deleteCategory, updateCategory } from "@/core/services/categories";
@@ -16,6 +16,8 @@ import { deleteMessage, setMessageStatus } from "@/core/services/messages";
 import { addMaterial, deleteMaterial, setMaterialStatus } from "@/core/services/materials";
 import { deleteMedia, saveMedia, updateMediaAlt } from "@/core/services/media";
 import { updateSiteSettings } from "@/core/services/settings";
+import { resetSkill, resolveSkillSuggestion, saveSkill } from "@/core/services/skills";
+import { TOOLS } from "@/core/tools";
 import { createTopic, decideTopic, updateTopic } from "@/core/services/topics";
 import { PUBLIC_CONTENT_TAG } from "../data";
 import { endSession, loginAllowed, passwordMatches, recordFailedLogin, requireOwner, startSession } from "./auth";
@@ -300,4 +302,36 @@ export async function resetAgentToken(_prev: FormState, formData: FormData) {
 
 export async function setAgentStatus(_prev: FormState, formData: FormData) {
   return run((db, actor) => setAgentDisabled(db, actor, text(formData, "id"), text(formData, "disabled") === "true"));
+}
+
+/** 调整一个 Agent 能用哪些工具。表单里勾选的是"可以用"的，没勾的就是关掉的。 */
+export async function saveAgentTools(_prev: FormState, formData: FormData) {
+  return run((db, actor) => {
+    const enabled = new Set(formData.getAll("tool").map(String));
+    const disabled = TOOLS.filter((tool) => !tool.required && !enabled.has(tool.name)).map((tool) => tool.name);
+    setAgentDisabledTools(db, actor, text(formData, "id"), disabled);
+  });
+}
+
+// ---- 技能 ----
+
+export async function saveSkillEdit(_prev: FormState, formData: FormData) {
+  return run(
+    (db, actor) =>
+      void saveSkill(db, actor, {
+        name: text(formData, "name"),
+        description: text(formData, "description"),
+        body: text(formData, "body").replace(/\r\n/g, "\n"),
+        note: text(formData, "note"),
+      }),
+  );
+}
+
+/** 丢掉站长对一个技能的修改：自带的技能恢复默认，自己新建的技能删除。 */
+export async function restoreSkill(_prev: FormState, formData: FormData) {
+  return run((db, actor) => resetSkill(db, actor, text(formData, "name")));
+}
+
+export async function handleSkillSuggestion(_prev: FormState, formData: FormData) {
+  return run((db, actor) => resolveSkillSuggestion(db, actor, text(formData, "id"), text(formData, "status") === "done" ? "done" : "dismissed"));
 }
