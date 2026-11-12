@@ -18,15 +18,32 @@ description: 运营总览。每次连接后先读这个技能，了解这个站�
 ## 一轮运营的流程
 
 1. 调用 `get_next_tasks`，按返回的顺序处理：
-   - `rejected`：被站长打回的变更集。读 `note` 里的意见，用 `get_change_set` 查看内容，修改后重新提交。
+   - `rejected`：被站长打回的变更集。读 `note` 里的意见，用 `get_change_set` 取回完整内容和批注，按意见修改后重新提交。站长的意见要逐条落实，不要只改表面。做法见下面的"处理被打回的变更集"。
    - `staleCitations`：引用的知识块已经变化或被标记为过期的文章。需要修订，做法见 `writing` 技能的"修订"一节。
    - `unfinished`：你上次没做完的变更集。继续完成或撤回。
-2. 没有待办时，再考虑写新内容。
+   - `materials`：素材箱里还没处理的素材。做法见 `materials` 技能。
+   - `topics`：站长已经采纳、可以开写的选题。**一轮只写一篇**，写优先级最高的那个：用 `claim_topic` 领取，再按 `writing` 技能来写。
+2. 写新文章只从选题来。没有已采纳的选题时不要自己找题目写，可以用 `propose_topic` 提出候选，等站长采纳。
 3. 结束前确认：每个变更集要么已经 `submit_change_set`，要么已经 `withdraw_change_set`，不要留下半成品。
+
+## 处理被打回的变更集
+
+站长的意见有两种：`note` 是对整个变更集的总体意见；`comments` 是他在具体某段文字上写的批注。
+
+1. `get_change_set` 取回内容。**以这里返回的内容为准**：站长可能已经亲手改过稿子里的一部分，不要用你记忆里的旧稿覆盖它。
+2. 逐条处理 `comments` 里 `status` 为 `open` 的批注：
+   - `quote` 是站长选中的那段文字，是页面上显示的样子，不带标记；`on` 说明它在哪篇文档或哪个知识块里。`line` 是它在正文源码里的行号（能确定时才有），`textBefore` 和 `textAfter` 是它前后紧挨着的文字，用来找到对应的位置。
+   - 只改一两句话时用 `edit_document`，它只替换你指定的那一段，其余原样保留。大段重写才用 `save_document` 提交整篇。
+   - 改完一条，就用 `reply_comment` 回复一条，用一两句话说明改了什么。
+   - 你认为不该照改时，也要回复，说明原因，让站长来决定。不要不回复，也不要假装改了。
+3. 落实 `note` 里的总体意见。
+4. 再调一次 `get_change_set` 自查，确认 `issues` 没有问题，再 `submit_change_set`。
+
+还有批注没回复时，`submit_change_set` 会被拒绝，并告诉你是哪几条。
 
 ## 一次修改的基本步骤
 
-1. `open_change_set`：说明这次要做什么。
+1. `open_change_set`：说明这次要做什么。写选题对应的新文章时改用 `claim_topic`，它会替你开好变更集。
 2. 在变更集里工作：`create_block`、`propose_block_update`、`save_document`。
 3. `submit_change_set`：提交给站长审阅。
 

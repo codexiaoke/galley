@@ -15,6 +15,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - `src/core` 不依赖 Next.js，内部使用相对路径导入。
 - MCP 接口里不能出现批准、发布、下线、读取留言、修改技能、修改权限这些能力。
 - 页面里读取数据库之前，必须先访问请求数据（`cookies()`）或调用 `await connection()`：数据库驱动是同步的，否则页面会在构建时被预渲染成固定内容。
+- 前台带缓存的读取函数（`src/app/data.ts`、`src/app/site.ts`）一律写成两层：外层 `await connection()`，内层才是 `'use cache'`。构建时执行到的缓存函数，结果会被带到线上；Docker 镜像构建时数据库是空的，站名和文章列表就会停在构建时的样子。
+- 运行时要从磁盘读的东西（`drizzle/`、`skills/`）不在构建产物里，新增这类目录时要同时加进 `Dockerfile`。
 - 前台和后台是两套界面：前台用 `galley-` 开头的样式（纸张色、宋体），后台用 `src/app/admin/ui.tsx` 和 `modal.tsx` 里的零件（`a-` 开头的配色）。不要混用。
 - 后台的列表用表格，新建、编辑、确认类操作用 `ModalForm` 弹框；服务端操作统一走 `actions.ts` 里的 `run`。
 - 后台的视觉参照 Notion 和飞书：内容直接排在白底上，不套卡片，不用投影，不给图标加底色方块；颜色只用在标签（`Badge`）和主按钮上。新增页面时沿用 `ui.tsx` 里的零件，不要自己另写一套样式。

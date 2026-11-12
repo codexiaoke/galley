@@ -24,7 +24,13 @@ export type ParsedRef = {
 
 export type MarkupIssue = { level: "error" | "warning"; message: string; line?: number };
 
-export type ParsedMarkup = { refs: ParsedRef[]; issues: MarkupIssue[] };
+/** 正文里的一张图片。name 是媒体库里的文件名。 */
+export type ParsedImage = { name: string; line?: number };
+
+export type ParsedMarkup = { refs: ParsedRef[]; images: ParsedImage[]; issues: MarkupIssue[] };
+
+/** 媒体库里图片的地址：/media/ 加上程序生成的文件名。 */
+export const MEDIA_URL_PATTERN = /^\/media\/([a-z0-9]+\.[a-z0-9]+)$/;
 
 type DirectiveNode = {
   type: "textDirective" | "leafDirective" | "containerDirective";
@@ -58,6 +64,7 @@ export function parseToTree(body: string): Root {
  */
 export function parseMarkup(body: string): ParsedMarkup {
   const refs: ParsedRef[] = [];
+  const images: ParsedImage[] = [];
   const issues: MarkupIssue[] = [];
   let ordinal = 0;
 
@@ -133,7 +140,14 @@ export function parseMarkup(body: string): ParsedMarkup {
   // 注意：访问函数不能有返回值，unist-util-visit 会把返回的数字当作"跳到第几个子节点"。
   visit(parseToTree(body), (node) => {
     if (isDirective(node)) handle(node as unknown as DirectiveNode);
+    if (node.type === "image") {
+      // 图片只能用媒体库里的：外部图片会失效，也会让读者的浏览器去访问别的网站。
+      const line = node.position?.start.line;
+      const match = MEDIA_URL_PATTERN.exec(node.url);
+      if (match) images.push({ name: match[1], line });
+      else error(`图片 "${node.url}" 不在媒体库里。图片要先由站长上传到媒体库，再用 /media/ 开头的地址引用，不能直接引用外部图片。`, line);
+    }
   });
 
-  return { refs, issues };
+  return { refs, images, issues };
 }

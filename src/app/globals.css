@@ -158,6 +158,30 @@
   }
 }
 
+/* ---- 审阅批注 ------------------------------------------------------------ */
+
+/* 被批注的文字：还没处理的是暖黄色，已经处理的只留一层很淡的灰 */
+::highlight(galley-comment) {
+  background-color: rgb(250 204 80 / 0.42);
+}
+::highlight(galley-comment-draft) {
+  background-color: rgb(250 204 80 / 0.6);
+}
+::highlight(galley-comment-done) {
+  background-color: rgb(120 120 120 / 0.14);
+}
+
+/* 选中文字后冒出来的"批注"按钮和输入面板 */
+.admin-pop {
+  animation: admin-pop-in 140ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes admin-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.97);
+  }
+}
+
 /* ---- 后台的动效 ---------------------------------------------------------- */
 
 /* 弹框：居中、带模糊的遮罩；打开时轻微上浮放大，关闭时原路收回 */
@@ -171,6 +195,9 @@
   background: var(--a-surface);
   padding: 0;
   color: var(--a-text);
+  /* 弹框常常写在表格的操作列里，那里的文字不换行、靠右对齐；弹框里要恢复成正常的排版 */
+  white-space: normal;
+  text-align: left;
   box-shadow:
     0 0 0 1px rgb(15 15 15 / 0.06),
     0 5px 14px rgb(15 15 15 / 0.08),
@@ -597,6 +624,150 @@ body {
   background: var(--accent);
 }
 
+/* ---- 页脚：每个页面最底部的一行小字 -------------------------------------- */
+
+.galley-footer {
+  margin-top: 4.5rem;
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  text-align: center;
+}
+.galley-footer nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem 0;
+}
+.galley-footer a {
+  transition: color var(--dur-fast);
+}
+.galley-footer a:hover {
+  color: var(--accent);
+}
+/* 链接之间的间隔号 */
+.galley-footer a + a::before {
+  content: "·";
+  margin-inline: 0.85em;
+  color: var(--ink-faint);
+}
+
+/* ---- 留言和搜索：表单 ---------------------------------------------------- */
+
+/* 标题下面的一句说明 */
+.galley-lede {
+  margin-bottom: 2rem;
+  font-size: 1rem;
+  line-height: 1.8;
+  color: var(--ink-soft);
+}
+/* 输入框只有一条底线，像在纸上留出的横线；聚焦时底线变成朱红 */
+.galley-form label,
+.galley-search {
+  display: block;
+}
+.galley-form label > span {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+.galley-form input,
+.galley-form textarea,
+.galley-search input {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  background: transparent;
+  padding: 0.5rem 0 0.55rem;
+  font: inherit;
+  font-size: 1.0625rem;
+  line-height: 1.8;
+  color: var(--ink);
+  transition: border-color var(--dur-fast);
+}
+.galley-form textarea {
+  resize: vertical;
+}
+.galley-form input:focus,
+.galley-form textarea:focus,
+.galley-search input:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+.galley-form > * + * {
+  margin-top: 1.6rem;
+}
+.galley-form-row {
+  display: grid;
+  gap: 1.6rem 2rem;
+}
+@media (min-width: 640px) {
+  .galley-form-row {
+    grid-template-columns: 1fr 1.4fr;
+  }
+}
+.galley-form button,
+.galley-search button {
+  border: 1px solid var(--ink-soft);
+  border-radius: 2px;
+  padding: 0.4rem 1.5rem;
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  letter-spacing: 0.1em;
+  color: var(--ink);
+  transition:
+    background-color var(--dur-fast),
+    color var(--dur-fast),
+    border-color var(--dur-fast);
+}
+.galley-form button:hover,
+.galley-search button:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--paper);
+}
+.galley-form button:disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.galley-form-error {
+  font-size: 0.9375rem;
+  color: var(--accent);
+}
+/* 给自动提交的程序准备的字段：移出屏幕，真人看不到也点不到 */
+.galley-form-trap {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.galley-search {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.galley-search input {
+  flex: 1;
+  min-width: 0;
+}
+/* 搜索结果里命中的字：一层很淡的朱红底色 */
+.galley-results mark {
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: inherit;
+}
+/* 结果的标题里有标记，宽度贴合文字的设置会让它换行不自然，这里恢复成普通的块 */
+.galley-results .galley-row-title {
+  width: auto;
+}
+
 /* ---- 首页和分类页：文章列表，一篇一行 ------------------------------------ */
 
 .galley-home {
@@ -772,6 +943,15 @@ body {
   color: var(--accent);
 }
 /* 引文用楷体，和正文的宋体区分开 */
+/* 正文里的图片：不超过行宽，居中，四角略圆 */
+.galley-prose img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin-inline: auto;
+  border-radius: 4px;
+}
+
 .galley-prose blockquote {
   border-left: 2px solid var(--rule);
   padding-left: 1.2em;

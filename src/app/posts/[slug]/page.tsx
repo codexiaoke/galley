@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { Suspense, ViewTransition, type CSSProperties } from "react";
 import { Markdown } from "@/render/Markdown";
 import { loadPublishedDocument } from "../../data";
-import { SITE } from "../../site";
+import { loadSite } from "../../site";
+import { SiteFooter } from "../../site-footer";
+import { TrackView } from "../../track-view";
 import { SiteHeader } from "../../site-header";
 
 const formatDate = (d: Date | null) => {
@@ -27,8 +29,9 @@ export default function PostPage({ params }: PageProps<"/posts/[slug]">) {
 
 async function Post({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const doc = await loadPublishedDocument(slug);
-  if (!doc) notFound();
+  const [doc, site] = await Promise.all([loadPublishedDocument(slug), loadSite()]);
+  // 页面（比如"关于"）有自己的网址，不在文章的网址下显示。
+  if (!doc || doc.kind !== "article") notFound();
 
   const published = formatDate(doc.publishedAt);
   const revised = formatDate(doc.revisedAt);
@@ -36,7 +39,7 @@ async function Post({ params }: { params: Promise<{ slug: string }> }) {
     <>
       <SiteHeader current={doc.category?.slug} />
       <article className="galley-article">
-        <title>{`${doc.title} · ${SITE.name}`}</title>
+        <title>{`${doc.title} · ${site.name}`}</title>
         <header className="galley-article-header">
           <ViewTransition name={`post-title-${doc.id}`} share="morph-title" default="none">
             <h1 className="galley-title">{doc.title}</h1>
@@ -58,6 +61,8 @@ async function Post({ params }: { params: Promise<{ slug: string }> }) {
           <Markdown body={doc.body} blocks={doc.blocks} />
         </div>
       </article>
+      <SiteFooter from={`/posts/${doc.slug}`} />
+      <TrackView path={`/posts/${doc.slug}`} />
     </>
   );
 }

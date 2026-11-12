@@ -24,7 +24,7 @@ async function Agents() {
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
   const mcpUrl = `${proto}://${host}/mcp`;
-  const codexConfig = `[mcp_servers.galley]\nurl = "${mcpUrl}"\nbearer_token_env_var = "GALLEY_TOKEN"`;
+  const codexConfig = `[mcp_servers.galley]\nurl = "${mcpUrl}"\nbearer_token_env_var = "GALLEY_TOKEN"\ndefault_tools_approval_mode = "approve"`;
   const db = getDb();
   const agents = listAgents(db);
   const skills = listSkills();
@@ -64,7 +64,9 @@ async function Agents() {
             </DetailRow>
             <DetailRow label="Codex 配置">
               <CopyBlock text={codexConfig} multiline />
-              <p className="mt-2 text-xs text-a-muted">访问密钥放在环境变量 GALLEY_TOKEN 里，不要写进配置文件。</p>
+              <p className="mt-2 text-xs leading-relaxed text-a-muted">
+                访问密钥放在环境变量 GALLEY_TOKEN 里，不要写进配置文件。最后一行让 Codex 调用本站的工具时不再逐次询问：定时自动运行时没有人能点批准，缺了这一行它什么都做不了。放行是安全的，因为这些工具里没有发布的能力，内容仍然要你在这里批准才会上线。
+              </p>
             </DetailRow>
           </dl>
         </Card>
@@ -161,7 +163,8 @@ async function Agents() {
           >
             {calls.map((call) => (
               <tr key={call.id}>
-                <td>
+                {/* 被拒绝时下面有一句原因，可能比较长，允许它换行 */}
+                <td className="!whitespace-normal">
                   <span className="flex items-center gap-2">
                     {call.ok ? <CircleCheck size={15} className="shrink-0 text-a-success" /> : <CircleX size={15} className="shrink-0 text-a-danger" />}
                     <span className="font-mono text-xs">{call.tool}</span>

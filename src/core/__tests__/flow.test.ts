@@ -9,6 +9,7 @@ import {
   getBlockView,
   markBlockStale,
   proposeBlockUpdate,
+  searchBlocks,
   setBlockVisibility,
 } from "../services/blocks";
 import { createCategory, deleteCategory, listCategories, updateCategory } from "../services/categories";
@@ -21,7 +22,9 @@ import {
   saveDocument,
   setDocumentPublished,
 } from "../services/documents";
+import { addMaterial, deleteMaterial, getMaterial, markMaterialProcessed } from "../services/materials";
 import { getNextTasks } from "../services/tasks";
+import { claimTopic, createTopic, decideTopic, listTopics } from "../services/topics";
 
 let db: Db;
 let agent: Actor;
@@ -122,7 +125,7 @@ describe("发布把关", () => {
     decideChangeSet(db, OWNER, cs.id, "reject", "开头太啰嗦");
 
     expect(getNextTasks(db, agent).rejected).toEqual([
-      { changeSetId: cs.id, kind: "article", title: "待改", note: "开头太啰嗦" },
+      { changeSetId: cs.id, kind: "article", title: "待改", note: "开头太啰嗦", openComments: 0 },
     ]);
 
     if (!first.saved) throw new Error("保存失败");
@@ -361,7 +364,7 @@ describe("变更传播", () => {
 
   it("标记为已过期后，引用它的文章出现在待办里", () => {
     const { blockId } = setup();
-    const result = markBlockStale(db, agent, blockId);
+    const result = markBlockStale(db, agent, blockId, "日期可能不对");
     expect(result.impact.citations).toHaveLength(1);
     expect(listStaleCitations(db)).toEqual([
       expect.objectContaining({ blockId, reason: "block_marked_stale", blockStatus: "stale" }),
@@ -482,5 +485,154 @@ describe("后台的管理操作", () => {
     expect(authenticateAgent(db, token)).toBeNull();
     expect(authenticateAgent(db, next.token)?.id).toBe(created.id);
     expectError(() => regenerateAgentToken(db, agent, created.id), "forbidden");
+  });
+});
+
+describe("真实 Agent 运行后补上的规则", () => {
+  it("Agent 标记过期必须写原因；原因会带到待办里，恢复后清空", () => {
+    const blockId = publishFact("会过期的事实", "某个之后可能不成立的说法。");
+    publishArticle("cites-stale", `:cite[一个说法]{b=${blockId}}。`);
+
+    expectError(() => markBlockStale(db, agent, blockId), "invalid", /请写明原因/);
+    markBlockStale(db, agent, blockId, "官方文档改了说法");
+
+    expect(getBlockView(db, blockId)!.staleReason).toBe("官方文档改了说法");
+    const tasks = getNextTasks(db, agent);
+    expect(tasks.staleCitations[0].citations[0]).toMatchObject({ blockId, staleReason: "官方文档改了说法" });
+  });
+
+  it("提交了修订的过期引用不再算待办，但仍然看得到", () => {
+    const blockId = publishFact("会过期的事实二", "另一个之后可能不成立的说法。");
+    const documentId = publishArticle("being-revised", `:cite[一个说法]{b=${blockId}}。`);
+    markBlockStale(db, OWNER, blockId);
+    expect(getNextTasks(db, agent).staleCitations).toHaveLength(1);
+
+    const cs = openChangeSet(db, agent, { kind: "document_edit", title: "删掉过期的说法" });
+    saveDocument(db, agent, { changeSetId: cs.id, documentId, title: "being-revised", body: "这句话不再引用它。" });
+    submitChangeSet(db, agent, cs.id);
+
+    const tasks = getNextTasks(db, agent);
+    expect(tasks.staleCitations).toHaveLength(0);
+    expect(tasks.staleCitationsBeingRevised).toEqual([expect.objectContaining({ slug: "being-revised", changeSetId: cs.id, status: "in_review" })]);
+    expect(listStaleCitations(db)[0].pendingRevision).toEqual({ changeSetId: cs.id, status: "in_review" });
+
+    decideChangeSet(db, OWNER, cs.id, "approve");
+    const after = getNextTasks(db, agent);
+    expect(after.staleCitations).toHaveLength(0);
+    expect(after.staleCitationsBeingRevised).toHaveLength(0);
+  });
+
+  it("依据包得太长或占满全文时给出提醒，但不阻止保存", () => {
+    const blockId = publishFact("一个看法", "后台是工具，耐看比抢眼重要。");
+    const cs = openChangeSet(db, agent, { kind: "article", title: "包得太满" });
+    const long = "后台是每天要长时间使用的工具，抢眼的设计很容易让人审美疲劳，所以对我来说耐看比眼前一亮重要得多，这一点我是在连着否掉了好几套第一眼很抓人的方案之后才慢慢想明白的";
+    const stuffed = Array.from({ length: 4 }, () => `:cite[${long}]{b=${blockId}}`).join("\n\n");
+    const saved = saveDocument(db, agent, { changeSetId: cs.id, kind: "article", slug: "stuffed", title: "包得太满", body: stuffed });
+    expect(saved.saved).toBe(true);
+    const messages = saved.issues.filter((i) => i.level === "warning").map((i) => i.message).join("\n");
+    expect(messages).toMatch(/太长了/);
+    expect(messages).toMatch(/逐条复述/);
+
+    const filler = "这几年我换过不少工具，也给自己做过不少界面，真正留下来天天在用的，都是那些不怎么起眼的。".repeat(3);
+    const balanced = `${filler}\n\n说到底，:cite[后台是工具，耐看比抢眼重要]{b=${blockId}}。\n\n${filler}`;
+    const good = saveDocument(db, agent, { changeSetId: cs.id, documentId: saved.saved ? saved.documentId : undefined, title: "包得太满", body: balanced });
+    expect(good.issues).toEqual([]);
+  });
+});
+
+describe("素材箱", () => {
+  it("素材整理成知识块后记得出处；私密素材产出的知识块一定是私密的", () => {
+    const pub = addMaterial(db, OWNER, { content: "我觉得后台要耐看，不要抢眼。" });
+    const secret = addMaterial(db, OWNER, { content: "公司内部的事，别公开。", isPrivate: true });
+    expect(getNextTasks(db, agent).materials.map((m) => m.materialId)).toEqual([pub.id, secret.id]);
+
+    const cs = openChangeSet(db, agent, { kind: "knowledge", title: "整理素材" });
+    const a = createBlock(db, agent, { changeSetId: cs.id, type: "opinion", title: "后台要耐看", body: "我认为后台要耐看。", materialId: pub.id });
+    const b = createBlock(db, agent, {
+      changeSetId: cs.id,
+      type: "experience",
+      title: "内部的事",
+      body: "一件内部的事。",
+      materialId: secret.id,
+      visibility: "public",
+    });
+    if (!a.created || !b.created) throw new Error("没有创建成功");
+    expect(getBlockView(db, a.blockId, { changeSetId: cs.id })!.visibility).toBe("public");
+    // 即使 Agent 传了 public，来自私密素材的知识块仍然是私密的。
+    expect(getBlockView(db, b.blockId, { changeSetId: cs.id })!.visibility).toBe("private");
+
+    expectError(() => markMaterialProcessed(db, agent, pub.id), "invalid", /请写一句说明/);
+    markMaterialProcessed(db, agent, pub.id, "整理出一个观点");
+    expect(getMaterial(db, pub.id).outputs.blocks.map((x) => x.id)).toEqual([a.blockId]);
+    expect(getNextTasks(db, agent).materials.map((m) => m.materialId)).toEqual([secret.id]);
+  });
+
+  it("Agent 可以替站长记素材；有产出的素材不能删除", () => {
+    const material = addMaterial(db, agent, { content: "我今天解决了一个缓存不刷新的问题。", url: "https://example.com/note" });
+    expectError(() => addMaterial(db, agent, { content: "  " }), "invalid");
+    expectError(() => addMaterial(db, agent, { content: "x", url: "javascript:alert(1)" }), "invalid", /http/);
+    expectError(() => deleteMaterial(db, agent, material.id), "forbidden");
+
+    createTopic(db, agent, { title: "缓存为什么不刷新", note: "来自一次排查", materialId: material.id });
+    expectError(() => deleteMaterial(db, OWNER, material.id), "conflict", /不能删除/);
+
+    const unused = addMaterial(db, OWNER, { content: "一条没用上的。" });
+    deleteMaterial(db, OWNER, unused.id);
+  });
+});
+
+describe("选题池", () => {
+  it("Agent 提的是候选，站长采纳后才能领取；站长自己加的直接可写", () => {
+    const proposed = createTopic(db, agent, { title: "候选题目", note: "值得写" });
+    expect(proposed.status).toBe("proposed");
+    expectError(() => claimTopic(db, agent, proposed.id), "conflict", /等站长采纳/);
+    expectError(() => decideTopic(db, agent, proposed.id, "accept"), "forbidden");
+
+    const own = createTopic(db, OWNER, { title: "站长的题目", priority: 5 });
+    expect(own.status).toBe("accepted");
+    decideTopic(db, OWNER, proposed.id, "accept");
+
+    // 优先级高的排在前面。
+    expect(getNextTasks(db, agent).topics.map((t) => t.title)).toEqual(["站长的题目", "候选题目"]);
+    expect(getNextTasks(db, agent).proposedTopicsWaiting).toBe(0);
+  });
+
+  it("领取选题会开一个变更集；批准后选题完成，撤回后选题回到队列", () => {
+    const first = createTopic(db, OWNER, { title: "第一个题目" });
+    const { changeSet } = claimTopic(db, agent, first.id);
+    expect(changeSet.kind).toBe("article");
+    expectError(() => claimTopic(db, agent, first.id), "conflict", /已经被领取/);
+    expect(getNextTasks(db, agent).topics).toHaveLength(0);
+
+    withdrawChangeSet(db, agent, changeSet.id);
+    expect(listTopics(db, { status: ["accepted"] }).map((t) => t.id)).toEqual([first.id]);
+
+    const again = claimTopic(db, agent, first.id).changeSet;
+    saveDocument(db, agent, { changeSetId: again.id, kind: "article", slug: "from-topic", title: "第一个题目", body: "正文。" });
+    submitChangeSet(db, agent, again.id);
+    decideChangeSet(db, OWNER, again.id, "approve");
+    expect(listTopics(db, { status: ["done"] }).map((t) => t.id)).toEqual([first.id]);
+  });
+
+  it("站长可以决定不写某个选题", () => {
+    const topic = createTopic(db, agent, { title: "不太行的题目", note: "试试" });
+    decideTopic(db, OWNER, topic.id, "drop");
+    expectError(() => claimTopic(db, agent, topic.id), "conflict", /不写/);
+    expect(getNextTasks(db, agent).topics).toHaveLength(0);
+  });
+});
+
+describe("搜索知识块", () => {
+  it("命中任何一个词就返回，命中的词越多排得越前，标题命中优先", () => {
+    publishFact("缓存组件的行为", "打开之后页面默认会被预渲染。");
+    publishFact("同步驱动", "better-sqlite3 是同步的，读库时没有等待。");
+    publishFact("预渲染与同步驱动", "同步读库的页面会在构建时被预渲染。");
+
+    const titles = (q: string) => searchBlocks(db, q).map((b) => b.title);
+    // 多写一个站里没有的词，也不应该什么都搜不到。
+    expect(titles("预渲染 不存在的词")).toHaveLength(2);
+    expect(titles("预渲染 同步")[0]).toBe("预渲染与同步驱动");
+    expect(titles("完全无关")).toHaveLength(0);
+    expect(titles("")).toHaveLength(3);
   });
 });

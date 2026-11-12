@@ -1,4 +1,4 @@
-import { ExternalLink, FileText } from "lucide-react";
+import { ExternalLink, FileText, Plus } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { getDb } from "@/core/db/client";
@@ -6,7 +6,7 @@ import { listDocuments } from "@/core/services/documents";
 import { setDocumentStatus } from "../../actions";
 import { requireOwner } from "../../auth";
 import { ModalForm } from "../../modal";
-import { Badge, Card, EmptyState, formatDay, LetterTile, PageHeader, PageSkeleton, PrimaryCell, ROW_LINK, RowActions, Table, toneFor, type Tone } from "../../ui";
+import { Badge, buttonClass, Card, EmptyState, formatDay, LetterTile, PageHeader, PageSkeleton, PrimaryCell, ROW_LINK, RowActions, Table, toneFor, type Tone } from "../../ui";
 
 const STATUS: Record<string, { label: string; tone: Tone }> = {
   published: { label: "已上线", tone: "green" },
@@ -26,9 +26,28 @@ async function Documents() {
   await requireOwner();
   const documents = listDocuments(getDb());
   const online = documents.filter((d) => d.status === "published").length;
+  const hasAbout = documents.some((d) => d.kind === "page" && d.slug === "about");
+  /** 一篇文档在前台的网址：文章在 /posts/ 下面，页面直接在根下面。 */
+  const urlOf = (doc: { kind: string; slug: string }) => (doc.kind === "page" ? `/${doc.slug}` : `/posts/${doc.slug}`);
   return (
     <>
-      <PageHeader title="文章" description="全部文章和页面。内容的修改由 Agent 提交、在看板上审阅；这里可以把文章下线或重新上线。" />
+      <PageHeader
+        title="文章"
+        description="全部文章和页面。Agent 的修改在看板上审阅；你也可以在这里自己写、直接编辑，或者把文章下线、重新上线。"
+        actions={
+          <>
+            {!hasAbout && (
+              <Link href="/admin/documents/new?kind=page" className={buttonClass("secondary")}>
+                写「关于」页
+              </Link>
+            )}
+            <Link href="/admin/documents/new" className={buttonClass("primary")}>
+              <Plus size={16} />
+              写文章
+            </Link>
+          </>
+        }
+      />
       <Card flush footer={documents.length > 0 ? `共 ${documents.length} 篇，其中 ${online} 篇已上线` : undefined}>
         <Table
           head={["标题", "分类", "状态", "版本", "发布日期", ""]}
@@ -38,10 +57,18 @@ async function Documents() {
             const status = STATUS[doc.status];
             return (
               <tr key={doc.id}>
-                <td className="max-w-md">
-                  <PrimaryCell leading={<LetterTile />} title={doc.title} subtitle={`/posts/${doc.slug}`} />
+                <td>
+                  <PrimaryCell leading={<LetterTile />} title={doc.title} subtitle={urlOf(doc)} />
                 </td>
-                <td>{doc.categoryName ? <Badge tone={toneFor(doc.categoryName)}>{doc.categoryName}</Badge> : <span className="text-a-muted">未分类</span>}</td>
+                <td>
+                  {doc.kind === "page" ? (
+                    <Badge>页面</Badge>
+                  ) : doc.categoryName ? (
+                    <Badge tone={toneFor(doc.categoryName)}>{doc.categoryName}</Badge>
+                  ) : (
+                    <span className="text-a-muted">未分类</span>
+                  )}
+                </td>
                 <td>
                   <Badge tone={status.tone} dot>
                     {status.label}
@@ -51,9 +78,14 @@ async function Documents() {
                 <td className="tabular-nums text-a-muted">{formatDay(doc.publishedAt)}</td>
                 <td>
                   <RowActions>
+                    {doc.status !== "draft" && (
+                      <Link href={`/admin/documents/${doc.id}/edit`} className={ROW_LINK}>
+                        编辑
+                      </Link>
+                    )}
                     {doc.status === "published" && (
                       <>
-                        <Link href={`/posts/${doc.slug}`} target="_blank" className={ROW_LINK}>
+                        <Link href={urlOf(doc)} target="_blank" className={ROW_LINK}>
                           查看
                           <ExternalLink size={13} />
                         </Link>

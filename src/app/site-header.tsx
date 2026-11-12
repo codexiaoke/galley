@@ -1,18 +1,19 @@
 import Link from "next/link";
 import { ViewTransition } from "react";
 import { loadCategories } from "./data";
-import { SITE } from "./site";
+import { loadSite } from "./site";
 
 /**
  * 前台每个页面顶部的一行：左边是网站名，右边是分类导航。
  * 导航里只列出有文章的分类，避免读者点进去是空的。
  */
 export async function SiteHeader({ current }: { current?: string | null }) {
-  const categories = (await loadCategories()).filter((c) => c.publishedCount > 0 || c.slug === current);
+  const [site, all] = await Promise.all([loadSite(), loadCategories()]);
+  const categories = all.filter((c) => c.publishedCount > 0 || c.slug === current);
   return (
     <header className="galley-header">
       <Link href="/" className="galley-sitename">
-        {SITE.name}
+        {site.name}
       </Link>
       {categories.length > 0 && (
         <nav className="galley-nav" aria-label="分类">

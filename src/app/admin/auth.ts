@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { OWNER, type Actor } from "@/core/actor";
@@ -32,10 +32,14 @@ export function passwordMatches(input: string) {
 export async function startSession() {
   const expires = Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000;
   const store = await cookies();
+  // 站点通过 HTTPS 访问时（前面的反向代理会在请求头里说明），cookie 只允许在 HTTPS 下发送。
+  // 不能简单地按"是不是生产环境"来定：刚部署好、还没配 HTTPS 时用 http://服务器地址:3000 访问，
+  // 浏览器会直接丢掉只允许 HTTPS 的 cookie，表现为密码正确却怎么也登录不上。
+  const https = ((await headers()).get("x-forwarded-proto") ?? "").split(",")[0].trim() === "https";
   store.set(COOKIE, `${expires}.${sign(String(expires))}`, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: https,
     path: "/",
     expires: new Date(expires),
   });

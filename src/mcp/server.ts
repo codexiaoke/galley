@@ -9,11 +9,38 @@ import { logAgentCall } from "@/core/services/agents";
 import { createBlock, markBlockStale, proposeBlockUpdate, readBlockAsAgent, searchBlocks } from "@/core/services/blocks";
 import { listCategories } from "@/core/services/categories";
 import { changeSetContents, findChangeSet, openChangeSet, submitChangeSet, withdrawChangeSet } from "@/core/services/changeSets";
-import { getDocumentForEditing, saveDocument } from "@/core/services/documents";
+import { checkDocumentBody, getDocumentForEditing, listDocuments, replaceInDocument, saveDocument } from "@/core/services/documents";
+import { lineOfQuote, listComments, replyToComment } from "@/core/services/comments";
+import { listMedia } from "@/core/services/media";
+import { addMaterial, getMaterial, listMaterials, markMaterialProcessed } from "@/core/services/materials";
 import { getNextTasks } from "@/core/services/tasks";
+import { claimTopic, createTopic, listTopics } from "@/core/services/topics";
 import { getSkill, listSkills } from "@/core/skills";
 
 type AgentActor = Extract<Actor, { kind: "agent" }>;
+
+/**
+ * 只读的工具。
+ *
+ * 每个工具都要告诉 Agent 产品自己会不会改动数据。Codex 这类产品默认对"没说明的工具"一律要求人工批准，
+ * 在无人值守的定时运行里这等于直接拒绝，Agent 连技能都读不到。
+ * 标明只读之后，读取类的调用可以直接放行；写入类的调用是否放行，由使用者在 Agent 产品里决定。
+ */
+const READ_ONLY_TOOLS = new Set([
+  "get_next_tasks",
+  "list_skills",
+  "get_skill",
+  "list_components",
+  "list_categories",
+  "get_change_set",
+  "search_blocks",
+  "get_block",
+  "get_document",
+  "list_materials",
+  "list_topics",
+  "list_documents",
+  "list_media",
+]);
 
 const INSTRUCTIONS = [
   "这是 Galley 博客的运营接口。你负责准备内容，站长负责审阅和批准，你不能发布。",
@@ -47,7 +74,11 @@ export function createMcpServer(
     shape: S,
     handler: (args: z.infer<z.ZodObject<S>>) => unknown,
   ) {
-    server.registerTool(name, { description, inputSchema: shape }, (async (args: z.infer<z.ZodObject<S>>) => {
+    const annotations = READ_ONLY_TOOLS.has(name)
+      ? { readOnlyHint: true, openWorldHint: false }
+      : // 写入类的工具都只是在变更集里追加内容，不会删除或覆盖已上线的东西，也不访问站点以外的系统。
+        { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
+    server.registerTool(name, { description, inputSchema: shape, annotations }, (async (args: z.infer<z.ZodObject<S>>) => {
       try {
         const result = handler(args);
         logAgentCall(db, actor.id, name);
@@ -63,8 +94,11 @@ export function createMcpServer(
   }
 
   // ---- 入门 ----
-  tool("get_next_tasks", "查看当前的待办：被打回的变更集、需要修订的过期引用、没做完的变更集。每次运行先调用它。", {}, () =>
-    getNextTasks(db, actor),
+  tool(
+    "get_next_tasks",
+    "查看当前的待办：被打回的变更集、需要修订的过期引用、没做完的变更集。每次运行先调用它。已经提交了修订、正在等结论的不算待办，列在 staleCitationsBeingRevised 里仅供知悉。",
+    {},
+    () => getNextTasks(db, actor),
   );
 
   tool("list_skills", "列出站点提供的技能（运营说明）。", {}, () => listSkills());
@@ -86,7 +120,7 @@ export function createMcpServer(
     "open_change_set",
     "开启一个变更集。你的一切修改都要在某个变更集里进行，最后提交给站长审阅。",
     {
-      kind: z.enum(CHANGE_SET_KINDS).describe("article 新文章；document_edit 修改已有文章；page 页面调整；knowledge 整理知识块；block_update 更新知识块及受影响的文章"),
+      kind: z.enum(CHANGE_SET_KINDS).describe("article 新文章（来自选题的新文章请改用 claim_topic）；document_edit 修改已有文章；page 页面调整；knowledge 整理知识块；block_update 更新知识块及受影响的文章"),
       title: z.string().describe("一句话说明这次要做什么，站长会在看板上看到"),
       summary: z.string().optional().describe("补充说明：为什么做、做了哪些取舍"),
     },
@@ -96,29 +130,64 @@ export function createMcpServer(
     },
   );
 
-  tool("get_change_set", "查看一个变更集的状态、站长的意见和其中的内容。", { changeSetId: z.string() }, ({ changeSetId }) => {
+  tool(
+    "get_change_set",
+    "查看一个变更集的状态、站长的意见和批注（comments），以及其中每个知识块和每篇文档的完整内容。每篇文档附带一份最新的检查结果（issues），提交前用它自查。",
+    { changeSetId: z.string() },
+    ({ changeSetId }) => {
     const { changeSet, blockItems, documentItems } = changeSetContents(db, changeSetId);
     if (changeSet.createdById !== actor.id) throw notFound(`变更集 ${changeSetId} 不存在。`);
+    const categoryById = new Map(listCategories(db).map((c) => [c.id, c.slug]));
     return {
       changeSetId: changeSet.id,
       kind: changeSet.kind,
       title: changeSet.title,
       status: changeSet.status,
       ownerNote: changeSet.decisionNote,
+      // 站长在具体文字上写的批注。status 为 open 的要逐条处理并用 reply_comment 回复，否则不能重新提交。
+      comments: listComments(db, changeSetId).map((c) => {
+        const source =
+          c.targetType === "document"
+            ? documentItems.find((d) => d.revision.id === c.targetRevisionId)?.revision.body
+            : blockItems.find((b) => b.revision.id === c.targetRevisionId)?.revision.body;
+        return {
+          commentId: c.id,
+          status: c.status,
+          on: c.target?.type === "block" ? { blockId: c.target.blockId, title: c.target.title } : c.target ? { documentId: c.target.documentId, title: c.target.title } : null,
+          // 站长选中的那段文字，是页面上显示的样子，不含标记。没有 quote 表示批注针对整篇内容。
+          quote: c.anchor?.exact ?? null,
+          // 帮你在源码里找到位置：它前后紧挨着的文字，以及估计的行号（能确定时才有）。
+          textBefore: c.anchor?.prefix ?? null,
+          textAfter: c.anchor?.suffix ?? null,
+          line: c.anchor && source ? (lineOfQuote(source, c.anchor.exact) ?? null) : null,
+          comment: c.body,
+          yourReply: c.reply,
+        };
+      }),
+      // 连同内容一起返回：被打回后修改，或者提交前自查，都不需要再逐个去读。
       blocks: blockItems.map(({ block, revision }) => ({
         blockId: block.id,
         type: block.type,
         title: revision.title,
+        body: revision.body,
+        data: revision.data,
+        sources: revision.sources,
         isNew: revision.revNo === 1,
       })),
       documents: documentItems.map(({ document, revision }) => ({
         documentId: document.id,
         slug: document.slug,
         title: revision.title,
+        summary: revision.summary,
+        category: categoryById.get(revision.categoryId ?? "") ?? null,
+        body: revision.body,
         isNew: revision.revNo === 1,
+        // 按当前的知识库重新检查一遍正文。提交之后就不能改了，提交前先看这里有没有问题。
+        issues: checkDocumentBody(db, changeSet.id, revision.body),
       })),
     };
-  });
+  },
+  );
 
   tool("submit_change_set", "把变更集提交给站长审阅。提交后不能再修改，除非被打回。", { changeSetId: z.string() }, ({ changeSetId }) => {
     const cs = submitChangeSet(db, actor, changeSetId);
@@ -133,7 +202,7 @@ export function createMcpServer(
   // ---- 知识库 ----
   tool(
     "search_blocks",
-    "搜索站里已经确认的知识块。写作前先搜索，已有的内容直接引用。多个词用空格分开，每个词都要出现。",
+    "搜索站里已经确认的知识块。写作前先搜索，已有的内容直接引用。多个词用空格分开，命中任何一个词就会返回，命中的词越多排得越前。",
     {
       query: z.string().describe("搜索词。留空返回最近的知识块"),
       type: z.enum(BLOCK_TYPES).optional(),
@@ -169,6 +238,7 @@ export function createMcpServer(
       data: z.record(z.string(), z.unknown()).optional().describe("类型专有字段，见 writing 技能"),
       sources: z.array(sourceShape).optional().describe("来源。fact 和 data 类型至少需要一个"),
       visibility: z.enum(VISIBILITIES).optional().describe("默认 public。private 的知识块不能被公开内容引用"),
+      materialId: z.string().optional().describe("这个知识块是从哪条素材整理出来的。来自私密素材的知识块会自动设为私密"),
       confirmNew: z.boolean().optional().describe("已经看过相似的块，确认这是新内容"),
     },
     (args) => createBlock(db, actor, args),
@@ -193,11 +263,118 @@ export function createMcpServer(
   tool(
     "mark_block_stale",
     "把一个知识块标记为可能已过期。引用它的文章会在后台被标出，并出现在待办里。",
-    { blockId: z.string() },
-    ({ blockId }) => {
-      const result = markBlockStale(db, actor, blockId);
+    { blockId: z.string(), reason: z.string().describe("为什么认为它过期：哪里可能不成立了，依据是什么。之后来修订的人要靠它知道该查什么") },
+    ({ blockId, reason }) => {
+      const result = markBlockStale(db, actor, blockId, reason);
       hooks.onPublicChange?.();
       return result;
+    },
+  );
+
+  tool(
+    "reply_comment",
+    "回复站长的一条批注，说明你是怎么处理的；批注随之标为已处理。先按批注把内容改好，再回复。还有批注没回复时，变更集不能重新提交。",
+    {
+      commentId: z.string(),
+      reply: z.string().describe("一两句话：改了什么。如果没有照做，说明原因"),
+    },
+    ({ commentId, reply }) => replyToComment(db, actor, commentId, reply),
+  );
+
+  // ---- 素材 ----
+  tool(
+    "add_material",
+    "替站长往素材箱里记一条素材：他的想法、经历、踩过的坑。只记站长本人说过或做过的事，用第一人称，不要加入你自己的推断。",
+    {
+      content: z.string().describe("素材内容。把背景、过程和结论写清楚，脱离当前对话也能看懂"),
+      url: z.string().optional().describe("相关的链接"),
+      isPrivate: z.boolean().optional().describe("站长不想公开的内容设为 true"),
+    },
+    (args) => {
+      const material = addMaterial(db, actor, args);
+      return { materialId: material.id, status: material.status };
+    },
+  );
+
+  tool(
+    "list_materials",
+    "列出素材箱里的素材，默认只列还没处理的。给出 materialId 时返回那一条的完整内容和它已经整理出的知识块、选题。",
+    { materialId: z.string().optional(), includeProcessed: z.boolean().optional() },
+    ({ materialId, includeProcessed }) =>
+      materialId
+        ? getMaterial(db, materialId)
+        : listMaterials(db, { status: includeProcessed ? ["new", "processed"] : ["new"] }).map((m) => ({
+            materialId: m.id,
+            content: m.content,
+            url: m.url,
+            isPrivate: m.isPrivate,
+            status: m.status,
+            blockCount: m.blockCount,
+            topicCount: m.topicCount,
+          })),
+  );
+
+  tool(
+    "mark_material_processed",
+    "标记一条素材已经处理完。先把它整理成知识块（create_block 时带上 materialId）和候选选题，再调用这个。",
+    {
+      materialId: z.string(),
+      note: z.string().describe("一句说明：整理成了什么，或者为什么没有可用的内容"),
+    },
+    ({ materialId, note }) => markMaterialProcessed(db, actor, materialId, note),
+  );
+
+  // ---- 选题 ----
+  tool(
+    "propose_topic",
+    "提出一个候选选题。它不会直接进入可写的队列，要等站长采纳。",
+    {
+      title: z.string().describe("选题的标题，写成读者会想点开的样子"),
+      note: z.string().describe("为什么值得写、打算从什么角度写、会用到哪些已有的知识块或素材"),
+      materialId: z.string().optional().describe("如果这个选题来自某条素材"),
+    },
+    (args) => {
+      const topic = createTopic(db, actor, args);
+      return { topicId: topic.id, status: topic.status };
+    },
+  );
+
+  tool(
+    "list_topics",
+    "列出选题。默认列出站长已采纳、可以开写的，优先级高的在前。",
+    { includeProposed: z.boolean().optional().describe("同时列出还在等站长决定的候选") },
+    ({ includeProposed }) =>
+      listTopics(db, { status: includeProposed ? ["accepted", "proposed"] : ["accepted"] }).map((t) => ({
+        topicId: t.id,
+        title: t.title,
+        note: t.note,
+        status: t.status,
+        priority: t.priority,
+        materialId: t.originMaterialId,
+      })),
+  );
+
+  tool(
+    "claim_topic",
+    "领取一个站长已采纳的选题，开始写。会为它开一个变更集并返回 changeSetId，之后的 create_block、save_document 都用这个 changeSetId。选题来自素材时，同时返回素材原文和它整理出的知识块的当前状态。",
+    { topicId: z.string() },
+    ({ topicId }) => {
+      const { topic, changeSet } = claimTopic(db, actor, topicId);
+      // 选题的说明是提出时写的，里面提到的知识块状态可能已经过时。这里给出素材产出的知识块现在的状态。
+      const fromMaterial = topic.originMaterialId ? getMaterial(db, topic.originMaterialId) : undefined;
+      return {
+        changeSetId: changeSet.id,
+        topicId: topic.id,
+        title: topic.title,
+        note: topic.note,
+        material: fromMaterial && {
+          materialId: fromMaterial.id,
+          content: fromMaterial.content,
+          url: fromMaterial.url,
+          isPrivate: fromMaterial.isPrivate,
+          blocks: fromMaterial.outputs.blocks,
+        },
+      };
     },
   );
 
@@ -211,7 +388,7 @@ export function createMcpServer(
       kind: z.enum(DOCUMENT_KINDS).optional().describe("新建时必填"),
       slug: z.string().optional().describe("新建时必填。网址别名，小写字母、数字和连字符"),
       title: z.string(),
-      summary: z.string().optional().describe("一两句话的摘要，显示在文章列表里"),
+      summary: z.string().optional().describe("一两句话的摘要，显示在文章列表里。修改文章时省略表示不变"),
       category: z.string().optional().describe("分类的网址别名，见 list_categories。新文章必须给出；修改文章时省略表示不变"),
       body: z.string().describe("正文，Markdown 加引用标记，语法见 writing 技能"),
     },
@@ -219,10 +396,39 @@ export function createMcpServer(
   );
 
   tool(
+    "edit_document",
+    "只改正文里的一小段：把 find 换成 replace，标题、摘要、分类和其余正文原样保留。改一两句话时用它，不要用 save_document 重交整篇，那样容易误改别的地方。find 要和正文源码逐字一致，并且只出现一次。",
+    {
+      changeSetId: z.string(),
+      documentId: z.string(),
+      find: z.string().describe("要替换的原文，和正文源码逐字一致（包括标记）。必须恰好出现一次"),
+      replace: z.string().describe("替换成的文字"),
+    },
+    (args) => replaceInDocument(db, actor, args),
+  );
+
+  tool(
     "get_document",
     "读取一篇文档的正文。给出变更集时优先返回其中的草稿，否则返回线上的版本。",
     { documentId: z.string().optional(), slug: z.string().optional(), changeSetId: z.string().optional() },
     ({ documentId, slug, changeSetId }) => getDocumentForEditing(db, { documentId, slug }, changeSetId),
+  );
+
+  tool(
+    "list_documents",
+    "列出站里已有的文章：标题、网址别名、分类和状态。提选题之前用它确认没有重复的题目。",
+    {},
+    () =>
+      listDocuments(db)
+        .filter((d) => d.kind === "article")
+        .map((d) => ({ documentId: d.id, slug: d.slug, title: d.title, category: d.categoryName, status: d.status })),
+  );
+
+  tool(
+    "list_media",
+    "列出媒体库里的图片。正文里只能用这里的图片，写法是 ![说明](url)；不能引用外部图片，也不能自己上传。需要新图片时在变更集的说明里告诉站长。",
+    {},
+    () => listMedia(db).map((m) => ({ url: m.url, alt: m.alt, markdown: `![${m.alt}](${m.url})` })),
   );
 
   return server;

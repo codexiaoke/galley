@@ -1,0 +1,13 @@
+# 不需要进镜像的东西：依赖和构建产物会在镜像里重新生成，数据和密码不能带进去。
+node_modules
+.next
+.git
+.claude
+data
+.env*
+!.env.example
+*.tsbuildinfo
+next-env.d.ts
+Dockerfile
+docker-compose.yml
+.dockerignore

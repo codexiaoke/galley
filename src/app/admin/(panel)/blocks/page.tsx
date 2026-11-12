@@ -3,11 +3,11 @@ import { Suspense } from "react";
 import { getDb } from "@/core/db/client";
 import { BLOCK_TYPES, type BlockType } from "@/core/db/schema";
 import { listBlocks } from "@/core/services/blocks";
-import { changeBlockVisibility, confirmBlock, flagBlockStale } from "../../actions";
+import { changeBlockVisibility, confirmBlock, flagBlockStale, saveBlockEdit } from "../../actions";
 import { requireOwner } from "../../auth";
 import { Modal, ModalForm } from "../../modal";
 import { Select } from "../../select";
-import { Badge, buttonClass, Card, DetailRow, EmptyState, formatDay, IconTile, INPUT, PageHeader, PageSkeleton, PrimaryCell, RowActions, Table, type Tone } from "../../ui";
+import { Badge, buttonClass, Card, DetailRow, EmptyState, Field, formatDay, IconTile, INPUT, PageHeader, PageSkeleton, PrimaryCell, RowActions, Table, type Tone } from "../../ui";
 
 const TYPE: Record<BlockType, { label: string; icon: LucideIcon; tone: Tone }> = {
   fact: { label: "事实", icon: Lightbulb, tone: "blue" },
@@ -84,7 +84,7 @@ async function Blocks({ searchParams }: { searchParams: Promise<Record<string, s
             const kind = TYPE[block.type];
             return (
               <tr key={block.id}>
-                <td className="max-w-sm">
+                <td>
                   <PrimaryCell leading={<IconTile icon={kind.icon} />} title={block.title} subtitle={block.id} />
                 </td>
                 <td>
@@ -146,11 +146,54 @@ async function Blocks({ searchParams }: { searchParams: Promise<Record<string, s
                             </ul>
                           )}
                         </DetailRow>
+                        {block.staleReason && (
+                          <DetailRow label="过期原因">
+                            <p className="whitespace-pre-wrap">{block.staleReason}</p>
+                          </DetailRow>
+                        )}
                         <DetailRow label="使用情况">
                           第 {block.revNo} 版，核实于 {formatDay(block.revisedAt)}，被 {block.usageCount} 篇文章引用
                         </DetailRow>
                       </dl>
                     </Modal>
+                    <ModalForm
+                      triggerLabel="编辑"
+                      triggerVariant="link"
+                      title="修改知识块"
+                      action={saveBlockEdit}
+                      hidden={{ id: block.id }}
+                      submitLabel="保存并生效"
+                      successMessage="知识块已更新"
+                      wide
+                    >
+                      <Field label="标题">
+                        <input name="title" required defaultValue={block.title} className={INPUT} />
+                      </Field>
+                      <Field label="内容">
+                        <textarea name="body" required rows={7} defaultValue={block.body} className={`${INPUT} resize-y leading-relaxed`} />
+                      </Field>
+                      <Field
+                        label="这次修改"
+                        hint={
+                          block.usageCount > 0
+                            ? `有 ${block.usageCount} 篇文章引用了它。含义变了的话，这些文章会进入 Agent 的待办，等它按新内容修订；只是改措辞的话，文章自动跟到新版本。`
+                            : "还没有文章引用它，选哪个都不会影响别的内容。"
+                        }
+                      >
+                        <Select
+                          name="semanticChange"
+                          defaultValue="true"
+                          options={[
+                            { value: "true", label: "含义变了，引用它的文章需要跟着修订" },
+                            { value: "false", label: "只是改错别字、理顺措辞，含义没变" },
+                          ]}
+                        />
+                      </Field>
+                      <Field label="修改原因" hint="可以不填。会记在这个版本上。">
+                        <input name="reason" className={INPUT} />
+                      </Field>
+                      <p className="text-xs text-a-muted">保存后立即生效，不经过审阅，会留下一个新版本。</p>
+                    </ModalForm>
 
                     {block.visibility === "public" ? (
                       <ModalForm
@@ -195,6 +238,9 @@ async function Blocks({ searchParams }: { searchParams: Promise<Record<string, s
                         successMessage="已标记为过期"
                       >
                         <p>表示它的内容可能已经不成立。Agent 的待办里会出现「核查并更新它」的任务，引用它的文章会在看板上标出。</p>
+                        <Field label="原因（选填）" hint="写下哪里可能不对了，Agent 修订时会看到。">
+                          <textarea name="reason" rows={2} className={INPUT} />
+                        </Field>
                       </ModalForm>
                     )}
                     {block.status === "stale" && (

@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { ViewTransition, type CSSProperties } from "react";
 import { connection } from "next/server";
 import { loadCategories, loadPublishedList } from "./data";
+import { SiteFooter } from "./site-footer";
 import { SiteHeader } from "./site-header";
+import { TrackView } from "./track-view";
 
 const two = (n: number) => String(n).padStart(2, "0");
 const formatDate = (d: Date | null) => {
@@ -50,6 +52,8 @@ export async function SiteIndex({ categorySlug }: { categorySlug?: string }) {
           ))}
         </ul>
       )}
+      <SiteFooter />
+      <TrackView path={categorySlug ? `/category/${categorySlug}` : "/"} />
     </main>
   );
 }

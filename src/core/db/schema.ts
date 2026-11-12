@@ -15,6 +15,8 @@ export const DOCUMENT_STATUSES = ["draft", "published", "unpublished"] as const;
 export const REF_MODES = ["cite", "embed", "value"] as const;
 export const CHANGE_SET_KINDS = ["article", "document_edit", "page", "knowledge", "block_update"] as const;
 export const CHANGE_SET_STATUSES = ["open", "in_review", "approved", "rejected", "withdrawn"] as const;
+export const MATERIAL_STATUSES = ["new", "processed", "archived"] as const;
+export const TOPIC_STATUSES = ["proposed", "accepted", "in_progress", "done", "dropped"] as const;
 
 export type ActorKind = (typeof ACTOR_KINDS)[number];
 export type BlockType = (typeof BLOCK_TYPES)[number];
@@ -24,6 +26,8 @@ export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
 export type RefMode = (typeof REF_MODES)[number];
 export type ChangeSetKind = (typeof CHANGE_SET_KINDS)[number];
 export type ChangeSetStatus = (typeof CHANGE_SET_STATUSES)[number];
+export type MaterialStatus = (typeof MATERIAL_STATUSES)[number];
+export type TopicStatus = (typeof TOPIC_STATUSES)[number];
 
 export type BlockSource = { url: string; title?: string; quote?: string; accessedAt?: string };
 
@@ -64,6 +68,8 @@ export const changeSets = sqliteTable(
     status: text("status", { enum: CHANGE_SET_STATUSES }).notNull().default("open"),
     createdByKind: text("created_by_kind", { enum: ACTOR_KINDS }).notNull(),
     createdById: text("created_by_id"),
+    /** 这个变更集是为哪个选题而开的。批准后选题完成，撤回后选题回到选题池 */
+    topicId: text("topic_id"),
     decisionNote: text("decision_note"),
     createdAt: createdAt(),
     submittedAt: integer("submitted_at", { mode: "timestamp_ms" }),
@@ -77,6 +83,10 @@ export const blocks = sqliteTable("blocks", {
   type: text("type", { enum: BLOCK_TYPES }).notNull(),
   visibility: text("visibility", { enum: VISIBILITIES }).notNull().default("public"),
   status: text("status", { enum: BLOCK_STATUSES }).notNull().default("draft"),
+  /** 被标记为过期时写下的原因：哪里可能不成立了、依据是什么。恢复为已核实时清空 */
+  staleReason: text("stale_reason"),
+  /** 由素材箱里的哪条素材整理而来 */
+  originMaterialId: text("origin_material_id"),
   currentRevisionId: text("current_revision_id"),
   createdByKind: text("created_by_kind", { enum: ACTOR_KINDS }).notNull(),
   createdById: text("created_by_id"),
@@ -97,6 +107,8 @@ export const blockRevisions = sqliteTable(
     /** 为 false 表示"不改变含义"的修改，生效后不触发引用它的文章重审 */
     semanticChange: integer("semantic_change", { mode: "boolean" }).notNull().default(true),
     reason: text("reason"),
+    /** 上一次被打回时的正文。重新提交后，审阅页用它显示"相对上次打回改了什么" */
+    rejectedBody: text("rejected_body"),
     authorKind: text("author_kind", { enum: ACTOR_KINDS }).notNull(),
     authorId: text("author_id"),
     changeSetId: text("change_set_id"),
@@ -107,6 +119,53 @@ export const blockRevisions = sqliteTable(
     uniqueIndex("block_revisions_no_idx").on(t.blockId, t.revNo),
     index("block_revisions_cs_idx").on(t.changeSetId),
   ],
+);
+
+/**
+ * 素材：站长（或替站长记录的 Agent）随手丢进来的原始输入，一句想法、一个链接加评价、一段踩坑记录。
+ * 它是文章"像站长本人写的"的来源：Agent 把素材整理成观点、经历类的知识块和选题。
+ * 素材永远不会直接出现在前台。
+ */
+export const materials = sqliteTable(
+  "materials",
+  {
+    id: text("id").primaryKey(),
+    content: text("content").notNull(),
+    url: text("url"),
+    /** 为真时，由它整理出的知识块一律是私密的，不能被公开文章引用 */
+    isPrivate: integer("is_private", { mode: "boolean" }).notNull().default(false),
+    status: text("status", { enum: MATERIAL_STATUSES }).notNull().default("new"),
+    /** 处理时留下的一句说明：整理成了什么，或者为什么没有可用的内容 */
+    processedNote: text("processed_note"),
+    createdByKind: text("created_by_kind", { enum: ACTOR_KINDS }).notNull(),
+    createdById: text("created_by_id"),
+    createdAt: createdAt(),
+    processedAt: integer("processed_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [index("materials_status_idx").on(t.status)],
+);
+
+/**
+ * 选题：一个待写的题目。Agent 提出的是候选，站长采纳后才进入可写的队列；站长自己加的直接可写。
+ * priority 越大越先写。
+ */
+export const topics = sqliteTable(
+  "topics",
+  {
+    id: text("id").primaryKey(),
+    title: text("title").notNull(),
+    /** 为什么值得写、打算从什么角度写 */
+    note: text("note").notNull().default(""),
+    status: text("status", { enum: TOPIC_STATUSES }).notNull(),
+    priority: integer("priority").notNull().default(0),
+    originMaterialId: text("origin_material_id"),
+    /** 被领取后对应的变更集 */
+    changeSetId: text("change_set_id"),
+    createdByKind: text("created_by_kind", { enum: ACTOR_KINDS }).notNull(),
+    createdById: text("created_by_id"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("topics_status_idx").on(t.status)],
 );
 
 /** 分类：由站长创建，每篇文章属于一个分类。Agent 只能从已有的分类里选。 */
@@ -139,6 +198,8 @@ export const documentRevisions = sqliteTable(
     body: text("body").notNull(),
     /** 分类记在版本上：改分类和改正文一样，要经过站长审阅 */
     categoryId: text("category_id"),
+    /** 上一次被打回时的正文，用途同知识块版本上的同名字段 */
+    rejectedBody: text("rejected_body"),
     authorKind: text("author_kind", { enum: ACTOR_KINDS }).notNull(),
     authorId: text("author_id"),
     changeSetId: text("change_set_id"),
@@ -168,7 +229,11 @@ export const refs = sqliteTable(
   (t) => [index("refs_doc_rev_idx").on(t.documentRevisionId), index("refs_block_idx").on(t.blockId)],
 );
 
-/** 审阅批注。骨架阶段只建表，行内批注的界面之后再做。 */
+/**
+ * 审阅批注：站长在待审内容的某段文字上写的意见。
+ * 定位靠被批注的原文和它前后的少量文字（anchor），不依赖行号。Agent 修改后原文可能已经不在了，
+ * 这时批注仍然保留，界面上显示它当初针对的那段文字。
+ */
 export const reviewComments = sqliteTable(
   "review_comments",
   {
@@ -196,4 +261,71 @@ export const privateReads = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [index("private_reads_cs_idx").on(t.changeSetId)],
+);
+
+/** 站点设置：一行一个设置项。有哪些设置项、默认值是什么，见 services/settings.ts。 */
+export const settings = sqliteTable("settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});
+
+/**
+ * 媒体库里的图片。文件本身存在数据目录的 media 文件夹里，文件名就是 name。
+ * name 由程序生成（随机编号加扩展名），不使用上传时的文件名，避免重名和路径问题。
+ */
+export const media = sqliteTable("media", {
+  id: text("id").primaryKey(),
+  /** 文件名，同时是访问地址的最后一段：/media/<name> */
+  name: text("name").notNull().unique(),
+  mime: text("mime").notNull(),
+  size: integer("size").notNull(),
+  /** 图片的说明文字，引用时作为 alt */
+  alt: text("alt").notNull().default(""),
+  /** 上传时的原始文件名，只用于在后台辨认 */
+  originalName: text("original_name").notNull().default(""),
+  createdAt: createdAt(),
+});
+
+export const MESSAGE_STATUSES = ["new", "read", "archived"] as const;
+export type MessageStatus = (typeof MESSAGE_STATUSES)[number];
+
+/**
+ * 读者给站长的留言。只有站长能在后台看到，前台不展示，Agent 读不到：
+ * 留言是陌生人写的任意文字，可能夹带操纵 Agent 的指令，也可能有别人的联系方式。
+ */
+export const messages = sqliteTable(
+  "messages",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull().default(""),
+    contact: text("contact").notNull().default(""),
+    body: text("body").notNull(),
+    /** 读者是从哪个页面点过来留言的，例如 /posts/some-slug */
+    fromPath: text("from_path"),
+    status: text("status", { enum: MESSAGE_STATUSES }).notNull().default("new"),
+    /** 提交者的匿名标记（地址等信息加盐后的散列），只用来限制提交频率，看不出是谁 */
+    senderHash: text("sender_hash").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("messages_status_idx").on(t.status), index("messages_sender_idx").on(t.senderHash, t.createdAt)],
+);
+
+/**
+ * 访问记录：某一天、某个页面、某位访客，一行。同一位访客同一天多次看同一个页面只记一次。
+ *
+ * 不使用 Cookie，也不保存地址。访客的标记是"当天的随机盐 + 地址 + 浏览器标识"的散列，
+ * 盐每天更换且不保留，所以无法还原出地址，也无法把同一个人在不同日子的访问关联起来。
+ */
+export const pageViews = sqliteTable(
+  "page_views",
+  {
+    /** 日期，按服务器所在时区，格式 2026-11-12 */
+    day: text("day").notNull(),
+    path: text("path").notNull(),
+    visitor: text("visitor").notNull(),
+    /** 来源网站的域名。直接访问、站内跳转时为空 */
+    referrer: text("referrer"),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("page_views_unique_idx").on(t.day, t.path, t.visitor), index("page_views_day_idx").on(t.day)],
 );

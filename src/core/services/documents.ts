@@ -4,6 +4,7 @@ import type { Db } from "../db/client";
 import {
   blocks,
   categories,
+  changeSets,
   documentRevisions,
   documents,
   refs,
@@ -15,7 +16,8 @@ import { getComponent } from "../markup/components";
 import { parseMarkup, type MarkupIssue, type ParsedRef } from "../markup/parse";
 import { getBlockView, getBlockViewAtRevision, type BlockView } from "./blocks";
 import { findCategoryBySlug, listCategories } from "./categories";
-import { assertNotLockedElsewhere, requireEditable } from "./changeSets";
+import { applyOwnerChange, assertNotLockedElsewhere, requireEditable } from "./changeSets";
+import { checkImages } from "./media";
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -96,6 +98,60 @@ function checkRefs(db: Db, changeSetId: string, parsed: ParsedRef[]) {
   return { issues, resolved };
 }
 
+/** 一段依据文字超过这个长度就提醒：依据应该只包住承载那个说法的半句话。 */
+const LONG_CITATION = 60;
+/** 依据文字占正文的比例超过这个值就提醒：文章应该有自己的串联，而不是把知识块一条条复述。 */
+const CITATION_COVERAGE_LIMIT = 0.6;
+
+/**
+ * 检查依据标记的用法是否得当。只给提醒，不阻止保存。
+ * 真实的 Agent 很容易把整段文字都包进依据里，文章读起来就成了知识块的逐条复述。
+ */
+function citationStyleWarnings(body: string, parsed: ParsedRef[]): MarkupIssue[] {
+  const warnings: MarkupIssue[] = [];
+  // 一段依据依赖多个知识块时会产生多条引用（同一行、同一段文字），只算一次。
+  const spanByPlace = new Map<string, { text: string; line?: number }>();
+  for (const ref of parsed) {
+    if (ref.mode === "cite" && ref.spanText) spanByPlace.set(`${ref.line}:${ref.spanText}`, { text: ref.spanText, line: ref.line });
+  }
+  const spans = [...spanByPlace.values()];
+
+  for (const { text, line } of spans) {
+    if ([...text].length > LONG_CITATION) {
+      warnings.push({
+        level: "warning",
+        line,
+        message: `这段依据有 ${[...text].length} 个字，太长了。依据只需要包住承载那个说法的半句话，解释、过渡和你自己的串联写在标记外面。`,
+      });
+    }
+  }
+
+  // 粗略估算正文的字数：去掉标记本身的符号和参数，只留文字。
+  const prose = body
+    .replace(/\{[^}]*\}/g, "")
+    .replace(/^:{2,3}\w*.*$/gm, "")
+    .replace(/:cite\[/g, "")
+    .replace(/[#>*`\[\]\s]/g, "");
+  const cited = spans.reduce((n, { text }) => n + [...text.replace(/\s/g, "")].length, 0);
+  const total = [...prose].length;
+  if (total >= 200 && cited / total > CITATION_COVERAGE_LIMIT) {
+    warnings.push({
+      level: "warning",
+      message: `正文有 ${Math.round((cited / total) * 100)}% 的文字包在依据标记里，读起来会像知识块的逐条复述。请用自己的话把它们串起来，只在具体的说法上加依据。`,
+    });
+  }
+  return warnings;
+}
+
+/**
+ * 检查一段正文：标记写得对不对、引用的知识块在不在、依据用得是否得当。
+ * 保存时用它，Agent 提交前自查时也用它，两处的结论一致。
+ */
+export function checkDocumentBody(db: Db, changeSetId: string, body: string): MarkupIssue[] {
+  const parsed = parseMarkup(body);
+  return [...parsed.issues, ...checkRefs(db, changeSetId, parsed.refs).issues, ...checkImages(db, parsed.images), ...citationStyleWarnings(body, parsed.refs)];
+}
+
 /**
  * 在变更集里保存文档的一个新版本。正文有错误时不保存，把错误返回给调用方修正。
  * 同一个变更集里对同一篇文档重复保存时，覆盖之前的草稿。
@@ -139,7 +195,7 @@ export function saveDocument(db: Db, actor: Actor, input: SaveDocumentInput): Sa
 
   const parsed = parseMarkup(input.body);
   const checked = checkRefs(db, input.changeSetId, parsed.refs);
-  const issues = [...parsed.issues, ...checked.issues];
+  const issues = [...parsed.issues, ...checked.issues, ...checkImages(db, parsed.images), ...citationStyleWarnings(input.body, parsed.refs)];
   if (issues.some((i) => i.level === "error")) return { saved: false, issues };
 
   const who = actorColumns(actor);
@@ -174,7 +230,14 @@ export function saveDocument(db: Db, actor: Actor, input: SaveDocumentInput): Sa
       .get();
 
     let revisionId: string;
-    const content = { title, summary: input.summary?.trim() ?? "", body: input.body };
+    // 省略摘要时沿用原来的：先看这个变更集里的草稿，再看线上的版本。
+    // 之前省略会把摘要清空，Agent 只想改正文时很容易误删。要清空摘要，明确传空字符串。
+    const previousSummary =
+      draft?.summary ??
+      (existing?.currentRevisionId
+        ? tx.select({ summary: documentRevisions.summary }).from(documentRevisions).where(eq(documentRevisions.id, existing.currentRevisionId)).get()?.summary
+        : undefined);
+    const content = { title, summary: input.summary !== undefined ? input.summary.trim() : (previousSummary ?? ""), body: input.body };
     if (draft) {
       revisionId = draft.id;
       tx.update(documentRevisions)
@@ -232,6 +295,91 @@ export function saveDocument(db: Db, actor: Actor, input: SaveDocumentInput): Sa
 }
 
 // ---- 读取 ------------------------------------------------------------------
+
+/**
+ * 只改正文里的一小段：把 find 换成 replace，其余原样保留。
+ *
+ * find 必须在正文里恰好出现一次。这样改一句话不需要把整篇正文重新提交一遍，
+ * 也就不会在重抄的过程中不小心改掉别的地方（包括站长亲手改过的部分）。
+ */
+export function replaceInDocument(
+  db: Db,
+  actor: Actor,
+  input: { changeSetId: string; documentId: string; find: string; replace: string },
+): SaveDocumentResult {
+  requireEditable(db, actor, input.changeSetId);
+  if (!input.find) throw invalid("find 不能为空。");
+  const current = getDocumentForEditing(db, { documentId: input.documentId }, input.changeSetId);
+  const count = current.body.split(input.find).length - 1;
+  if (count === 0) {
+    throw invalid("正文里没有找到 find 给出的文字。它要和正文的源码逐字一致，包括标记和标点；先用 get_document 读一下现在的正文。");
+  }
+  if (count > 1) throw invalid(`find 给出的文字在正文里出现了 ${count} 次，不知道该改哪一处。请多带一些前后的文字，让它只出现一次。`);
+  return saveDocument(db, actor, {
+    changeSetId: input.changeSetId,
+    documentId: input.documentId,
+    title: current.title,
+    body: current.body.replace(input.find, () => input.replace),
+  });
+}
+
+/**
+ * 站长直接修改一篇已经上线过的文章：立即生效，留下一个新版本。
+ * 正文有错误时不会保存，返回问题清单。
+ */
+export function editDocumentAsOwner(
+  db: Db,
+  actor: Actor,
+  input: { documentId: string; title: string; summary?: string; category?: string; body: string },
+) {
+  if (actor.kind !== "owner") throw forbidden("只有站长可以不经审阅直接修改文档。");
+  const doc = db.select().from(documents).where(eq(documents.id, input.documentId)).get();
+  if (!doc) throw notFound(`文档 ${input.documentId} 不存在。`);
+  if (!doc.currentRevisionId) throw conflict("这篇文档还没有上线过。它在某个待审的改动里，请到看板上打开那个改动来修改。");
+  const outcome = applyOwnerChange(
+    db,
+    actor,
+    { kind: doc.kind === "page" ? "page" : "document_edit", title: `站长修改：${input.title.trim() || doc.slug}` },
+    (tx, changeSetId) => saveDocument(tx, actor, { ...input, changeSetId }),
+    (result) => result.saved,
+  );
+  return { ...outcome.result, slugs: outcome.applied ? outcome.affected.slugs : [] };
+}
+
+/**
+ * 站长自己新建一篇文章或一个页面：不经过审阅，保存后立即上线。
+ * 和站长的其他直接修改一样，程序替站长开一条改动记录并当场批准。
+ */
+export function createDocumentAsOwner(
+  db: Db,
+  actor: Actor,
+  input: { kind: DocumentKind; slug: string; title: string; summary?: string; category?: string; body: string },
+) {
+  if (actor.kind !== "owner") throw forbidden("只有站长可以不经审阅直接发布文档。");
+  const outcome = applyOwnerChange(
+    db,
+    actor,
+    { kind: input.kind === "page" ? "page" : "article", title: `站长新建：${input.title.trim() || input.slug}` },
+    (tx, changeSetId) => saveDocument(tx, actor, { ...input, slug: input.slug.trim(), changeSetId }),
+    (result) => result.saved,
+  );
+  return { ...outcome.result, slugs: outcome.applied ? outcome.affected.slugs : [] };
+}
+
+/**
+ * 编辑时的实时预览：检查正文，并取出它引用到的知识块，供界面渲染。
+ * changeSetId 给出时，变更集里还没批准的知识块也能被引用（站长在待审的改动里直接改稿）。
+ */
+export function previewDocumentBody(db: Db, body: string, changeSetId = "") {
+  const parsed = parseMarkup(body);
+  const checked = checkRefs(db, changeSetId, parsed.refs);
+  const blockMap: Record<string, BlockView> = {};
+  for (const { block } of checked.resolved) blockMap[block.id] ??= block;
+  return {
+    issues: [...parsed.issues, ...checked.issues, ...checkImages(db, parsed.images), ...citationStyleWarnings(body, parsed.refs)],
+    blocks: blockMap,
+  };
+}
 
 export type RenderableDocument = {
   id: string;
@@ -359,6 +507,8 @@ export function listPublished(db: Db, kind: DocumentKind = "article", opts: { ca
       title: documentRevisions.title,
       summary: documentRevisions.summary,
       publishedAt: documents.publishedAt,
+      /** 当前版本的时间，也就是最后一次修改的时间 */
+      revisedAt: documentRevisions.createdAt,
       categorySlug: categories.slug,
       categoryName: categories.name,
     })
@@ -370,6 +520,15 @@ export function listPublished(db: Db, kind: DocumentKind = "article", opts: { ca
     .all();
 }
 
+/** 这个网址别名下有没有已发布的文档。用来在渲染页面之前判断该不该返回 404。 */
+export function publishedSlugExists(db: Db, slug: string, kind: DocumentKind = "article"): boolean {
+  return !!db
+    .select({ id: documents.id })
+    .from(documents)
+    .where(and(eq(documents.slug, slug), eq(documents.status, "published"), eq(documents.kind, kind)))
+    .get();
+}
+
 export type StaleCitation = {
   documentId: string;
   slug: string;
@@ -378,6 +537,10 @@ export type StaleCitation = {
   blockStatus: string;
   spanText: string | null;
   reason: "block_updated" | "block_marked_stale";
+  /** 标记过期时写下的原因 */
+  staleReason: string | null;
+  /** 这篇文档已经有一个还没结束的修订：是哪个变更集、什么状态。有的话不需要再处理一遍 */
+  pendingRevision: { changeSetId: string; status: string } | null;
 };
 
 /**
@@ -393,6 +556,7 @@ export function listStaleCitations(db: Db): StaleCitation[] {
       blockId: blocks.id,
       blockStatus: blocks.status,
       spanText: refs.spanText,
+      staleReason: blocks.staleReason,
       pinned: refs.pinnedBlockRevisionId,
       current: blocks.currentRevisionId,
     })
@@ -402,11 +566,22 @@ export function listStaleCitations(db: Db): StaleCitation[] {
     .innerJoin(blocks, eq(blocks.id, refs.blockId))
     .where(and(eq(refs.mode, "cite"), eq(documents.status, "published"), isNotNull(blocks.currentRevisionId)))
     .all();
+  // 每篇文档当前是否有还没结束的修订（草稿版本所在的变更集处于进行中、待审或已打回）。
+  const pending = new Map(
+    db
+      .select({ documentId: documentRevisions.documentId, changeSetId: changeSets.id, status: changeSets.status })
+      .from(documentRevisions)
+      .innerJoin(changeSets, eq(documentRevisions.changeSetId, changeSets.id))
+      .where(and(eq(documentRevisions.state, "draft"), inArray(changeSets.status, ["open", "in_review", "rejected"])))
+      .all()
+      .map((r) => [r.documentId, { changeSetId: r.changeSetId, status: r.status as string }]),
+  );
   return rows
     .filter((r) => r.pinned !== r.current || r.blockStatus === "stale" || r.blockStatus === "retired")
     .map(({ pinned, current, ...rest }) => ({
       ...rest,
       reason: pinned !== current ? ("block_updated" as const) : ("block_marked_stale" as const),
+      pendingRevision: pending.get(rest.documentId) ?? null,
     }));
 }
 

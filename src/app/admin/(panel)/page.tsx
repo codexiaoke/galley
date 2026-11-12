@@ -16,12 +16,16 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
+import { OWNER } from "@/core/actor";
 import { getDb } from "@/core/db/client";
 import type { ChangeSetStatus } from "@/core/db/schema";
 import { recentAgentCalls } from "@/core/services/agents";
 import { listBlocks } from "@/core/services/blocks";
 import { listChangeSets } from "@/core/services/changeSets";
 import { listDocuments, listStaleCitations } from "@/core/services/documents";
+import { listMaterials } from "@/core/services/materials";
+import { countNewMessages } from "@/core/services/messages";
+import { listTopics } from "@/core/services/topics";
 import { requireOwner } from "../auth";
 import { Badge, Card, EmptyState, formatRelative, PageHeader, PageSkeleton, ROW_LINK, StatCard, Table, type Tone } from "../ui";
 
@@ -107,6 +111,10 @@ async function Board() {
   const published = listDocuments(db).filter((d) => d.status === "published").length;
   const blockCount = listBlocks(db).length;
   const waiting = all.filter((c) => c.status === "in_review").length;
+  const proposedTopics = listTopics(db, { status: ["proposed"] }).length;
+  const acceptedTopics = listTopics(db, { status: ["accepted"] }).length;
+  const newMaterials = listMaterials(db, { status: ["new"] }).length;
+  const newMessages = countNewMessages(db, OWNER);
   const now = new Date();
 
   return (
@@ -114,12 +122,30 @@ async function Board() {
       <PageHeader title="看板" description="Agent 提交的每一项改动都是一张卡片。只有你批准之后，内容才会上线。" />
 
       {/* 四个数字排成一行，中间用细线隔开，不做成四张卡片 */}
-      <div className="mb-10 grid grid-cols-2 divide-a-border rounded-lg border border-a-border max-xl:[&>*:nth-child(-n+2)]:border-b max-xl:[&>*:nth-child(odd)]:border-r xl:grid-cols-4 xl:divide-x [&>*]:border-a-border">
+      <div className="mb-4 grid grid-cols-2 divide-a-border rounded-lg border border-a-border max-xl:[&>*:nth-child(-n+2)]:border-b max-xl:[&>*:nth-child(odd)]:border-r xl:grid-cols-4 xl:divide-x [&>*]:border-a-border">
         <StatCard label="待审" value={waiting} emphasis={waiting > 0 ? "primary" : undefined} hint={waiting > 0 ? "等你处理" : "没有待处理的改动"} />
         <StatCard label="已上线文章" value={published} hint="读者现在能看到的" />
         <StatCard label="知识块" value={blockCount} hint="已确认的事实、观点和代码" />
         <StatCard label="过期引用" value={stale.length} emphasis={stale.length > 0 ? "warning" : undefined} hint={stale.length > 0 ? "等 Agent 修订" : "所有引用都是最新的"} />
       </div>
+
+      {/* 素材和选题的现状：一行文字，有候选选题等你决定时用标签提醒 */}
+      <p className="mb-10 flex flex-wrap items-center gap-x-5 gap-y-1.5 px-1 text-a-muted">
+        <Link href="/admin/topics?status=proposed" className="inline-flex items-center gap-1.5 hover:text-a-text">
+          {proposedTopics > 0 ? <Badge tone="amber">{proposedTopics} 个候选选题等你决定</Badge> : "没有候选选题要你决定"}
+        </Link>
+        <Link href="/admin/topics?status=accepted" className="hover:text-a-text">
+          {acceptedTopics > 0 ? `${acceptedTopics} 个选题排队等 Agent 写` : "没有排队的选题"}
+        </Link>
+        <Link href="/admin/materials?status=new" className="hover:text-a-text">
+          {newMaterials > 0 ? `${newMaterials} 条素材等 Agent 整理` : "素材都整理完了"}
+        </Link>
+        {newMessages > 0 && (
+          <Link href="/admin/messages" className="inline-flex items-center gap-1.5 hover:text-a-text">
+            <Badge tone="blue">{newMessages} 条新留言</Badge>
+          </Link>
+        )}
+      </p>
 
       {/* 四列等高：每列一层很淡的底色，空的列用一句说明把高度撑满 */}
       <div className="mb-12 grid items-stretch gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -196,7 +222,13 @@ async function Board() {
                   {s.spanText}
                 </td>
                 <td>
-                  <Badge tone="amber">{s.reason === "block_updated" ? "知识块已更新" : "被标记过期"}</Badge>
+                  {s.pendingRevision ? (
+                    <Link href={`/admin/change-sets/${s.pendingRevision.changeSetId}`}>
+                      <Badge tone="blue">已有修订{s.pendingRevision.status === "in_review" ? "待审" : "在进行"}</Badge>
+                    </Link>
+                  ) : (
+                    <Badge tone="amber">{s.reason === "block_updated" ? "知识块已更新" : "被标记过期"}</Badge>
+                  )}
                 </td>
               </tr>
             ))}

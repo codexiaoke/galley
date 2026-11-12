@@ -15,6 +15,41 @@
       "when": 1794476333573,
       "tag": "0001_green_cassandra_nova",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794483076312,
+      "tag": "0002_eminent_old_lace",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1794483879679,
+      "tag": "0003_cooing_pretty_boy",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1794485608339,
+      "tag": "0004_clever_tyrannus",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1794487176842,
+      "tag": "0005_sticky_gargoyle",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1794489623661,
+      "tag": "0006_purple_nightcrawler",
+      "breakpoints": true
     }
   ]
 }

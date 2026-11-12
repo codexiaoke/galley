@@ -1,4 +1,5 @@
 import { FileText, type LucideIcon } from "lucide-react";
+import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 
 /**
@@ -175,6 +176,15 @@ export function Badge({ tone = "neutral", dot = false, children }: { tone?: Tone
 // ---- 表格 ------------------------------------------------------------------
 
 /** 表格。直接排在页面上：表头是一行灰色小字，行与行之间一条细线，悬停时整行底色变浅灰。 */
+/**
+ * 后台的表格。
+ *
+ * 每个单元格都只占一行，不换行：状态、日期、操作这些短内容一旦折成两行，整张表就乱了。
+ * 第一列是这一行的主要内容（标题、名称），由它来吸收宽度的变化：地方够就全部显示，
+ * 不够就在末尾省略；别的列始终按内容的宽度完整显示。第一列最窄收到 12rem，
+ * 再窄（比如在手机上）就整张表左右滑动，而不是把标题挤没。
+ * 第一列里确实需要显示两行文字的（比如素材的内容），在那个单元格上加 !whitespace-normal。
+ */
 export function Table({ head, children, empty }: { head: ReactNode[]; children: ReactNode; empty?: ReactNode }) {
   return (
     <div className="overflow-x-auto">
@@ -188,7 +198,7 @@ export function Table({ head, children, empty }: { head: ReactNode[]; children: 
             ))}
           </tr>
         </thead>
-        <tbody className="[&>tr]:border-b [&>tr]:border-a-border [&>tr]:transition-colors [&>tr]:duration-100 [&>tr:hover]:bg-a-subtle/70 [&_td]:px-3 [&_td]:py-2.5 [&_td]:align-middle [&_td:first-child]:pl-1">
+        <tbody className="[&>tr]:border-b [&>tr]:border-a-border [&>tr]:transition-colors [&>tr]:duration-100 [&>tr:hover]:bg-a-subtle/70 [&>tr>td]:px-3 [&>tr>td]:py-2.5 [&>tr>td]:align-middle [&>tr>td]:whitespace-nowrap [&>tr>td:first-child]:w-full [&>tr>td:first-child]:min-w-48 [&>tr>td:first-child]:max-w-0 [&>tr>td:first-child]:pl-1">
           {children}
         </tbody>
       </table>
@@ -211,6 +221,27 @@ export function PrimaryCell({ leading, title, subtitle }: { leading?: ReactNode;
 }
 
 /** 表格行末尾的一组操作。 */
+/** 列表上方的筛选页签：一排文字，选中的那个有浅底色。每一项是一个链接，筛选条件写在网址里。 */
+export function FilterTabs({ tabs, active }: { tabs: { key: string; label: string; href: string; count?: number }[]; active: string }) {
+  return (
+    <nav className="flex flex-wrap items-center gap-0.5 border-b border-a-border py-2">
+      {tabs.map((tab) => (
+        <Link
+          key={tab.key}
+          href={tab.href}
+          aria-current={tab.key === active ? "page" : undefined}
+          className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-sm transition-colors duration-100 ${
+            tab.key === active ? "bg-a-subtle font-medium text-a-text" : "text-a-muted hover:bg-a-subtle/70 hover:text-a-text"
+          }`}
+        >
+          {tab.label}
+          {tab.count !== undefined && <span className="text-xs tabular-nums text-a-muted">{tab.count}</span>}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
 export function RowActions({ children }: { children: ReactNode }) {
   return <div className="flex items-center justify-end gap-0.5 whitespace-nowrap">{children}</div>;
 }

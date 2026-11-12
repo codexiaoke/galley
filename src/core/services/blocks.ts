@@ -7,6 +7,7 @@ import {
   blocks,
   documentRevisions,
   documents,
+  materials,
   privateReads,
   refs,
   type BlockSource,
@@ -14,9 +15,9 @@ import {
   type BlockType,
   type Visibility,
 } from "../db/schema";
-import { forbidden, notFound } from "../errors";
+import { forbidden, invalid, notFound } from "../errors";
 import { newBlockId, newId } from "../ids";
-import { assertNotLockedElsewhere, requireEditable } from "./changeSets";
+import { applyOwnerChange, assertNotLockedElsewhere, requireEditable } from "./changeSets";
 
 /** 一个知识块在某个上下文里呈现出来的样子：身份加上一个具体版本的内容。 */
 export type BlockView = {
@@ -24,6 +25,8 @@ export type BlockView = {
   type: BlockType;
   visibility: Visibility;
   status: BlockStatus;
+  /** 状态是已过期时，标记的人写下的原因 */
+  staleReason: string | null;
   revisionId: string;
   revNo: number;
   /** 这个版本是否还只是变更集里的草稿 */
@@ -46,6 +49,7 @@ function toView(block: BlockRow, rev: RevisionRow): BlockView {
     type: block.type,
     visibility: block.visibility,
     status: block.status,
+    staleReason: block.status === "stale" ? block.staleReason : null,
     revisionId: rev.id,
     revNo: rev.revNo,
     isDraft: rev.state === "draft",
@@ -167,17 +171,27 @@ function summarize(db: Db, rows: { block: BlockRow; revision: RevisionRow }[]): 
 }
 
 /**
- * 搜索已生效的知识块。查询按空白拆成多个词，每个词都要出现在标题或正文里。
+ * 搜索已生效的知识块。查询按空白拆成多个词，命中任何一个词就算匹配，
+ * 命中的词越多排得越前，标题里命中比正文里命中更靠前。
+ * 之前要求每个词都出现，Agent 多写一个词就什么都搜不到，容易漏掉已有的内容而重复创建。
  * 骨架阶段在内存里匹配；数据量变大后换成全文索引。
  */
 export function searchBlocks(db: Db, query: string, opts: { type?: BlockType; limit?: number } = {}): BlockSummary[] {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const matched = currentBlocks(db).filter(({ block, revision }) => {
-    if (opts.type && block.type !== opts.type) return false;
-    if (block.status === "retired") return false;
-    const haystack = `${revision.title}\n${revision.body}`.toLowerCase();
-    return terms.every((t) => haystack.includes(t));
-  });
+  const candidates = currentBlocks(db).filter(({ block }) => (!opts.type || block.type === opts.type) && block.status !== "retired");
+  if (terms.length === 0) return summarize(db, candidates.slice(0, opts.limit ?? 20));
+  const matched = candidates
+    .map((row) => {
+      const title = row.revision.title.toLowerCase();
+      const body = row.revision.body.toLowerCase();
+      const hits = terms.filter((t) => title.includes(t) || body.includes(t)).length;
+      const titleHits = terms.filter((t) => title.includes(t)).length;
+      return { row, hits, titleHits };
+    })
+    .filter((m) => m.hits > 0)
+    // sort 是稳定的：命中数相同的保持原来的顺序。
+    .sort((a, b) => b.hits - a.hits || b.titleHits - a.titleHits)
+    .map((m) => m.row);
   return summarize(db, matched.slice(0, opts.limit ?? 20));
 }
 
@@ -203,6 +217,8 @@ export type CreateBlockInput = {
   data?: unknown;
   sources?: unknown;
   visibility?: Visibility;
+  /** 这个知识块是从素材箱里的哪条素材整理出来的 */
+  materialId?: string;
   /** 明确表示"已经看过相似的块，这确实是新内容" */
   confirmNew?: boolean;
 };
@@ -214,6 +230,11 @@ export type CreateBlockResult =
 export function createBlock(db: Db, actor: Actor, input: CreateBlockInput): CreateBlockResult {
   requireEditable(db, actor, input.changeSetId);
   const content = validateBlockContent(input.type, input);
+
+  const material = input.materialId ? db.select().from(materials).where(eq(materials.id, input.materialId)).get() : undefined;
+  if (input.materialId && !material) throw notFound(`素材 ${input.materialId} 不存在。`);
+  // 来自私密素材的知识块一律是私密的，不管调用方怎么传。
+  const visibility: Visibility = material?.isPrivate ? "private" : (input.visibility ?? "public");
 
   if (!input.confirmNew) {
     const similar = findSimilar(db, input.type, `${content.title}\n${content.body}`);
@@ -235,8 +256,9 @@ export function createBlock(db: Db, actor: Actor, input: CreateBlockInput): Crea
       .values({
         id: blockId,
         type: input.type,
-        visibility: input.visibility ?? "public",
+        visibility,
         status: "draft",
+        originMaterialId: material?.id ?? null,
         currentRevisionId: null,
         createdByKind: who.kind,
         createdById: who.id,
@@ -368,14 +390,52 @@ export function proposeBlockUpdate(db: Db, actor: Actor, input: ProposeBlockUpda
   };
 }
 
-/** 把知识块标记为可能已过期。站长和 Agent 都可以做，不需要审阅。 */
-export function markBlockStale(db: Db, actor: Actor, blockId: string) {
+/**
+ * 站长直接修改一个已经生效的知识块：立即生效，留下一个新版本。
+ *
+ * semanticChange 为真（默认）表示含义变了：引用它的文章会出现在 Agent 的待办里，等它修订。
+ * 为假表示只是改错别字、理顺措辞：引用它的文章自动跟到新版本，不产生修订任务。
+ */
+export function editBlockAsOwner(
+  db: Db,
+  actor: Actor,
+  input: { blockId: string; title?: string; body?: string; semanticChange?: boolean; reason?: string },
+) {
+  if (actor.kind !== "owner") throw forbidden("只有站长可以不经审阅直接修改知识块。");
+  const current = getBlockView(db, input.blockId);
+  if (!current) throw notFound(`知识块 ${input.blockId} 不存在，或者还没有生效的版本。`);
+  const outcome = applyOwnerChange(
+    db,
+    actor,
+    { kind: "block_update", title: `站长修改知识块：${(input.title ?? current.title).trim()}` },
+    (tx, changeSetId) => proposeBlockUpdate(tx, actor, { ...input, changeSetId, reason: input.reason?.trim() || "站长直接修改" }),
+  );
+  return outcome.result;
+}
+
+/**
+ * 站长在待审的变更集里直接改一个知识块的草稿（看到小问题自己改掉再批准）。
+ * 只改标题和正文，Agent 声明的"是否改变含义"和更新原因保持不变。
+ */
+export function editDraftBlock(db: Db, actor: Actor, input: { changeSetId: string; blockId: string; title: string; body: string }) {
+  if (actor.kind !== "owner") throw forbidden("只有站长可以修改待审的知识块。");
+  const draft = draftRevisionIn(db, input.blockId, input.changeSetId);
+  if (!draft) throw notFound(`变更集 ${input.changeSetId} 里没有知识块 ${input.blockId} 的草稿。`);
+  return proposeBlockUpdate(db, actor, { ...input, semanticChange: draft.semanticChange, reason: draft.reason ?? "" });
+}
+
+/**
+ * 把知识块标记为可能已过期。站长和 Agent 都可以做，不需要审阅。
+ * Agent 必须写明原因：之后来修订的人（可能是另一个 Agent）要靠它知道该查什么。
+ */
+export function markBlockStale(db: Db, actor: Actor, blockId: string, reason?: string) {
   const block = db.select().from(blocks).where(eq(blocks.id, blockId)).get();
   if (!block || !block.currentRevisionId) throw notFound(`知识块 ${blockId} 不存在或还没有生效的版本。`);
   if (block.status === "retired") throw forbidden(`知识块 ${blockId} 已停用。`);
-  db.update(blocks).set({ status: "stale" }).where(eq(blocks.id, blockId)).run();
-  void actor;
-  return { blockId, status: "stale" as const, impact: blockImpact(db, blockId) };
+  const staleReason = reason?.trim() || null;
+  if (actor.kind === "agent" && !staleReason) throw invalid("请写明原因：哪里可能不成立了，依据是什么。");
+  db.update(blocks).set({ status: "stale", staleReason }).where(eq(blocks.id, blockId)).run();
+  return { blockId, status: "stale" as const, reason: staleReason, impact: blockImpact(db, blockId) };
 }
 
 /** 只有站长能修改可见性（设计文档第 8 节）。 */
@@ -402,6 +462,10 @@ export function listBlocks(db: Db, filter: { q?: string; type?: BlockType } = {}
 /** 把过期的知识块恢复为已核实。只有站长可以：这等于站长确认内容仍然成立。 */
 export function confirmBlockVerified(db: Db, actor: Actor, blockId: string) {
   if (actor.kind !== "owner") throw forbidden("只有站长可以确认知识块仍然成立。");
-  const result = db.update(blocks).set({ status: "verified" }).where(and(eq(blocks.id, blockId), eq(blocks.status, "stale"))).run();
+  const result = db
+    .update(blocks)
+    .set({ status: "verified", staleReason: null })
+    .where(and(eq(blocks.id, blockId), eq(blocks.status, "stale")))
+    .run();
   if (result.changes === 0) throw notFound(`知识块 ${blockId} 不存在，或者不是过期状态。`);
 }

@@ -5,7 +5,8 @@ import fs from "node:fs";
 import path from "node:path";
 import * as schema from "./schema";
 
-export type Db = BetterSQLite3Database<typeof schema>;
+/** 数据库连接。$client 是底层的 better-sqlite3 连接，备份和关闭连接时会用到。 */
+export type Db = BetterSQLite3Database<typeof schema> & { $client: Database.Database };
 
 const MIGRATIONS_DIR = path.join(process.cwd(), "drizzle");
 
@@ -27,7 +28,15 @@ export function dataDir(): string {
 // 开发模式下模块会被重复加载，把连接挂在 globalThis 上避免重复打开。
 const holder = globalThis as unknown as { __galleyDb?: Db };
 
+export const dbFile = () => path.join(dataDir(), "galley.db");
+
 export function getDb(): Db {
-  holder.__galleyDb ??= openDb(path.join(dataDir(), "galley.db"));
+  holder.__galleyDb ??= openDb(dbFile());
   return holder.__galleyDb;
+}
+
+/** 关闭当前的数据库连接。下一次 getDb() 会重新打开。恢复备份时要先关闭，才能替换数据库文件。 */
+export function closeDb() {
+  holder.__galleyDb?.$client.close();
+  holder.__galleyDb = undefined;
 }
