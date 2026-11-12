@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/assets/galley-icon.svg" width="96" height="96" alt=""></p>
+
 # Galley
 
 一个由 Agent 运营、由站长把关的个人博客系统。

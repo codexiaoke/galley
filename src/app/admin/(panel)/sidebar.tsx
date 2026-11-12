@@ -5,6 +5,7 @@ import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { logout } from "../actions";
+import { GalleyMark } from "../mark";
 
 type Item = { href: string; label: string; icon: LucideIcon; match?: string[] };
 
@@ -154,7 +155,7 @@ export function Sidebar() {
   return (
     <aside className="border-b border-a-border bg-a-sidebar lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:border-b-0 lg:border-r">
       <div className="flex shrink-0 items-center gap-2.5 px-5 py-4">
-        <span className="admin-logo grid size-7 place-items-center rounded-md text-sm font-bold text-white">G</span>
+        <GalleyMark size={28} />
         <span className="font-semibold">Galley</span>
         <span className="text-xs text-a-muted">后台</span>
       </div>

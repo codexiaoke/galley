@@ -375,10 +375,6 @@
   background: var(--a-subtle);
 }
 
-.admin-logo {
-  background: var(--a-primary);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .admin-dialog,
   .admin-dialog::backdrop,
