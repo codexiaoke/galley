@@ -13,8 +13,8 @@ const SESSION_DAYS = 14;
 
 export const adminPassword = () => process.env.GALLEY_ADMIN_PASSWORD ?? "";
 
-/** 密码至少 12 位才算已配置，避免用弱密码把后台暴露出去。 */
-export const adminConfigured = () => adminPassword().length >= 12;
+/** 密码至少 8 位才算已配置。不要求大小写、数字、符号这些组合；登录有频率限制（每分钟最多 5 次）。 */
+export const adminConfigured = () => adminPassword().length >= 8;
 
 const sign = (value: string) => createHmac("sha256", `galley-session:${adminPassword()}`).update(value).digest("hex");
 

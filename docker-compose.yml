@@ -2,7 +2,7 @@
 #
 # 最省事的办法是运行项目根目录下的 ./deploy.sh，它会帮你生成配置、构建、启动，并检查能不能访问。
 # 也可以手动来：
-#   1. 在同一个目录下建一个 .env 文件，至少写上后台密码（12 位以上）：
+#   1. 在同一个目录下建一个 .env 文件，至少写上后台密码（8 位以上）：
 #        GALLEY_ADMIN_PASSWORD=换成你自己的密码
 #   2. 启动：docker compose up -d --build
 #   3. 打开 http://服务器地址:3000 ，后台在 /admin
@@ -23,7 +23,7 @@ services:
       # 绑定的地址：默认 0.0.0.0，所有人都能访问；用 HTTPS 时 deploy.sh 会改成 127.0.0.1，只让 Caddy 访问。
       - "${GALLEY_BIND:-0.0.0.0}:${GALLEY_PORT:-3000}:3000"
     environment:
-      # 后台管理员密码，至少 12 位。不设置时后台不可用。
+      # 后台管理员密码，至少 8 位。不设置时后台不可用。
       GALLEY_ADMIN_PASSWORD: ${GALLEY_ADMIN_PASSWORD:?请在 .env 文件里设置 GALLEY_ADMIN_PASSWORD}
       # 下面几项都可以不配。邮件也可以在后台的「站点设置」里填，配置方法见 .env.example
       GALLEY_SMTP_URL: ${GALLEY_SMTP_URL:-}

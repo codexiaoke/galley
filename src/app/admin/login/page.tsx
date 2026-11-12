@@ -28,7 +28,7 @@ async function Login() {
   if (!adminConfigured()) {
     return (
       <p className="leading-relaxed text-a-muted">
-        后台还没有启用。请设置环境变量 <code className="rounded bg-a-subtle px-1">GALLEY_ADMIN_PASSWORD</code>（至少 12 位），然后重启程序。
+        后台还没有启用。请设置环境变量 <code className="rounded bg-a-subtle px-1">GALLEY_ADMIN_PASSWORD</code>（至少 8 位），然后重启程序。
       </p>
     );
   }

@@ -66,7 +66,7 @@ pnpm install
 cp .env.example .env.local
 ```
 
-在 `.env.local` 里设置 `GALLEY_ADMIN_PASSWORD`（至少 12 位），然后启动：
+在 `.env.local` 里设置 `GALLEY_ADMIN_PASSWORD`（至少 8 位），然后启动：
 
 ```bash
 pnpm dev
@@ -118,7 +118,7 @@ git clone https://github.com/codexiaoke/galley.git && cd galley
 
 | 变量 | 作用 |
 |---|---|
-| `GALLEY_ADMIN_PASSWORD` | 后台管理员密码，至少 12 位。不设置时后台不可用 |
+| `GALLEY_ADMIN_PASSWORD` | 后台管理员密码，至少 8 位，不要求字母数字组合。不设置时后台不可用 |
 | `GALLEY_DATA_DIR` | 数据目录。镜像里默认是 `/data`，本地运行时默认是项目下的 `data` |
 | `GALLEY_PORT` | 用 Docker 部署时对外开放的端口，默认 3000（写在 `.env` 里，`deploy.sh` 会帮你填） |
 | `GALLEY_DOMAIN` | 用 Docker 部署时绑定的域名。填了就自动配置 HTTPS |

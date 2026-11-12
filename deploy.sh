@@ -92,7 +92,7 @@ first_time_setup() {
   password=${GALLEY_ADMIN_PASSWORD:-}
   if [ -z "$password" ] && [ "$INTERACTIVE" = 1 ]; then
     local again=""
-    read -r -s -p "  后台管理员密码，至少 12 位（直接回车自动生成一个）：" password
+    read -r -s -p "  后台管理员密码，至少 8 位（直接回车自动生成一个）：" password
     echo
     if [ -n "$password" ]; then
       read -r -s -p "  再输一次：" again
@@ -104,7 +104,7 @@ first_time_setup() {
     password=$(random_password)
     GENERATED_PASSWORD=$password
   fi
-  [ "${#password}" -ge 12 ] || fail "后台密码至少要 12 位。"
+  [ "${#password}" -ge 8 ] || fail "后台密码至少要 8 位。"
 
   env_set GALLEY_ADMIN_PASSWORD "$password"
   env_set GALLEY_PORT "$port"
