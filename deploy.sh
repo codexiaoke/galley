@@ -3,13 +3,15 @@
 # Galley 一键部署脚本。在服务器上项目的根目录运行：
 #
 #   ./deploy.sh          第一次部署，或者改了配置之后重新启动
-#   ./deploy.sh update   拉取最新代码，重新构建并启动（数据不受影响）
+#   ./deploy.sh update   下载最新的镜像并重新启动（数据不受影响）
 #   ./deploy.sh status   看看运行状态
 #   ./deploy.sh logs     看日志（Ctrl+C 退出）
 #   ./deploy.sh stop     停止（数据保留）
 #
-# 服务器上构建太慢（下载依赖慢、内存小）的话，可以在自己电脑上运行 ./release.sh 用户名@服务器地址，
-# 在本地构建好镜像再上传过来。那样服务器上就不再构建，这个脚本只负责启动。
+# 镜像有三种来源，平时用第一种：
+#   - 默认：下载 GitHub 上自动构建好的镜像（ghcr.io/codexiaoke/galley），服务器上不构建。
+#   - 自己构建：在 .env 里写 GALLEY_BUILD=1，用这个目录里的源代码在服务器上构建。
+#   - 本地构建上传：在自己电脑上运行 ./release.sh，镜像由它传上来。
 #
 # 配置都在同一目录的 .env 里。第一次运行时会问你几个问题并生成它；之后想改端口、域名，直接改 .env 再运行一次。
 # 不想回答问题（比如在自动化脚本里）：先自己写好 .env，或者设置环境变量 GALLEY_PORT、GALLEY_DOMAIN、GALLEY_ADMIN_PASSWORD 再运行。
@@ -114,7 +116,7 @@ first_time_setup() {
   env_set GALLEY_DOMAIN "$domain"
 
   # 在服务器上构建时，国内的服务器连国外的软件源很慢，可以换成国内的镜像源。本地构建上传时用不到。
-  if ! prebuilt && [ -z "${GALLEY_NPM_REGISTRY:-}" ] && [ "$(ask "服务器在中国大陆吗？输入 y 用国内镜像源下载依赖，会快很多" n)" = y ]; then
+  if [ "$(image_source)" = build ] && [ -z "${GALLEY_NPM_REGISTRY:-}" ] && [ "$(ask "服务器在中国大陆吗？输入 y 用国内镜像源下载依赖，会快很多" n)" = y ]; then
     env_set GALLEY_NPM_REGISTRY https://registry.npmmirror.com
     env_set GALLEY_APT_MIRROR mirrors.aliyun.com
   fi
@@ -149,9 +151,26 @@ open_firewall() {
 
 # ---- 启动 -------------------------------------------------------------------
 
-# 镜像是不是在本地构建好、用 release.sh 传上来的。是的话服务器上不构建。
-prebuilt() {
-  [ "${GALLEY_PREBUILT:-}" = 1 ] || [ "$(env_get GALLEY_PREBUILT)" = 1 ] || [ ! -f Dockerfile ]
+# 镜像从哪里来：prebuilt（release.sh 传上来的）、build（在服务器上构建）、pull（下载 GitHub 上构建好的，默认）。
+image_source() {
+  if [ "${GALLEY_PREBUILT:-}" = 1 ] || [ "$(env_get GALLEY_PREBUILT)" = 1 ] || [ -f galley-image.tar.gz ]; then
+    echo prebuilt
+  elif [ "${GALLEY_BUILD:-}" = 1 ] || [ "$(env_get GALLEY_BUILD)" = 1 ]; then
+    echo build
+  else
+    echo pull
+  fi
+}
+prebuilt() { [ "$(image_source)" = prebuilt ]; }
+
+# 从 .env 里删掉某一项。
+env_del() {
+  [ -f "$ENV_FILE" ] || return 0
+  local tmp
+  tmp=$(mktemp)
+  grep -vE "^$1=" "$ENV_FILE" >"$tmp" || true
+  cat "$tmp" >"$ENV_FILE"
+  rm -f "$tmp"
 }
 
 compose() {
@@ -197,15 +216,28 @@ up() {
     docker load -i galley-image.tar.gz
     mv -f galley-image.tar.gz galley-image.loaded.tar.gz
   fi
-  if prebuilt; then
-    env_set GALLEY_PREBUILT 1
-    docker image inspect galley:latest >/dev/null 2>&1 || fail "服务器上还没有 galley 镜像。请在自己电脑上运行 ./release.sh 用户名@服务器地址，它会构建好镜像传上来。"
-    say "启动（用本地构建好传上来的镜像）"
-    compose up -d --no-build --remove-orphans
-  else
-    say "构建并启动（第一次要下载依赖、编译，可能需要几分钟）"
-    compose up -d --build --remove-orphans
-  fi
+  case "$(image_source)" in
+    prebuilt)
+      env_set GALLEY_PREBUILT 1
+      env_set GALLEY_IMAGE galley:latest
+      docker image inspect galley:latest >/dev/null 2>&1 || fail "服务器上还没有 galley 镜像。请在自己电脑上运行 ./release.sh，它会构建好镜像传上来。"
+      say "启动（用本地构建好传上来的镜像）"
+      compose up -d --no-build --pull never --remove-orphans
+      ;;
+    build)
+      env_set GALLEY_IMAGE galley:latest
+      say "构建并启动（第一次要下载依赖、编译，可能需要几分钟）"
+      compose up -d --build --remove-orphans
+      ;;
+    pull)
+      # 以前用过别的方式部署时留下的设置，换回默认的 GitHub 镜像。自己填的其他镜像地址（比如国内的镜像仓库）保留。
+      [ "$(env_get GALLEY_IMAGE)" = galley:latest ] && env_del GALLEY_IMAGE
+      say "下载镜像（第一次一百多 MB，之后只下载有变化的部分）"
+      compose pull || fail "镜像下载失败。服务器连 ghcr.io 太慢或者连不上的话，可以在自己电脑上运行 ./release.sh 把镜像传上来。"
+      say "启动"
+      compose up -d --no-build --remove-orphans
+      ;;
+  esac
   # 清理被新镜像替换下来的旧镜像，只清理 Galley 自己的。
   docker image prune -f --filter "label=org.opencontainers.image.title=galley" >/dev/null 2>&1 || true
 
@@ -246,6 +278,7 @@ case "${1:-up}" in
     if prebuilt; then
       fail "这台服务器用的是本地构建好传上来的镜像。要更新，请在自己电脑上拉取最新代码，重新运行 ./release.sh（直接上传或者 --pack 打包）。"
     fi
+    # 部署脚本和 docker-compose.yml 也可能更新了，用 git 拿到的就一起拉一下。
     if [ -d .git ]; then
       say "拉取最新代码"
       git pull --ff-only
