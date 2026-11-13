@@ -4,7 +4,7 @@ import { getDb } from "@/core/db/client";
 import { listAgents, recentAgentCalls } from "@/core/services/agents";
 import { getSiteSettings } from "@/core/services/settings";
 import { TOOLS } from "@/core/tools";
-import { addAgent, resetAgentToken, saveAgentTools, setAgentStatus } from "../../actions";
+import { addAgent, resetAgentToken, saveAgentTools, setAgentPublish, setAgentStatus } from "../../actions";
 import { requireOwner } from "../../auth";
 import { CopyBlock } from "../../copy";
 import { siteMcpUrl } from "../../mcp-url";
@@ -99,6 +99,11 @@ async function Agents() {
                       可用
                     </Badge>
                   )}
+                  {agent.canPublish && !agent.disabled && (
+                    <span className="ml-2">
+                      <Badge tone="amber">可直接上线</Badge>
+                    </span>
+                  )}
                 </td>
                 <td className="text-a-muted" title={formatTime(agent.lastSeenAt)}>
                   {agent.lastSeenAt ? formatRelative(agent.lastSeenAt, now) : "从未连接"}
@@ -106,6 +111,30 @@ async function Agents() {
                 <td className="text-a-muted">{formatTime(agent.createdAt)}</td>
                 <td>
                   <RowActions>
+                    <ModalForm
+                      triggerLabel={agent.canPublish ? "收回上线权限" : "允许直接上线"}
+                      triggerVariant="link"
+                      title={agent.canPublish ? `收回「${agent.name}」的上线权限？` : `让「${agent.name}」可以直接上线？`}
+                      action={setAgentPublish}
+                      hidden={{ id: agent.id, canPublish: agent.canPublish ? "false" : "true" }}
+                      submitLabel={agent.canPublish ? "收回" : "允许"}
+                      successMessage={agent.canPublish ? "已收回" : "已允许"}
+                    >
+                      {agent.canPublish ? (
+                        <p>收回之后，它写好的内容要重新经过你审阅才能上线。已经上线的不受影响。</p>
+                      ) : (
+                        <>
+                          <p>
+                            开了之后，「{agent.name}」写完可以自己让内容上线，<strong>不再经过你审阅</strong>。
+                            适合你自己在旁边用的那个——人就在跟前，再去后台点一次批准只是麻烦。
+                          </p>
+                          <p className="text-a-muted">
+                            定时自己跑的那个建议留着不开。这样上线的内容在看板和运营日志上会标出「没经过审阅」，
+                            你事后照样看得到，也可以下线。权限随时能收回。
+                          </p>
+                        </>
+                      )}
+                    </ModalForm>
                     <ModalForm
                       triggerLabel={agent.disabledTools.length > 0 ? `工具（关了 ${agent.disabledTools.length} 个）` : "工具"}
                       triggerVariant="link"

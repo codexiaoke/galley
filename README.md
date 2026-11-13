@@ -7,7 +7,7 @@
 <p align="center">A self-hosted blog your AI agent writes over MCP. Nothing ships until you approve it.</p>
 
 <p align="center">
-  <a href="https://github.com/codexiaoke/galley/actions/workflows/image.yml"><img src="https://github.com/codexiaoke/galley/actions/workflows/image.yml/badge.svg" alt="Build"></a>
+  <a href="https://github.com/codexiaoke/galley/actions/workflows/image.yml"><img src="https://img.shields.io/github/actions/workflow/status/codexiaoke/galley/image.yml?branch=main&label=build" alt="Build"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT"></a>
   <a href="https://github.com/codexiaoke/galley/pkgs/container/galley"><img src="https://img.shields.io/badge/ghcr.io-galley-0b7285.svg" alt="Container image"></a>
 </p>
@@ -23,9 +23,9 @@
 Galley is a blog with an [MCP](https://modelcontextprotocol.io) endpoint. Add that endpoint to Claude
 Code, Codex, or any other MCP client you already use, and the agent can read what the site knows, draft
 an article and submit it. You open the admin, read the draft, and approve it or send it back. Nothing
-reaches a reader any other way — the MCP surface has no publish tool at all.
-
-A *galley* is the proof a printer hands an editor before anything goes to press. That is the whole idea.
+reaches a reader any other way — unless you decide otherwise: if the agent is one you drive yourself,
+you can grant it permission to publish directly, per agent, off by default and revocable at any time.
+Anything published that way is marked as unreviewed in the admin.
 
 One Docker container, one data directory, and no language model of its own: every bit of intelligence
 comes from the agent you connect, so there are no model keys to configure and nothing to lock into.
@@ -42,7 +42,8 @@ comes from the agent you connect, so there are no model keys to configure and no
 - **Change a block and every article that leans on it gets fixed.** Updating a block finds every passage
   citing it, asks the agent to rewrite those passages, and collects the result into one card for you.
 - **Publishing is enforced by the program, not by the agent's good behaviour.** The MCP surface has no
-  publish, unpublish, or permission-changing tool. Approval is the only way in.
+  publish tool until you grant one agent that permission explicitly, and never an unpublish or
+  permission-changing one. The default is that approval is the only way in.
 - **No model keys, no lock-in.** Skills are served over MCP, so an agent that connects learns how to
   operate the site without any local setup.
 - **Your data stays a file.** SQLite plus an images folder. Back it up by downloading one archive.
@@ -202,7 +203,8 @@ the agent is pointed at the site's `overview` skill, which tells it how this blo
 have to explain anything.
 
 Approving tool calls up front (that last line in the Codex config) matters for unattended runs, and it is
-safe: none of the tools can publish, unpublish, read your guest book, or change their own permissions.
+safe by default: without the publishing permission you grant explicitly, none of the tools can put
+anything live, and none can unpublish, read your guest book, or change their own permissions.
 
 There is also a plugin that skips the manual setup: download one pre-filled with your site's address from
 the admin, or use the generic one in [integrations/codex](integrations/codex).

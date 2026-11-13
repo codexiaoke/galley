@@ -41,6 +41,11 @@ export const agents = sqliteTable("agents", {
   disabled: integer("disabled", { mode: "boolean" }).notNull().default(false),
   /** 站长对这个 Agent 关掉的工具名。空表示全部可用。有哪些工具见 core/tools.ts */
   disabledTools: text("disabled_tools", { mode: "json" }).$type<string[]>().notNull().default([]),
+  /**
+   * 这个 Agent 可以直接让内容上线，不用等站长批准。默认关。
+   * 打开的是你自己在旁边盯着的那个（比如电脑上的 Claude Code）；定时自己跑的仍然该让它等审阅。
+   */
+  canPublish: integer("can_publish", { mode: "boolean" }).notNull().default(false),
   lastSeenAt: integer("last_seen_at", { mode: "timestamp_ms" }),
   createdAt: createdAt(),
 });
@@ -75,6 +80,8 @@ export const changeSets = sqliteTable(
     decisionNote: text("decision_note"),
     /** 被站长打回过几次 */
     rejectCount: integer("reject_count").notNull().default(0),
+    /** 没有经过审阅、由 Agent 自己直接上线的。看板和运营日志上标出来，站长事后还能看到 */
+    publishedWithoutReview: integer("published_without_review", { mode: "boolean" }).notNull().default(false),
     /** 站长把它从公开的运营日志里隐藏了 */
     hiddenFromLog: integer("hidden_from_log", { mode: "boolean" }).notNull().default(false),
     createdAt: createdAt(),

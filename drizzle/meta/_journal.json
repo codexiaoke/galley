@@ -78,6 +78,13 @@
       "when": 1794573343557,
       "tag": "0010_clean_green_goblin",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1794575065345,
+      "tag": "0011_sparkling_shiver_man",
+      "breakpoints": true
     }
   ]
 }

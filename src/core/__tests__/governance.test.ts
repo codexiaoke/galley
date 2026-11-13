@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { OWNER, type Actor } from "../actor";
 import { openDb, type Db } from "../db/client";
 import { GalleyError } from "../errors";
-import { authenticateAgent, createAgent, disabledToolsOf, listAgents, setAgentDisabledTools } from "../services/agents";
+import { authenticateAgent, createAgent, disabledToolsOf, listAgents, setAgentCanPublish, setAgentDisabledTools } from "../services/agents";
+import { findChangeSet, openChangeSet, publishChangeSet } from "../services/changeSets";
+import { createBlock } from "../services/blocks";
+import { listOperationLog } from "../services/oplog";
 import {
   getDefaultSkill,
   getSkill,
@@ -140,8 +143,53 @@ describe("按 Agent 开关工具", () => {
     expect(registeredTools(createMcpServer(db, agent))).toHaveLength(TOOLS.length);
   });
 
-  it("MCP 里没有批准、发布、读取留言、修改技能这类工具", () => {
-    const forbidden = /approve|publish|unpublish|decide|message|save_skill|update_skill|delete|permission|token/;
+  it("MCP 里没有批准、下线、读取留言、修改技能这类工具；能让内容上线的只有一个，而且要单独授权", () => {
+    const forbidden = /approve|unpublish|decide|message|save_skill|update_skill|delete|permission|token/;
     expect(TOOLS.filter((t) => forbidden.test(t.name)).map((t) => t.name)).toEqual([]);
+    expect(TOOLS.filter((t) => t.name.includes("publish")).map((t) => t.name)).toEqual(["publish_change_set"]);
+    // 不能是必需工具：站长要能关掉它
+    expect(TOOLS.find((t) => t.name === "publish_change_set")?.required).toBeUndefined();
+  });
+});
+
+describe("直接上线", () => {
+  const writeSomething = () => {
+    const cs = openChangeSet(db, agent, { kind: "knowledge", title: "整理" });
+    const made = createBlock(db, agent, { changeSetId: cs.id, type: "opinion", title: "观点", body: "我认为这样更好。" });
+    if (!made.created) throw new Error("没建成");
+    return cs.id;
+  };
+
+  it("默认不行，提示去提交审阅", () => {
+    expect(listAgents(db)[0].canPublish).toBe(false);
+    expectError(() => publishChangeSet(db, agent, writeSomething()), "forbidden", /submit_change_set/);
+  });
+
+  it("站长开了之后可以，内容真的上线，并且标出没经过审阅", () => {
+    setAgentCanPublish(db, OWNER, agent.id, true);
+    const id = writeSomething();
+    const result = publishChangeSet(db, agent, id, "上线一条观点");
+    expect(result.changeSet.status).toBe("approved");
+    expect(result.affected.blockIds).toHaveLength(1);
+    expect(findChangeSet(db, id).publishedWithoutReview).toBe(true);
+    expect(listOperationLog(db)[0]).toMatchObject({ withoutReview: true, title: "整理" });
+  });
+
+  it("只能上线自己的；站长收回后立刻失效", () => {
+    setAgentCanPublish(db, OWNER, agent.id, true);
+    const other = authenticateAgent(db, createAgent(db, OWNER, "另一个").token)!;
+    setAgentCanPublish(db, OWNER, other.id, true);
+    const mine = writeSomething();
+    expectError(() => publishChangeSet(db, other, mine), "forbidden", /不是你创建的/);
+
+    setAgentCanPublish(db, OWNER, agent.id, false);
+    expectError(() => publishChangeSet(db, agent, mine), "forbidden", /没有直接上线的权限/);
+  });
+
+  it("空的变更集上线不了；Agent 自己不能给自己开权限", () => {
+    setAgentCanPublish(db, OWNER, agent.id, true);
+    const empty = openChangeSet(db, agent, { kind: "knowledge", title: "空的" });
+    expectError(() => publishChangeSet(db, agent, empty.id), "invalid", /还没有任何内容/);
+    expectError(() => setAgentCanPublish(db, agent, agent.id, true), "forbidden");
   });
 });

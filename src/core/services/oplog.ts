@@ -23,6 +23,8 @@ export type LogEntry = {
   decidedAt: Date;
   /** 被站长打回过几次才通过 */
   rejectCount: number;
+  /** 没有经过审阅、由 Agent 直接上线的 */
+  withoutReview: boolean;
   /** 这项改动上线或修改了哪些文章 */
   documents: { title: string; slug: string; kind: "article" | "page" }[];
   /** 整理或更新了几个知识块 */
@@ -75,6 +77,7 @@ export function listOperationLog(db: Db, limit = 200): LogEntry[] {
       agentName,
       decidedAt: cs.decidedAt!,
       rejectCount: cs.rejectCount,
+      withoutReview: cs.publishedWithoutReview,
       // 已经下线的文章不给链接，也不提它的标题。
       documents: docs.filter((d) => d.changeSetId === cs.id && d.status === "published").map((d) => ({ title: d.title, slug: d.slug, kind: d.kind })),
       blockCount: blockCounts.get(cs.id) ?? 0,

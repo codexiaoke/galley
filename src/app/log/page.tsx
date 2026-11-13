@@ -34,7 +34,10 @@ export default function LogPage() {
 
 function Entry({ entry }: { entry: LogEntry }) {
   const date = new Date(entry.decidedAt);
-  const process = [entry.agentName ? `${entry.agentName} 起草` : "Agent 起草", entry.rejectCount > 0 ? `改了 ${entry.rejectCount} 轮后通过` : "一次通过"];
+  const process = [
+    entry.agentName ? `${entry.agentName} 起草` : "Agent 起草",
+    entry.withoutReview ? "直接上线" : entry.rejectCount > 0 ? `改了 ${entry.rejectCount} 轮后通过` : "一次通过",
+  ];
   if (entry.blockCount > 0) process.push(`${entry.blockCount} 条资料`);
   return (
     <li className="galley-log-entry">

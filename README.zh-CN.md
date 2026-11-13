@@ -7,7 +7,7 @@
 <p align="center">一个自托管博客：把你在用的 Agent 接上来写，你点头才上线。</p>
 
 <p align="center">
-  <a href="https://github.com/codexiaoke/galley/actions/workflows/image.yml"><img src="https://github.com/codexiaoke/galley/actions/workflows/image.yml/badge.svg" alt="构建"></a>
+  <a href="https://github.com/codexiaoke/galley/actions/workflows/image.yml"><img src="https://img.shields.io/github/actions/workflow/status/codexiaoke/galley/image.yml?branch=main&label=build" alt="构建"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT"></a>
   <a href="https://github.com/codexiaoke/galley/pkgs/container/galley"><img src="https://img.shields.io/badge/ghcr.io-galley-0b7285.svg" alt="镜像"></a>
 </p>
@@ -22,9 +22,9 @@
 
 Galley 是一个带 [MCP](https://modelcontextprotocol.io) 端点的博客。把这个端点加进 Claude Code、Codex，
 或者你本来就在用的任何 MCP 客户端，Agent 就能读到这个站已有的东西、写出文章、提交审阅。
-你打开后台读一遍，批准或者打回。没有别的途径能让内容上线——MCP 接口里根本没有发布这个工具。
-
-Galley 原意是印刷厂交给编辑过目的校样，付印之前的最后一道人工。这个项目就是这个意思。
+你打开后台读一遍，批准或者打回。默认就是这样：Agent 写，你点头才上线。
+如果你是自己在旁边用的那个 Agent，嫌每次都要去后台麻烦，可以在后台单独给它开「直接上线」——
+开关是按 Agent 给的、默认关着、随时能收回，这样上线的内容也会标出「没经过审阅」。
 
 部署是一个 Docker 容器加一个数据目录。程序本身不调用任何大模型，所有智能都来自你接进来的那个 Agent，
 所以不用配置模型密钥，也不绑定任何一家。
@@ -39,7 +39,7 @@ Galley 原意是印刷厂交给编辑过目的校样，付印之前的最后一�
   **知识块**。文章用自己的话行文，并标出哪一句依据哪个块。
 - **知识块变了，依赖它的文章跟着改。** 更新一个块时，程序找出所有引用它的位置，Agent 重写那几处，
   结果合成一张卡片交给你。
-- **发布由程序把关，不靠 Agent 自觉。** MCP 接口里根本没有发布、下线、改权限这些工具。
+- **发布权限由程序管，不靠 Agent 自觉。** 默认任何 Agent 都不能让内容上线，只能提交审阅；要放开，得你在后台对某一个 Agent 明确打开，而且随时能收回。下线、读留言、改自己的权限始终不开放。
   内容上线的唯一途径是你批准。
 - **不要模型密钥，不绑定 Agent。** 技能通过 MCP 下发，Agent 连上来就知道该怎么运营这个站。
 - **数据就是几个文件。** SQLite 加一个图片目录，备份就是下载一个压缩包。
@@ -186,7 +186,7 @@ default_tools_approval_mode = "approve"
 `overview` 技能，那里写明了这个博客怎么运营，你不用再解释一遍。
 
 Codex 配置里最后一行让它调用本站工具时不再逐次询问——定时自动运行时没有人能点批准，缺了这一行它什么都
-做不了。放行是安全的：这些工具里没有发布、下线、读留言、改自己权限的能力。
+做不了。默认是安全的：没有单独授权时，这些工具不能让任何内容上线，也不能下线、读留言、改自己的权限。
 
 也可以用插件省掉手动配置：在后台下载预先填好本站地址的那份，或者用仓库里
 [integrations/codex](integrations/codex) 的通用版本。

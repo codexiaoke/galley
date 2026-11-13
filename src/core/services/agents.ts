@@ -47,6 +47,7 @@ export function listAgents(db: Db) {
       name: agents.name,
       disabled: agents.disabled,
       disabledTools: agents.disabledTools,
+      canPublish: agents.canPublish,
       lastSeenAt: agents.lastSeenAt,
       createdAt: agents.createdAt,
     })
@@ -68,6 +69,18 @@ export function setAgentDisabledTools(db: Db, actor: Actor, agentId: string, too
 export function disabledToolsOf(db: Db, agentId: string): Set<string> {
   const row = db.select({ disabledTools: agents.disabledTools }).from(agents).where(eq(agents.id, agentId)).get();
   return new Set(row?.disabledTools ?? []);
+}
+
+/**
+ * 给一个 Agent 开或关"直接上线"的权限。默认是关的。
+ *
+ * 开的通常是站长自己在旁边用的那个（比如电脑上的 Claude Code）：人就在跟前，
+ * 写完还要去后台点一次批准只是麻烦。定时自己跑的那个该留着关，让它提交审阅。
+ */
+export function setAgentCanPublish(db: Db, actor: Actor, agentId: string, canPublish: boolean) {
+  if (actor.kind !== "owner") throw forbidden("只有站长可以给 Agent 开直接上线的权限。");
+  const result = db.update(agents).set({ canPublish }).where(eq(agents.id, agentId)).run();
+  if (result.changes === 0) throw notFound(`Agent ${agentId} 不存在。`);
 }
 
 export function setAgentDisabled(db: Db, actor: Actor, agentId: string, disabled: boolean) {

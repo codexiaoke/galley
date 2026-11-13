@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { actorColumns, type Actor } from "../actor";
 import type { Db } from "../db/client";
 import {
+  agents,
   blockRevisions,
   blocks,
   changeSets,
@@ -46,6 +47,7 @@ export function openChangeSet(
     topicId: input.topicId ?? null,
     decisionNote: null,
     rejectCount: 0,
+    publishedWithoutReview: false,
     hiddenFromLog: false,
     createdAt: new Date(),
     submittedAt: null,
@@ -157,8 +159,9 @@ export function listChangeSets(db: Db, filter: { status?: ChangeSetStatus[]; age
     .all();
 }
 
-export function submitChangeSet(db: Db, actor: Actor, id: string): ChangeSet {
-  const cs = requireEditable(db, actor, id);
+/** 提交审阅和直接上线之前都要过的检查：有内容、批注都回应过。 */
+function assertReadyToSubmit(db: Db, cs: ChangeSet) {
+  const id = cs.id;
   const { blockItems, documentItems } = changeSetContents(db, id);
   if (blockItems.length + documentItems.length === 0) {
     throw invalid("这个变更集里还没有任何内容，不能提交审阅。");
@@ -175,6 +178,11 @@ export function submitChangeSet(db: Db, actor: Actor, id: string): ChangeSet {
       { openCommentIds: open.map((c) => c.id) },
     );
   }
+}
+
+export function submitChangeSet(db: Db, actor: Actor, id: string): ChangeSet {
+  const cs = requireEditable(db, actor, id);
+  assertReadyToSubmit(db, cs);
   db.update(changeSets)
     .set({ status: "in_review", submittedAt: new Date(), decisionNote: null })
     .where(eq(changeSets.id, id))
@@ -205,7 +213,8 @@ export type DecisionResult = {
 /**
  * 批准或打回一个变更集。
  *
- * 这是"发布由程序把关"的唯一入口：只有站长能调用，MCP 接口里没有对应的工具。
+ * 只有站长能调用。被站长单独授权过的 Agent 可以用 publishChangeSet 让自己的内容直接上线，
+ * 那条路同样走下面的 approve，规则完全一样。
  * 批准是原子的：变更集里的所有版本在同一个事务里生效。
  */
 export function decideChangeSet(
@@ -238,7 +247,16 @@ export function decideChangeSet(
     });
     return { changeSet: { ...cs, status: "rejected" }, affected: { slugs: [], blockIds: [] } };
   }
+  return approve(db, cs, note, now, false);
+}
 
+/**
+ * 让一个变更集里的内容真正上线：知识块生效、文档发布、变更集结束。
+ * 站长批准（decideChangeSet）和被授权的 Agent 自己上线（publishChangeSet）都走这里，
+ * 两条路的规则完全一样，区别只是 withoutReview 这一个标记。
+ */
+function approve(db: Db, cs: ChangeSet, note: string | undefined, now: Date, withoutReview: boolean): DecisionResult {
+  const id = cs.id;
   const { blockItems, documentItems } = changeSetContents(db, id);
 
   return db.transaction((tx) => {
@@ -287,7 +305,7 @@ export function decideChangeSet(
     }
 
     tx.update(changeSets)
-      .set({ status: "approved", decisionNote: note?.trim() || null, decidedAt: now })
+      .set({ status: "approved", decisionNote: note?.trim() || null, decidedAt: now, publishedWithoutReview: withoutReview })
       .where(eq(changeSets.id, id))
       .run();
     // 为某个选题开的变更集批准后，这个选题就写完了。
@@ -301,6 +319,32 @@ export function decideChangeSet(
       },
     };
   });
+}
+
+
+/**
+ * 被站长授权的 Agent 让自己的变更集直接上线，不用等审阅。
+ *
+ * 授权是按 Agent 给的（后台的 MCP 管理页，默认关着），而且随时能收回。
+ * 打开的通常是站长自己在旁边用的那个 Agent——人就在跟前，再要求去后台点一次批准只是麻烦；
+ * 定时自己跑的那个仍然该让它提交审阅。
+ * 这样上线的内容会在看板和运营日志上标出来，站长事后照样看得到、能下线。
+ */
+export function publishChangeSet(db: Db, actor: Actor, id: string, note?: string): DecisionResult {
+  if (actor.kind !== "agent") throw forbidden("站长请用批准，不要走这里。");
+  const agent = db.select({ canPublish: agents.canPublish }).from(agents).where(eq(agents.id, actor.id)).get();
+  if (!agent?.canPublish) {
+    throw forbidden("你没有直接上线的权限。用 submit_change_set 提交，等站长审阅。站长可以在后台的 MCP 管理页为你打开这个权限。");
+  }
+  const cs = findChangeSet(db, id);
+  assertOwnership(actor, cs);
+  if (!ACTIVE.includes(cs.status)) throw conflict(`变更集 ${id} 已经结束（${cs.status}），不能上线。`);
+  assertReadyToSubmit(db, cs);
+  const now = new Date();
+  if (cs.status !== "in_review") {
+    db.update(changeSets).set({ status: "in_review", submittedAt: now, decisionNote: null }).where(eq(changeSets.id, id)).run();
+  }
+  return approve(db, { ...cs, status: "in_review" }, note, now, true);
 }
 
 /** 在事务里抛出它，放弃这次直接修改，并把结果带到事务外面。 */

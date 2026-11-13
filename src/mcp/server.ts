@@ -9,7 +9,7 @@ import { describeComponents } from "@/core/markup/components";
 import { disabledToolsOf, logAgentCall } from "@/core/services/agents";
 import { createBlock, markBlockStale, proposeBlockUpdate, readBlockAsAgent, searchBlocks } from "@/core/services/blocks";
 import { listCategories } from "@/core/services/categories";
-import { changeSetContents, findChangeSet, openChangeSet, submitChangeSet, withdrawChangeSet } from "@/core/services/changeSets";
+import { changeSetContents, findChangeSet, openChangeSet, publishChangeSet, submitChangeSet, withdrawChangeSet } from "@/core/services/changeSets";
 import { checkDocumentBody, getDocumentForEditing, listDocuments, replaceInDocument, saveDocument } from "@/core/services/documents";
 import { lineOfQuote, listComments, replyToComment } from "@/core/services/comments";
 import { listMedia, saveMedia } from "@/core/services/media";
@@ -245,6 +245,17 @@ export function createMcpServer(
     const cs = submitChangeSet(db, actor, changeSetId);
     return { changeSetId: cs.id, status: cs.status };
   });
+
+  tool(
+    "publish_change_set",
+    "让这个变更集里的内容直接上线，不经过审阅。只有站长在后台单独给你开了这个权限才能用；没开时会告诉你，照常用 submit_change_set 提交等审阅。开着的时候写完直接上线就行，不用再让站长去后台点一次。这样上线的内容在后台会标出「没经过审阅」，站长事后照样看得到、能下线，所以该有的谨慎一点都不能少：拿不准的说法宁可不写，也不要上线了再说。",
+    { changeSetId: z.string(), note: z.string().optional().describe("一句话说明这次上线了什么，会记进运营日志") },
+    ({ changeSetId, note }) => {
+      const result = publishChangeSet(db, actor, changeSetId, note);
+      hooks.onPublicChange?.();
+      return { status: result.changeSet.status, slugs: result.affected.slugs, blockIds: result.affected.blockIds };
+    },
+  );
 
   tool("withdraw_change_set", "撤回一个不再需要的变更集，释放它占用的知识块和文档。", { changeSetId: z.string() }, ({ changeSetId }) => {
     const cs = withdrawChangeSet(db, actor, changeSetId);

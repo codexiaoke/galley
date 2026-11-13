@@ -27,6 +27,7 @@ export const TOOLS: ToolInfo[] = [
   { name: "open_change_set", group: "变更集", label: "开启一个变更集", required: true },
   { name: "get_change_set", group: "变更集", label: "查看变更集的内容和批注", required: true },
   { name: "submit_change_set", group: "变更集", label: "提交审阅", required: true },
+  { name: "publish_change_set", group: "变更集", label: "直接上线（还要单独给这个 Agent 开权限）" },
   { name: "withdraw_change_set", group: "变更集", label: "撤回变更集", required: true },
   { name: "reply_comment", group: "变更集", label: "回复批注", required: true },
 
