@@ -4060,3 +4060,9 @@ body {
 .galley-slide .galley-codesteps-code code {
   height: calc(var(--rows-max) * var(--lh));
 }
+
+/* 图的连线上写的关系名（下单、包含……）：比权重的数字小一点、淡一点 */
+.galley-algo-weight[data-label] {
+  font-size: 3px;
+  fill: var(--ink-faint);
+}

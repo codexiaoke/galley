@@ -17,6 +17,9 @@ importers:
       better-sqlite3:
         specifier: ^13.1.1
         version: 13.1.1
+      dompurify:
+        specifier: 3.4.17
+        version: 3.4.17
       drizzle-orm:
         specifier: ^0.45.4
         version: 0.45.4(@types/better-sqlite3@9.6.0)(better-sqlite3@13.1.1)

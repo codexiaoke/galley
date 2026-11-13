@@ -10,6 +10,7 @@ import { toString } from "mdast-util-to-string";
 import type { RefMode } from "../db/schema";
 import { BLOCK_ID_PATTERN } from "../ids";
 import { getComponent } from "./components";
+import { mermaidResults } from "./mermaid-cache";
 import { checkStructure } from "./structure";
 
 export type ParsedRef = {
@@ -182,8 +183,12 @@ export function parseMarkup(body: string): ParsedMarkup {
     }
     if (node.type === "code" && node.lang === "mermaid") {
       const first = node.value.trim().split(/\s+/)[0] ?? "";
+      const checked = mermaidResults.get(node.value);
       if (!MERMAID_TYPES.includes(first)) {
         error(`Mermaid 图的第一行要写图表类型，比如 flowchart LR、sequenceDiagram、classDiagram。现在是「${first}」。`, node.position?.start.line);
+      } else if (checked) {
+        // 保存前已经在服务端检查过（见 mermaid.ts），这里取结果
+        error(`Mermaid ${checked}`, node.position?.start.line);
       }
     }
     if (node.type === "image") {

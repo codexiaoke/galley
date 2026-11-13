@@ -7,7 +7,7 @@ import { GalleyError } from "@/core/errors";
 import { listCategories } from "@/core/services/categories";
 import { assertNotLockedElsewhere, findChangeSet } from "@/core/services/changeSets";
 import { getDocumentForEditing, previewDocumentBody } from "@/core/services/documents";
-import { runTraces } from "@/core/algo/trace";
+import { prepareBody } from "@/core/prepare";
 import { requireOwner } from "../../../../auth";
 import { PageSkeleton } from "../../../../ui";
 import { DocumentEditor } from "./editor";
@@ -35,7 +35,7 @@ function Blocked({ title, children, href, linkLabel }: { title: string; children
 }
 
 type Loaded =
-  | { kind: "editor"; document: ReturnType<typeof getDocumentForEditing>; preview: ReturnType<typeof previewDocumentBody> & { traces: Awaited<ReturnType<typeof runTraces>> }; changeSetId?: string }
+  | { kind: "editor"; document: ReturnType<typeof getDocumentForEditing>; preview: ReturnType<typeof previewDocumentBody> & { traces: Awaited<ReturnType<typeof prepareBody>>["traces"] }; changeSetId?: string }
   /** 待审的改动已经不在待审状态了 */
   | { kind: "not-in-review"; changeSetId: string }
   /** 文章正在另一个还没结束的改动里 */
@@ -51,7 +51,7 @@ async function load(id: string, changeSetId: string | undefined): Promise<Loaded
       if (findChangeSet(db, changeSetId).status !== "in_review") return { kind: "not-in-review", changeSetId };
       const document = getDocumentForEditing(db, { documentId: id }, changeSetId);
       if (!document.isDraft) return { kind: "missing" };
-      const traces = await runTraces(document.body);
+      const { traces } = await prepareBody(document.body);
       return { kind: "editor", document, changeSetId, preview: { ...previewDocumentBody(db, document.body, changeSetId), traces } };
     }
     const document = getDocumentForEditing(db, { documentId: id });
@@ -62,7 +62,7 @@ async function load(id: string, changeSetId: string | undefined): Promise<Loaded
       if (e instanceof GalleyError && e.code === "conflict") return { kind: "locked", title: document.title, other: e.details as { id: string; title: string } };
       throw e;
     }
-    const traces = await runTraces(document.body);
+    const { traces } = await prepareBody(document.body);
     return { kind: "editor", document, preview: { ...previewDocumentBody(db, document.body), traces } };
   } catch (e) {
     if (e instanceof GalleyError && e.code === "not_found") return { kind: "missing" };

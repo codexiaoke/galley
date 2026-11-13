@@ -1,4 +1,4 @@
-import { runTraces } from "@/core/algo/trace";
+import { prepareBody } from "@/core/prepare";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Actor } from "@/core/actor";
@@ -34,6 +34,7 @@ const READ_ONLY_TOOLS = new Set([
   "list_skills",
   "get_skill",
   "list_components",
+  "get_component",
   "list_categories",
   "list_tags",
   "get_change_set",
@@ -136,7 +137,20 @@ export function createMcpServer(
     (args) => suggestSkillChange(db, actor, args),
   );
 
-  tool("list_components", "列出正文里可以使用的组件及其参数。", {}, () => describeComponents());
+  tool("list_components", "列出正文里可以使用的组件：名字、用途和一个例子。要用某个组件前，用 get_component 读它的详细说明。", {}, () =>
+    describeComponents().map(({ name, form, description, example }) => ({ name, form, description, example })),
+  );
+
+  tool(
+    "get_component",
+    "读一个组件的详细说明：参数和可选值，以及更长的清单（比如 algo 的全部算法、trace 里能调用的函数）。用某个组件之前先读一遍。",
+    { name: z.string().describe("组件名，例如 algo、trace、code-steps") },
+    ({ name }) => {
+      const found = describeComponents().find((c) => c.name === name);
+      if (!found) throw notFound(`没有名为 ${name} 的组件。可用的有：${describeComponents().map((c) => c.name).join("、")}。`);
+      return found;
+    },
+  );
 
   tool("list_tags", "列出已发布文章用到的标签和各自的文章数，用得多的在前。给文章打标签前先看这里，能复用已有的就不要新起。", {}, () =>
     listTags(db),
@@ -432,8 +446,8 @@ export function createMcpServer(
       body: z.string().describe("正文，Markdown 加引用标记，语法见 writing 技能"),
     },
     async (args) => {
-      // 正文里的演示代码先在沙箱里跑一遍，代码有错时保存会报出第几行
-      await runTraces(args.body);
+      // 正文里的演示代码先在沙箱里跑一遍、Mermaid 图先检查一遍，有错时保存会报出来
+      await prepareBody(args.body);
       return saveDocument(db, actor, args);
     },
   );
@@ -450,7 +464,7 @@ export function createMcpServer(
     async (args) => {
       // 先按替换后的正文把演示代码跑一遍（替换本身和各种检查在 replaceInDocument 里）
       const current = getDocumentForEditing(db, { documentId: args.documentId }, args.changeSetId);
-      if (current.body.includes(args.find)) await runTraces(current.body.replace(args.find, () => args.replace));
+      if (current.body.includes(args.find)) await prepareBody(current.body.replace(args.find, () => args.replace));
       return replaceInDocument(db, actor, args);
     },
   );

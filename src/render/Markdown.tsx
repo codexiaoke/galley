@@ -13,9 +13,9 @@ import remarkRehype from "remark-rehype";
 import { unified } from "unified";
 import { BUILTIN_DIRECTIVES, getComponent } from "@/core/markup/components";
 import { isBareText, isDirective } from "@/core/markup/parse";
+import type { FlowGraph } from "@/core/markup/flow";
 import { readCodeSteps, readFlow, readSteps, readTrace, STEP_LINES_PATTERN } from "@/core/markup/structure";
 import { lineIdentities } from "./code-diff";
-import { CodeStepsPlayer } from "./client/code-steps";
 import { traceCache, traceKey, type TraceResult } from "@/core/algo/trace-shared";
 import type { BlockView } from "@/core/services/blocks";
 import type { PostCard } from "@/core/services/documents";
@@ -23,17 +23,9 @@ import { CiteHover } from "./CiteHover";
 import { highlightCode, languageName, parseCodeMeta } from "./highlight";
 import { runAlgorithmVariants } from "@/core/algo";
 import { variantsOf } from "@/core/algo/presets";
-import { AlgoPlayer } from "./client/algo/player";
-import { RacePlayer } from "./client/algo/race";
-import { ChartView } from "./client/chart";
 import { CopyButton } from "./client/copy";
-import { Compare } from "./client/compare";
-import { FlowView } from "./client/flow";
-import { ZoomImage } from "./client/image";
-import { MermaidDiagram } from "./client/mermaid";
-import { CountUp } from "./client/stat";
-import { StepsController } from "./client/steps";
-import { Tabs } from "./client/tabs";
+// 播放器按需加载，见 client/lazy.tsx
+import { AlgoPlayer, ChartView, CodeStepsPlayer, Compare, CountUp, FlowView, MermaidDiagram, RacePlayer, StepsController, Tabs, ZoomImage } from "./client/lazy";
 import { headingSlugger } from "./toc";
 
 /**
@@ -633,7 +625,7 @@ export function Markdown({
     },
     "galley-steps": (props: ElementProps) => <StepsController>{props.children}</StepsController>,
     "galley-flow": (props: ElementProps) => {
-      const { graph } = attrsOf<{ graph: Parameters<typeof FlowView>[0]["graph"] | null }>(props);
+      const { graph } = attrsOf<{ graph: FlowGraph | null }>(props);
       return graph ? <FlowView graph={graph} /> : null;
     },
     "galley-tabs": (props: ElementProps) => <Tabs labels={attrsOf<{ labels: string[] }>(props).labels}>{props.children}</Tabs>,
