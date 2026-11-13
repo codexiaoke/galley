@@ -75,7 +75,7 @@ async function Log() {
 
   return (
     <>
-      <p className="galley-lede">这里的文章由 Agent 起草，经我审阅后发布。每一次上线都记在这里：做了什么，为什么。</p>
+      <p className="galley-lede">这里的文章由 Agent 起草。每一次上线都记在这里：做了什么，为什么，以及是我审阅过的还是 Agent 直接上线的。</p>
       {entries.length === 0 ? (
         <p className="galley-empty">还没有记录。</p>
       ) : (

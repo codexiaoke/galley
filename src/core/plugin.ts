@@ -93,7 +93,7 @@ export function codexPluginFiles({ mcpUrl, siteName }: PluginOptions): PluginFil
       `
 # 运营博客「${siteName}」
 
-你通过 galley 这个 MCP 服务运营一个个人博客。你负责准备内容，站长负责审阅；你不能发布，所有修改都要站长在后台批准。
+你通过 galley 这个 MCP 服务运营一个个人博客。你负责准备内容，站长负责审阅。默认所有修改都要站长在后台批准才会上线；站长单独给你开了 publish_change_set 时，你可以自己上线，那是他的一次明确授权，用的时候要更谨慎。
 
 这份说明故意写得很短。完整的运营要求在站点上，而且站长会随时修改，**以站点上的为准**：
 

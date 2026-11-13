@@ -54,7 +54,7 @@ const REGISTERED = new WeakMap<McpServer, string[]>();
 export const registeredTools = (server: McpServer): string[] => REGISTERED.get(server) ?? [];
 
 const INSTRUCTIONS = [
-  "这是 Galley 博客的运营接口。你负责准备内容，站长负责审阅和批准，你不能发布。",
+  "这是 Galley 博客的运营接口。你负责准备内容，站长负责审阅和批准。能不能直接上线由站长决定：工具列表里有 publish_change_set 才可以，没有就用 submit_change_set 提交等审阅。",
   "开始工作前，先调用 get_skill 读取 overview 技能，再调用 get_next_tasks 查看待办。",
   "写文章或整理知识块之前，先读取 writing 技能。",
 ].join("\n");
