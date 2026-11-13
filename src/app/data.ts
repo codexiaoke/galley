@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import { getDb } from "@/core/db/client";
 import { listCategories } from "@/core/services/categories";
 import { articleNavigation, getPublishedDocument, listPublished, publishedSlugExists } from "@/core/services/documents";
-import { listTerms, publicHistory, siteGraph } from "@/core/services/knowledge";
+import { listTerms, publicHistory, relatedPosts, siteGraph } from "@/core/services/knowledge";
 import { listOperationLog } from "@/core/services/oplog";
 
 /**
@@ -131,4 +131,21 @@ async function cachedNavigation(documentId: string) {
 export async function loadNavigation(documentId: string) {
   await connection();
   return cachedNavigation(documentId);
+}
+
+async function cachedRelated(documentId: string, exclude: string) {
+  "use cache";
+  cacheLife("max");
+  cacheTag(PUBLIC_CONTENT_TAG);
+  return relatedPosts(getDb(), documentId, { exclude: exclude ? exclude.split(",") : [] });
+}
+
+/**
+ * 和这篇讲到同样概念最多的几篇文章。
+ * exclude 传网址别名，用逗号隔开：这一页上已经出现过的（系列目录、上一篇下一篇）不再推荐一次。
+ * 传字符串而不是数组，是因为带缓存的函数靠参数做键，数组每次都是新对象，缓存会落空。
+ */
+export async function loadRelated(documentId: string, exclude: string[]) {
+  await connection();
+  return cachedRelated(documentId, [...exclude].sort().join(","));
 }

@@ -6,7 +6,7 @@ import { Markdown } from "@/render/Markdown";
 import { Toc } from "@/render/client/toc";
 import { extractToc } from "@/render/toc";
 import { runTraces } from "@/core/algo/trace";
-import { loadNavigation, loadPublishedDocument, loadTerms } from "../../data";
+import { loadNavigation, loadPublishedDocument, loadRelated, loadTerms } from "../../data";
 import { tagPath } from "@/core/tags";
 import { ReaderSettings } from "../../reader-settings";
 import { loadSite } from "../../site";
@@ -92,6 +92,9 @@ async function Post({ params }: { params: Promise<{ slug: string }> }) {
   if (!doc || doc.kind !== "article") notFound();
 
   const nav = await loadNavigation(doc.id);
+  // 这一页上已经列出来的文章不再推荐一次
+  const shown = [...(nav.series?.items.map((i) => i.slug) ?? []), nav.previous?.slug, nav.next?.slug].filter((s) => !!s) as string[];
+  const related = await loadRelated(doc.id, shown);
   const toc = extractToc(doc.body);
   // 正文里的演示代码先在沙箱里跑一遍（结果有缓存），渲染时直接取
   const traces = await runTraces(doc.body);
@@ -146,6 +149,19 @@ async function Post({ params }: { params: Promise<{ slug: string }> }) {
               </Link>
             ))}
           </p>
+        )}
+        {related.length > 0 && (
+          <nav className="galley-related" aria-label="相关文章">
+            <p className="galley-related-kicker">讲到同样东西的</p>
+            <ul>
+              {related.map((post) => (
+                <li key={post.slug}>
+                  <Link href={`/posts/${post.slug}`}>{post.title}</Link>
+                  {post.shared.length > 0 && <span className="galley-related-shared">都讲到 {post.shared.slice(0, 3).join("、")}</span>}
+                </li>
+              ))}
+            </ul>
+          </nav>
         )}
         {(nav.previous || nav.next) && (
           <nav className="galley-prevnext" aria-label={nav.series ? "系列里的上一篇和下一篇" : "上一篇和下一篇"}>

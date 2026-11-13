@@ -1402,6 +1402,42 @@ body {
   color: var(--ink);
 }
 
+/* 文章末尾的相关文章：讲到同样概念的几篇，附上共同讲到了什么 */
+.galley-related {
+  margin-top: 2.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--rule);
+}
+.galley-related-kicker {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+.galley-related li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.9rem;
+  padding: 0.5rem 0;
+}
+.galley-related li + li {
+  border-top: 1px solid color-mix(in srgb, var(--rule) 60%, transparent);
+}
+.galley-related a {
+  color: var(--ink);
+  line-height: 1.6;
+  transition: color var(--dur-fast);
+}
+.galley-related a:hover {
+  color: var(--accent);
+}
+.galley-related-shared {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+}
+
 /* 文章末尾的上一篇、下一篇：左右两栏，窄屏上下排 */
 .galley-prevnext {
   display: grid;

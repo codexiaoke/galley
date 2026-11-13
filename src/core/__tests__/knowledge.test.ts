@@ -8,7 +8,7 @@ import { decideChangeSet, openChangeSet, submitChangeSet } from "../services/cha
 import { articleNavigation, editDocumentAsOwner, getPublishedDocument, saveDocument } from "../services/documents";
 import { documents } from "../db/schema";
 import { eq } from "drizzle-orm";
-import { listTerms, publicHistory, siteGraph } from "../services/knowledge";
+import { listTerms, publicHistory, relatedPosts, siteGraph } from "../services/knowledge";
 import { layoutGraph } from "../../render/graph-layout";
 
 let db: Db;
@@ -144,5 +144,31 @@ describe("系列和上下篇", () => {
     expect(getPublishedDocument(db, "solo")?.series).toBe("某系列");
     editDocumentAsOwner(db, OWNER, { documentId: id, title: "单篇", body: "正文，又改了。", series: "" });
     expect(getPublishedDocument(db, "solo")?.series).toBeNull();
+  });
+});
+
+describe("相关文章", () => {
+  it("按共同讲到的概念排；引用过的分量更重；没有共同概念的不出现", () => {
+    const ontology = concept("本体", "对一个领域的明确描述。");
+    concept("知识图谱", "用实体和关系连成的一张网。");
+    const self = publish("self", "本篇", `讲讲 :cite[本体是对一个领域的明确描述]{b=${ontology}}，也顺便提一句知识图谱。`);
+    // 同样引用了本体的那篇，应该排在只是提到本体的那篇前面
+    publish("cites", "也引用了本体", `:cite[本体是对一个领域的明确描述]{b=${ontology}}。`);
+    publish("mentions", "只是提到", "本体这个词在这里只出现一次。");
+    publish("unrelated", "无关", "这篇什么概念都没讲。");
+
+    const related = relatedPosts(db, self);
+    expect(related.map((r) => r.slug)).toEqual(["cites", "mentions"]);
+    expect(related[0]).toMatchObject({ title: "也引用了本体", shared: ["本体"] });
+  });
+
+  it("本篇自己和 exclude 里的都不出现；没有概念时返回空", () => {
+    const ontology = concept("本体", "对一个领域的明确描述。");
+    const self = publish("self", "本篇", `:cite[本体是对一个领域的明确描述]{b=${ontology}}`);
+    publish("other", "另一篇", "也讲本体。");
+    expect(relatedPosts(db, self).map((r) => r.slug)).toEqual(["other"]);
+    expect(relatedPosts(db, self, { exclude: ["other"] })).toEqual([]);
+    const empty = publish("empty", "没概念", "什么都没讲。");
+    expect(relatedPosts(db, empty)).toEqual([]);
   });
 });

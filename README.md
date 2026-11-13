@@ -100,6 +100,8 @@ there are no model keys to configure and no vendor to lock into.
 
 - Three built-in themes (Book, Plain, Engineer), each with a dark variant, switched from the admin.
 - Terms defined in the knowledge base get a hover definition the first time they appear.
+- Related posts at the end of each article, ranked by the concepts two articles share and labelled
+  with which ones.
 - A site-wide knowledge graph, public revision history per article, series with previous/next links,
   share card images rendered server-side, RSS, sitemap, structured data, and full-text search.
 - Visitor stats with no cookies and no third party: the visitor mark is salted per day and cannot be
