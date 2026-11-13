@@ -2,6 +2,7 @@
 
 import { Children, isValidElement, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { prefersReducedMotion, useInView, useVisible } from "./in-view";
+import { SPEEDS, usePresentSpeed } from "./speed";
 
 /**
  * 代码一步一步演变的播放器。
@@ -46,6 +47,10 @@ export function CodeStepsPlayer({
   const [index, setIndex] = useState(0);
   const [from, setFrom] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
+  const [speed, setSpeed] = useState(1);
+  // 在演示里时，再乘上演示的整体速度
+  const presentSpeed = usePresentSpeed();
+  const rate = speed * presentSpeed;
   const started = useRef(false);
   const last = steps.length - 1;
   const step = steps[index];
@@ -77,9 +82,9 @@ export function CodeStepsPlayer({
     const t = setTimeout(() => {
       setFrom(index);
       setIndex(index + 1);
-    }, step.duration);
+    }, step.duration / rate);
     return () => clearTimeout(t);
-  }, [playing, visible, index, last, step.duration]);
+  }, [playing, visible, index, last, step.duration, rate]);
 
   // 演示模式按方向键时发来的"走一步"：能走就走，并告诉演示模式这一下已经用掉了。
   useEffect(() => {
@@ -90,7 +95,7 @@ export function CodeStepsPlayer({
       const next = index + detail.dir;
       if (next < 0 || next > last) return;
       e.preventDefault();
-      detail.wait = steps[next].duration;
+      detail.wait = steps[next].duration / rate;
       detail.caption = texts[next];
       setPlaying(false);
       setFrom(index);
@@ -98,7 +103,7 @@ export function CodeStepsPlayer({
     };
     el.addEventListener("galley-step", onStep);
     return () => el.removeEventListener("galley-step", onStep);
-  }, [index, last, steps, texts]);
+  }, [index, last, steps, texts, rate]);
 
   const current = new Set(step.lines.map((l) => l.key));
   const before = from === null ? null : steps[from];
@@ -193,6 +198,15 @@ export function CodeStepsPlayer({
             <button key={i} type="button" tabIndex={-1} data-on={i <= index || undefined} onClick={() => go(i)} aria-label={`第 ${i + 1} 步`} />
           ))}
         </span>
+        <button
+          type="button"
+          className="galley-codesteps-speed"
+          onClick={() => setSpeed((s) => SPEEDS[(SPEEDS.indexOf(s) + 1) % SPEEDS.length])}
+          aria-label={`速度 ${speed} 倍，点击切换`}
+          title="切换速度"
+        >
+          {speed}×
+        </button>
       </div>
     </figure>
   );

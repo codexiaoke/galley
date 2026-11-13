@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { download, prepareRecording, recordingSupport, type Recording, type RecordingSupport } from "./recorder";
+import { formatSpeed, PresentSpeed, SPEEDS } from "./speed";
 
 /**
  * 演示模式：文章变成全屏的幻灯片。
@@ -26,7 +27,7 @@ type Orientation = "landscape" | "portrait";
 
 type StepDetail = { dir: number; wait?: number; caption?: string };
 type RecState = "idle" | "setup" | "countdown" | "recording" | "saving" | "done";
-type RecOptions = { orientation: Orientation; captions: boolean; mic: boolean; pacing: "auto" | "manual" };
+type RecOptions = { orientation: Orientation; captions: boolean; mic: boolean; pacing: "auto" | "manual"; speed: number };
 
 const DESIGN = { landscape: { w: 1600, h: 900 }, portrait: { w: 900, h: 1600 } };
 /** 录制时，幻灯片下面留出一条放录制提示，这条不在录制区域里 */
@@ -62,6 +63,9 @@ export function Presentation({
   const [orientation, setOrientation] = useState<Orientation>(orientationParam);
   const [captions, setCaptions] = useState(captionsParam);
   const [run, setRun] = useState(0); // 变了就把所有页重新挂载，动画回到开头
+  // 自动播放的速度：翻页的停留时间和页里的动画一起按这个速度走（见 speed.ts）
+  const [speed, setSpeed] = useState(1);
+  const changeSpeed = (dir: number) => setSpeed((v) => SPEEDS[Math.max(0, Math.min(SPEEDS.length - 1, SPEEDS.indexOf(v) + dir))]);
   const [scale, setScale] = useState(1);
   const [chrome, setChrome] = useState(!autoParam);
   const [showNotes, setShowNotes] = useState(false);
@@ -73,7 +77,7 @@ export function Presentation({
 
   // ---- 录制 ----
   const [rec, setRec] = useState<RecState>("idle");
-  const [recOptions, setRecOptions] = useState<RecOptions>({ orientation: orientationParam, captions: true, mic: false, pacing: "auto" });
+  const [recOptions, setRecOptions] = useState<RecOptions>({ orientation: orientationParam, captions: true, mic: false, pacing: "auto", speed: 1 });
   const [support, setSupport] = useState<RecordingSupport | null>(null);
   const [recError, setRecError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(3);
@@ -166,6 +170,7 @@ export function Presentation({
     setRecError(null);
     setOrientation(recOptions.orientation);
     setCaptions(recOptions.captions);
+    if (recOptions.pacing === "auto") setSpeed(recOptions.speed);
     try {
       const r = await prepareRecording({
         region: stageRef.current!,
@@ -227,15 +232,19 @@ export function Presentation({
         else if (!document.fullscreenElement) window.location.href = backHref;
         return;
       }
-      if (auto) return;
-      if (["ArrowRight", "ArrowDown", "PageDown", " ", "Enter"].includes(e.key)) {
+      const next = ["ArrowRight", "ArrowDown", "PageDown", " ", "Enter"].includes(e.key);
+      const prev = ["ArrowLeft", "ArrowUp", "PageUp", "Backspace"].includes(e.key);
+      if (next || prev) {
+        // 录制中的自动播放不让打断；平时自动播放时按方向键就停下来，改成手动翻
+        if (auto && rec === "recording") return;
         e.preventDefault();
-        move(1);
-      } else if (["ArrowLeft", "ArrowUp", "PageUp", "Backspace"].includes(e.key)) {
-        e.preventDefault();
-        move(-1);
+        if (auto) setAuto(false);
+        move(next ? 1 : -1);
       } else if (rec === "idle") {
-        if (e.key === "Home") setPage(0);
+        if (e.key === "a" || e.key === "A") setAuto((v) => !v);
+        else if (e.key === "-" || e.key === "_") changeSpeed(-1);
+        else if (e.key === "=" || e.key === "+") changeSpeed(1);
+        else if (e.key === "Home") setPage(0);
         else if (e.key === "End") setPage(total - 1);
         else if (e.key === "f" || e.key === "F") {
           if (document.fullscreenElement) void document.exitFullscreen();
@@ -249,7 +258,7 @@ export function Presentation({
 
   // 控制条：鼠标不动两秒后隐藏
   useEffect(() => {
-    if (auto && rec === "idle") return;
+    if (autoParam && rec === "idle") return;
     let t: ReturnType<typeof setTimeout>;
     const wake = () => {
       setChrome(true);
@@ -262,7 +271,7 @@ export function Presentation({
       clearTimeout(t);
       window.removeEventListener("mousemove", wake);
     };
-  }, [auto, rec]);
+  }, [autoParam, rec]);
 
   // 自动播放
   useEffect(() => {
@@ -273,12 +282,13 @@ export function Presentation({
       const t = setTimeout(() => {
         w.__galleyPresentDone = true;
         if (rec === "recording") void stopRecording();
-      }, 2500);
+        else if (!autoParam) setAuto(false);
+      }, 2500 / speed);
       return () => clearTimeout(t);
     }
     const slide = page >= 1 ? slides[page - 1] : null;
     // 这一页至少停留多久：给定的时长，否则按讲稿或页面文字估
-    const reading = durations?.[page] ?? (slide ? Math.min(14000, Math.max(3500, ((slide.notes.length || slide.text) * 1000) / 7)) : 3500);
+    const reading = (durations?.[page] ?? (slide ? Math.min(14000, Math.max(3500, ((slide.notes.length || slide.text) * 1000) / 7)) : 3500)) / speed;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     const started = Date.now();
@@ -287,6 +297,7 @@ export function Presentation({
       const inner = stepInside(1);
       if (inner) {
         if (inner.caption) setStepCaption({ page, text: inner.caption });
+        // 页里动画给的等待时间已经按速度算过了（它们也在用同一个速度）
         timer = setTimeout(tick, inner.wait ?? 600);
         return;
       }
@@ -295,12 +306,12 @@ export function Presentation({
       else setPage((p) => p + 1);
     };
     // 先让这一页显示出来、动画开始，再开始往下走
-    timer = setTimeout(tick, 1200);
+    timer = setTimeout(tick, 1200 / speed);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [auto, page, total, slides, stepInside, durations, rec, stopRecording]);
+  }, [auto, autoParam, speed, page, total, slides, stepInside, durations, rec, stopRecording]);
 
   // 结果里的视频地址用完就释放
   useEffect(() => () => void (result && URL.revokeObjectURL(result.url)), [result]);
@@ -323,6 +334,7 @@ export function Presentation({
         className="galley-present-stage"
         style={{ width: size.w, height: size.h, top: recording_ ? `calc(50% - ${REC_BAR / 2}px)` : "50%", transform: `translate(-50%, -50%) scale(${scale})` } as CSSProperties}
       >
+        <PresentSpeed.Provider value={speed}>
         <div key={run} className="galley-present-slides">
           <section ref={(el) => void (slideRefs.current[0] = el)} className="galley-slide galley-slide-cover" data-current={page === 0 || undefined} hidden={page !== 0}>
             <p className="galley-slide-site">{cover.site}</p>
@@ -344,6 +356,7 @@ export function Presentation({
             {cover.url && <p className="galley-slide-date">{cover.url.replace(/^https?:\/\//, "")}</p>}
           </section>
         </div>
+        </PresentSpeed.Provider>
         {captions && caption && (
           <p key={caption} className="galley-present-caption">
             {caption}
@@ -369,6 +382,18 @@ export function Presentation({
             <button type="button" onClick={() => move(1)} aria-label="下一步" title="下一步（→ 或空格）">
               →
             </button>
+            <button type="button" className="galley-present-auto" onClick={() => setAuto((v) => !v)} aria-pressed={auto} title="自动播放（A）">
+              {auto ? "❚❚ 暂停" : "▶ 自动播放"}
+            </button>
+            <span className="galley-present-speed" role="group" aria-label="自动播放的速度">
+              <button type="button" onClick={() => changeSpeed(-1)} disabled={speed === SPEEDS[0]} aria-label="慢一点" title="慢一点（-）">
+                −
+              </button>
+              <span>{formatSpeed(speed)}</span>
+              <button type="button" onClick={() => changeSpeed(1)} disabled={speed === SPEEDS[SPEEDS.length - 1]} aria-label="快一点" title="快一点（=）">
+                +
+              </button>
+            </span>
             <button type="button" onClick={() => setShowNotes((v) => !v)} aria-pressed={showNotes} title="讲稿（N）">
               讲稿
             </button>
@@ -425,6 +450,17 @@ export function Presentation({
                 ]}
                 onChange={(pacing) => setRecOptions((o) => ({ ...o, pacing }))}
               />
+              {recOptions.pacing === "auto" && (
+                <fieldset className="galley-present-speeds">
+                  <legend>速度</legend>
+                  {SPEEDS.map((v) => (
+                    <button key={v} type="button" aria-pressed={recOptions.speed === v} onClick={() => setRecOptions((o) => ({ ...o, speed: v }))}>
+                      {formatSpeed(v)}
+                    </button>
+                  ))}
+                  <span>翻页和动画一起变快或变慢</span>
+                </fieldset>
+              )}
               <label className="galley-present-check">
                 <input type="checkbox" checked={recOptions.captions} onChange={(e) => setRecOptions((o) => ({ ...o, captions: e.target.checked }))} />
                 显示字幕（讲稿和每一步的讲解）

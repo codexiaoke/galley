@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { Frame, View } from "@/core/algo/types";
 import { prefersReducedMotion, useInView, useVisible } from "../in-view";
+import { usePresentSpeed } from "../speed";
 import { AlgoView } from "./views";
 
 /**
@@ -43,6 +44,7 @@ export function RacePlayer({ title, lanes }: { title?: string; lanes: Lane[] }) 
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const presentSpeed = usePresentSpeed();
   const started = useRef(false);
 
   const presetNames = lanes[0].variants.map((v) => v.name);
@@ -71,9 +73,9 @@ export function RacePlayer({ title, lanes }: { title?: string; lanes: Lane[] }) 
       const t = setTimeout(() => setPlaying(false), 0);
       return () => clearTimeout(t);
     }
-    const t = setTimeout(() => setIndex((i) => Math.min(longest, i + 1)), (DELAY[kind] ?? 400) / speed);
+    const t = setTimeout(() => setIndex((i) => Math.min(longest, i + 1)), (DELAY[kind] ?? 400) / (speed * presentSpeed));
     return () => clearTimeout(t);
-  }, [playing, visible, index, longest, speed, kind]);
+  }, [playing, visible, index, longest, speed, presentSpeed, kind]);
 
   useEffect(() => {
     const el = ref.current;

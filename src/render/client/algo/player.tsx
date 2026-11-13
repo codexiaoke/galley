@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { Frame, Tone } from "@/core/algo/types";
 import { prefersReducedMotion, useInView, useVisible } from "../in-view";
+import { usePresentSpeed } from "../speed";
 import { AlgoView } from "./views";
 
 /**
@@ -40,6 +41,8 @@ export function AlgoPlayer({
   const [index, setIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
+  // 在演示里时，再乘上演示的整体速度
+  const presentSpeed = usePresentSpeed();
   const started = useRef(false);
   const codeRef = useRef<HTMLPreElement>(null);
   const last = frames.length - 1;
@@ -62,10 +65,10 @@ export function AlgoPlayer({
       const t = setTimeout(() => setPlaying(false), 0);
       return () => clearTimeout(t);
     }
-    const delay = (BASE_DELAY[frame.view.kind] ?? 800) / speed;
+    const delay = (BASE_DELAY[frame.view.kind] ?? 800) / (speed * presentSpeed);
     const t = setTimeout(() => setIndex((i) => Math.min(last, i + 1)), delay);
     return () => clearTimeout(t);
-  }, [playing, visible, index, last, speed, frame.view.kind]);
+  }, [playing, visible, index, last, speed, presentSpeed, frame.view.kind]);
 
   // 代码比较长时，代码区自己滚动，让当前行保持在可见范围里（不动整个页面）。
   useEffect(() => {
