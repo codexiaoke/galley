@@ -3714,3 +3714,174 @@ body {
 .galley-present[data-captions] .galley-codesteps-note {
   display: none;
 }
+
+/* ---- 录制视频 -------------------------------------------------------------- */
+
+.galley-present-rec-button {
+  gap: 6px;
+  display: inline-flex !important;
+  color: var(--accent);
+}
+.galley-present-rec-button i {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.galley-present-dialog {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  transform: translate(-50%, -50%);
+  border-radius: 14px;
+  padding: 22px 22px 18px;
+  background: var(--paper-raised);
+  box-shadow: 0 0 0 1px var(--rule), 0 24px 60px -20px rgba(0, 0, 0, 0.4);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  color: var(--ink);
+  animation: galley-tab-in 0.3s var(--ease-out);
+}
+.galley-present-dialog h2 {
+  margin-bottom: 14px;
+  font-size: 17px;
+  font-weight: 600;
+}
+.galley-present-choice {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0 0 14px;
+  border: 0;
+  padding: 0;
+}
+.galley-present-choice legend {
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.galley-present-choice label {
+  display: grid;
+  gap: 2px;
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: inset 0 0 0 1px var(--rule);
+  cursor: pointer;
+  transition: box-shadow 0.15s, background-color 0.15s;
+}
+.galley-present-choice label[data-on] {
+  background: color-mix(in srgb, var(--accent) 6%, var(--paper-raised));
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.galley-present-choice input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.galley-present-choice b {
+  font-weight: 600;
+}
+.galley-present-choice span {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+.galley-present-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  cursor: pointer;
+}
+.galley-present-check input {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+}
+.galley-present-dialog-hint {
+  margin-top: 12px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+.galley-present-dialog-warn {
+  margin-top: 10px;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--accent);
+}
+.galley-present-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+.galley-present-dialog-actions button {
+  border-radius: 8px;
+  padding: 7px 14px;
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+.galley-present-dialog-actions .galley-present-primary {
+  background: var(--accent);
+  color: var(--paper);
+  box-shadow: none;
+}
+.galley-present-result {
+  width: min(640px, calc(100vw - 32px));
+}
+.galley-present-result video {
+  display: block;
+  width: 100%;
+  max-height: 50vh;
+  border-radius: 8px;
+  background: #000;
+}
+/* 录制时的提示条：在幻灯片下面，不在录制区域里 */
+.galley-present-recbar {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border-top: 1px solid var(--rule);
+  background: var(--paper-raised);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.galley-present-recdot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #d43b2a;
+  animation: galley-recdot 1.2s ease-in-out infinite;
+}
+@keyframes galley-recdot {
+  50% {
+    opacity: 0.3;
+  }
+}
+.galley-present-rechint {
+  color: var(--ink-faint);
+}
+.galley-present-recbar button {
+  border-radius: 999px;
+  padding: 4px 12px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 12px;
+}
+.galley-present[data-recording] {
+  cursor: none;
+}
+.galley-present[data-recording] .galley-present-recbar {
+  cursor: default;
+}
