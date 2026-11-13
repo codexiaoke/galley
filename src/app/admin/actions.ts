@@ -157,6 +157,7 @@ export async function saveDocumentEdit(_prev: FormState, formData: FormData) {
         category: text(formData, "category") || undefined,
         // 页面没有标签输入框，这时不改标签；有输入框时按逗号、顿号拆开。
         tags: formData.has("tags") ? text(formData, "tags").split(/[,，、]/) : undefined,
+        series: formData.has("series") ? text(formData, "series") : undefined,
         body: text(formData, "body").replace(/\r\n/g, "\n"),
       };
       const result = changeSetId

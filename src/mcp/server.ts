@@ -229,6 +229,7 @@ export function createMcpServer(
         summary: revision.summary,
         category: categoryById.get(revision.categoryId ?? "") ?? null,
         tags: revision.tags,
+        series: revision.series,
         body: revision.body,
         isNew: revision.revNo === 1,
         // 按当前的知识库重新检查一遍正文。提交之后就不能改了，提交前先看这里有没有问题。
@@ -443,6 +444,10 @@ export function createMcpServer(
         .array(z.string())
         .optional()
         .describe("标签，最多 5 个，先用 list_tags 看已有的，能复用就复用。修改文章时省略表示不变，传空数组表示去掉全部标签"),
+      series: z
+        .string()
+        .optional()
+        .describe("系列名。几篇文章连着讲一件事时用同一个系列名，页面上会按发布时间排成第 1、2、3 篇，并显示上下篇。已有的系列见 list_documents。修改文章时省略表示不变，传空字符串表示移出系列"),
       body: z.string().describe("正文，Markdown 加引用标记，语法见 writing 技能"),
     },
     async (args) => {
@@ -478,12 +483,12 @@ export function createMcpServer(
 
   tool(
     "list_documents",
-    "列出站里已有的文章：标题、网址别名、分类和状态。提选题之前用它确认没有重复的题目。",
+    "列出站里已有的文章：标题、网址别名、分类、所属系列和状态。提选题之前用它确认没有重复的题目。",
     {},
     () =>
       listDocuments(db)
         .filter((d) => d.kind === "article")
-        .map((d) => ({ documentId: d.id, slug: d.slug, title: d.title, category: d.categoryName, status: d.status })),
+        .map((d) => ({ documentId: d.id, slug: d.slug, title: d.title, category: d.categoryName, series: d.series, status: d.status })),
   );
 
   tool(

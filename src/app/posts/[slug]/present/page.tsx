@@ -14,6 +14,7 @@ import { loadSite } from "../../../site";
  * - orientation=portrait：竖屏（9:16）
  * - captions=1：把讲稿当字幕显示
  * - durations=3000,5200,…：每一页至少停留多少毫秒（按朗读的长度）
+ * - print=1：所有页排好后打开打印对话框，存成 PDF
  */
 export default function PresentPage({ params, searchParams }: PageProps<"/posts/[slug]/present">) {
   return (
@@ -46,6 +47,7 @@ async function Present({ params, searchParams }: { params: Promise<{ slug: strin
         orientation={one("orientation") === "portrait" ? "portrait" : "landscape"}
         captions={one("captions") === "1"}
         durations={durations?.length ? durations : undefined}
+        print={one("print") === "1"}
         cover={{
           title: doc.title,
           summary: doc.summary ?? undefined,

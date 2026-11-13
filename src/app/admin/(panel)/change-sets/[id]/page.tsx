@@ -137,6 +137,12 @@ async function ChangeSetDetail({ params }: { params: Promise<{ id: string }> }) 
                     <>
                       <dt className="text-a-muted">标签</dt>
                       <dd>{revision.tags.length > 0 ? revision.tags.join("、") : <span className="text-a-muted">没有</span>}</dd>
+                      {revision.series && (
+                        <>
+                          <dt className="text-a-muted">系列</dt>
+                          <dd>{revision.series}</dd>
+                        </>
+                      )}
                     </>
                   )}
                   {revision.summary && (

@@ -18,6 +18,10 @@ export async function generateMetadata(): Promise<Metadata> {
     description: site.description || `${site.name}的个人博客`,
     // 让浏览器和阅读器能自动发现订阅源。
     alternates: { types: { "application/rss+xml": [{ url: "/feed.xml", title: site.name }] } },
+    // 分享卡片（opengraph-image）的网址要写成完整的，填了网站地址时以它开头
+    metadataBase: site.url ? new URL(site.url) : undefined,
+    openGraph: { siteName: site.name, type: "website", locale: "zh_CN" },
+    twitter: { card: "summary_large_image" },
   };
 }
 

@@ -1067,6 +1067,99 @@ body {
   color: var(--accent);
 }
 
+/* 系列目录：正文前面的一小块，左边一条朱红竖线 */
+.galley-series {
+  margin: 0 0 2rem;
+  padding: 0.15rem 0 0.15rem 1rem;
+  border-left: 2px solid var(--accent);
+}
+.galley-series > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.75rem;
+  cursor: pointer;
+  list-style: none;
+}
+.galley-series > summary::-webkit-details-marker {
+  display: none;
+}
+.galley-series-kicker {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+.galley-series-name {
+  font-weight: 700;
+}
+.galley-series-count {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+}
+.galley-series ol {
+  margin-top: 0.5rem;
+  padding-left: 1.4em;
+  list-style: decimal;
+  font-size: 0.9375rem;
+  line-height: 1.9;
+  color: var(--ink-faint);
+}
+.galley-series li a {
+  color: var(--ink-soft);
+  transition: color var(--dur-fast);
+}
+.galley-series li a:hover {
+  color: var(--accent);
+}
+.galley-series li[aria-current] {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* 文章末尾的上一篇、下一篇：左右两栏，窄屏上下排 */
+.galley-prevnext {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--rule);
+}
+.galley-prevnext-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.galley-prevnext-link[data-dir="next"] {
+  grid-column: 2;
+  text-align: right;
+}
+.galley-prevnext-label {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+.galley-prevnext-title {
+  line-height: 1.6;
+  color: var(--ink-soft);
+  transition: color var(--dur-fast);
+}
+.galley-prevnext-link:hover .galley-prevnext-title {
+  color: var(--accent);
+}
+@media (max-width: 560px) {
+  .galley-prevnext {
+    grid-template-columns: 1fr;
+  }
+  .galley-prevnext-link[data-dir="next"] {
+    grid-column: 1;
+  }
+}
+
 /* 标签页列表上方的一行："标签 · SQLite  3 篇" */
 .galley-index-heading {
   margin: 1.75rem 0 0.25rem;
@@ -3810,6 +3903,70 @@ body {
   background: var(--paper);
   color: var(--ink);
   cursor: default;
+}
+/* 打印（存成 PDF）：每页幻灯片按设计尺寸一页接一页排下来，屏幕上可以滚动预览 */
+.galley-present[data-print] {
+  position: static;
+  overflow: visible;
+  background: var(--paper);
+}
+.galley-present[data-print] .galley-present-stage {
+  position: relative;
+  top: auto;
+  left: auto;
+  margin: 0 auto;
+}
+@media screen {
+  .galley-present[data-print] {
+    padding: 56px 0 24px;
+  }
+}
+.galley-present[data-print] .galley-slide {
+  position: relative;
+  inset: auto;
+  width: var(--slide-w);
+  height: var(--slide-h);
+  animation: none;
+  break-after: page;
+  page-break-after: always;
+}
+.galley-present[data-print] .galley-slide:last-child {
+  break-after: auto;
+  page-break-after: auto;
+}
+.galley-present-print-hint {
+  position: fixed;
+  top: 12px;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  width: fit-content;
+  margin: auto;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+.galley-present-print-hint a {
+  margin-left: 0.75em;
+  color: inherit;
+  text-decoration: underline;
+}
+@media screen {
+  .galley-present[data-print] .galley-slide + .galley-slide {
+    border-top: 1px dashed var(--rule);
+  }
+}
+@media print {
+  .galley-present-print-hint {
+    display: none;
+  }
+  .galley-present[data-print] {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 }
 .galley-present:not([data-chrome]) {
   cursor: none;

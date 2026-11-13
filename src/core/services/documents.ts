@@ -34,12 +34,22 @@ export type SaveDocumentInput = {
   category?: string;
   /** 标签。省略时沿用文档当前的标签，传空数组表示去掉全部标签 */
   tags?: string[];
+  /** 系列名。省略时沿用，传空字符串表示不属于任何系列 */
+  series?: string;
   body: string;
 };
 
 export type SaveDocumentResult =
   | { saved: false; issues: MarkupIssue[] }
   | { saved: true; documentId: string; revisionId: string; issues: MarkupIssue[] };
+
+/** 系列名：去掉首尾空白、合并中间的空白，最多 40 个字。空字符串表示不属于任何系列。 */
+function normalizeSeries(name: string): string | null {
+  const text = name.trim().replace(/\s+/g, " ");
+  if (!text) return null;
+  if ([...text].length > 40) throw invalid("系列名最多 40 个字。");
+  return text;
+}
 
 /** 找出与写错的编号最接近的已有编号，帮助 Agent 修正。 */
 function nearestBlockIds(db: Db, wrong: string): string[] {
@@ -225,6 +235,7 @@ export function saveDocument(db: Db, actor: Actor, input: SaveDocumentInput): Sa
   }
 
   const tags = input.tags === undefined ? undefined : normalizeTags(input.tags);
+  const series = input.series === undefined ? undefined : normalizeSeries(input.series);
   const parsed = parseMarkup(input.body);
   const checked = checkRefs(db, input.changeSetId, parsed.refs);
   const issues = [
@@ -279,7 +290,7 @@ export function saveDocument(db: Db, actor: Actor, input: SaveDocumentInput): Sa
     if (draft) {
       revisionId = draft.id;
       tx.update(documentRevisions)
-        .set({ ...content, ...(categoryId === undefined ? {} : { categoryId }), ...(tags === undefined ? {} : { tags }) })
+        .set({ ...content, ...(categoryId === undefined ? {} : { categoryId }), ...(tags === undefined ? {} : { tags }), ...(series === undefined ? {} : { series }) })
         .where(eq(documentRevisions.id, draft.id))
         .run();
       tx.delete(refs).where(eq(refs.documentRevisionId, draft.id)).run();
@@ -292,7 +303,7 @@ export function saveDocument(db: Db, actor: Actor, input: SaveDocumentInput): Sa
         .get();
       const current = existing?.currentRevisionId
         ? tx
-            .select({ categoryId: documentRevisions.categoryId, tags: documentRevisions.tags })
+            .select({ categoryId: documentRevisions.categoryId, tags: documentRevisions.tags, series: documentRevisions.series })
             .from(documentRevisions)
             .where(eq(documentRevisions.id, existing.currentRevisionId))
             .get()
@@ -305,6 +316,7 @@ export function saveDocument(db: Db, actor: Actor, input: SaveDocumentInput): Sa
           ...content,
           categoryId: categoryId === undefined ? (current?.categoryId ?? null) : categoryId,
           tags: tags ?? current?.tags ?? [],
+          series: series === undefined ? (current?.series ?? null) : series,
           authorKind: who.kind,
           authorId: who.id,
           changeSetId: input.changeSetId,
@@ -369,7 +381,7 @@ export function replaceInDocument(
 export function editDocumentAsOwner(
   db: Db,
   actor: Actor,
-  input: { documentId: string; title: string; summary?: string; category?: string; tags?: string[]; body: string },
+  input: { documentId: string; title: string; summary?: string; category?: string; tags?: string[]; series?: string; body: string },
 ) {
   if (actor.kind !== "owner") throw forbidden("只有站长可以不经审阅直接修改文档。");
   const doc = db.select().from(documents).where(eq(documents.id, input.documentId)).get();
@@ -392,7 +404,7 @@ export function editDocumentAsOwner(
 export function createDocumentAsOwner(
   db: Db,
   actor: Actor,
-  input: { kind: DocumentKind; slug: string; title: string; summary?: string; category?: string; tags?: string[]; body: string },
+  input: { kind: DocumentKind; slug: string; title: string; summary?: string; category?: string; tags?: string[]; series?: string; body: string },
 ) {
   if (actor.kind !== "owner") throw forbidden("只有站长可以不经审阅直接发布文档。");
   const outcome = applyOwnerChange(
@@ -431,6 +443,7 @@ export type RenderableDocument = {
   revNo: number;
   category: { slug: string; name: string } | null;
   tags: string[];
+  series: string | null;
   publishedAt: Date | null;
   revisedAt: Date;
   /** 正文引用到的知识块，键是知识块编号 */
@@ -471,6 +484,7 @@ function assemble(
     revNo: rev.revNo,
     category: category ?? null,
     tags: rev.tags,
+    series: rev.series,
     publishedAt: doc.publishedAt,
     revisedAt: rev.createdAt,
     blocks: blockMap,
@@ -538,7 +552,38 @@ export function getDocumentForEditing(db: Db, key: { documentId?: string; slug?:
       ? (db.select({ slug: categories.slug }).from(categories).where(eq(categories.id, rev.categoryId)).get()?.slug ?? null)
       : null,
     tags: rev.tags,
+    series: rev.series,
     body: rev.body,
+  };
+}
+
+/** 文章页上的"系列"和"上一篇、下一篇"。 */
+export type ArticleNavigation = {
+  /** 文章属于某个系列时：系列名和全部篇目（按发布时间从早到晚） */
+  series: { name: string; items: { slug: string; title: string; current: boolean }[] } | null;
+  /** 上一篇是更早的一篇，下一篇是更晚的一篇。在系列里按系列排，不在系列里按同一个分类排 */
+  previous: { slug: string; title: string } | null;
+  next: { slug: string; title: string } | null;
+};
+
+export function articleNavigation(db: Db, documentId: string): ArticleNavigation {
+  const all = db
+    .select({ id: documents.id, slug: documents.slug, title: documentRevisions.title, series: documentRevisions.series, categoryId: documentRevisions.categoryId, publishedAt: documents.publishedAt })
+    .from(documents)
+    .innerJoin(documentRevisions, eq(documents.currentRevisionId, documentRevisions.id))
+    .where(and(eq(documents.kind, "article"), eq(documents.status, "published")))
+    .all()
+    .sort((a, b) => (a.publishedAt?.getTime() ?? 0) - (b.publishedAt?.getTime() ?? 0) || a.slug.localeCompare(b.slug));
+  const self = all.find((a) => a.id === documentId);
+  if (!self) return { series: null, previous: null, next: null };
+  const inSeries = self.series ? all.filter((a) => a.series === self.series) : [];
+  const line = inSeries.length > 1 ? inSeries : all.filter((a) => a.categoryId === self.categoryId);
+  const at = line.findIndex((a) => a.id === documentId);
+  const pick = (a: (typeof all)[number] | undefined) => (a ? { slug: a.slug, title: a.title } : null);
+  return {
+    series: inSeries.length > 1 ? { name: self.series!, items: inSeries.map((a) => ({ slug: a.slug, title: a.title, current: a.id === documentId })) } : null,
+    previous: pick(line[at - 1]),
+    next: pick(line[at + 1]),
   };
 }
 
@@ -667,6 +712,7 @@ export function listDocuments(db: Db) {
       slug: doc.slug,
       status: doc.status,
       title: revision?.title ?? "（无标题）",
+      series: revision?.series ?? null,
       revNo: revision?.revNo ?? 0,
       categoryName: category?.name ?? null,
       publishedAt: doc.publishedAt,

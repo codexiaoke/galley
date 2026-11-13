@@ -206,6 +206,8 @@ export const documentRevisions = sqliteTable(
     categoryId: text("category_id"),
     /** 标签，同样记在版本上。规则见 core/tags.ts */
     tags: text("tags", { mode: "json" }).$type<string[]>().notNull().default([]),
+    /** 所属的系列名，同一系列的文章按发布时间排成上下篇。没有系列时为空。同样记在版本上 */
+    series: text("series"),
     /** 上一次被打回时的正文，用途同知识块版本上的同名字段 */
     rejectedBody: text("rejected_body"),
     authorKind: text("author_kind", { enum: ACTOR_KINDS }).notNull(),

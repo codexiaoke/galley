@@ -58,7 +58,7 @@ export function DocumentEditor({
   backHref,
   initialPreview,
 }: {
-  document: { id: string; slug: string; kind: string; title: string; summary: string; category: string | null; tags: string[]; body: string; revNo: number };
+  document: { id: string; slug: string; kind: string; title: string; summary: string; category: string | null; tags: string[]; series?: string | null; body: string; revNo: number };
   categories: { slug: string; name: string }[];
   changeSetId?: string;
   isNew?: boolean;
@@ -211,6 +211,19 @@ export function DocumentEditor({
               onChange={edited}
               placeholder="用逗号隔开，最多 5 个"
               className="w-64 rounded-md bg-a-subtle/70 px-2.5 py-1 text-xs shadow-[inset_0_0_0_1px_var(--a-border)] focus:bg-a-surface focus:shadow-[inset_0_0_0_1px_var(--a-primary),0_0_0_3px_var(--a-primary-soft)] focus:outline-none"
+            />
+          </label>
+        )}
+        {document.kind === "article" && (
+          <label className="flex items-center gap-2">
+            <span className="text-xs text-a-muted">系列</span>
+            <input
+              name="series"
+              defaultValue={document.series ?? ""}
+              onChange={edited}
+              placeholder="不属于系列就留空"
+              maxLength={40}
+              className="w-44 rounded-md bg-a-subtle/70 px-2.5 py-1 text-xs shadow-[inset_0_0_0_1px_var(--a-border)] focus:bg-a-surface focus:shadow-[inset_0_0_0_1px_var(--a-primary),0_0_0_3px_var(--a-primary-soft)] focus:outline-none"
             />
           </label>
         )}

@@ -5,16 +5,18 @@ import { findTerms, termSpellings, type Term } from "../markup/terms";
 import { authenticateAgent, createAgent } from "../services/agents";
 import { createBlock, markBlockStale } from "../services/blocks";
 import { decideChangeSet, openChangeSet, submitChangeSet } from "../services/changeSets";
-import { editDocumentAsOwner, saveDocument } from "../services/documents";
+import { articleNavigation, editDocumentAsOwner, getPublishedDocument, saveDocument } from "../services/documents";
+import { documents } from "../db/schema";
+import { eq } from "drizzle-orm";
 import { listTerms, publicHistory, siteGraph } from "../services/knowledge";
 import { layoutGraph } from "../../render/graph-layout";
 
 let db: Db;
 let agent: Actor;
 
-function publish(slug: string, title: string, body: string) {
+function publish(slug: string, title: string, body: string, series?: string) {
   const cs = openChangeSet(db, agent, { kind: "article", title: `新文章：${slug}` });
-  const saved = saveDocument(db, agent, { changeSetId: cs.id, kind: "article", slug, title, summary: "", body });
+  const saved = saveDocument(db, agent, { changeSetId: cs.id, kind: "article", slug, title, summary: "", body, series });
   if (!saved.saved) throw new Error(`保存失败：${JSON.stringify(saved.issues)}`);
   submitChangeSet(db, agent, cs.id);
   decideChangeSet(db, OWNER, cs.id, "approve");
@@ -106,5 +108,41 @@ describe("读者看到的知识结构", () => {
     expect(history.revisions[0].added).toBeGreaterThan(0);
     expect(history.revisions[1].added).toBe(0);
     expect(publicHistory(db, "nope")).toBeUndefined();
+  });
+});
+
+describe("系列和上下篇", () => {
+  // 发布时间相同时按别名排，这里把时间错开，免得依赖执行速度
+  const at = (id: string, day: number) => db.update(documents).set({ publishedAt: new Date(2026, 0, day) }).where(eq(documents.id, id)).run();
+
+  it("同一系列按发布时间排；上下篇在系列里找", () => {
+    const a = publish("part-1", "第一篇", "一。", " 从零  做博客 ");
+    const other = publish("other", "别的", "无关。");
+    const b = publish("part-2", "第二篇", "二。", "从零 做博客");
+    const c = publish("part-3", "第三篇", "三。", "从零 做博客");
+    at(a, 1);
+    at(other, 2);
+    at(b, 3);
+    at(c, 4);
+    expect(getPublishedDocument(db, "part-2")?.series).toBe("从零 做博客");
+    const nav = articleNavigation(db, b);
+    expect(nav.series?.name).toBe("从零 做博客");
+    expect(nav.series?.items.map((i) => [i.slug, i.current])).toEqual([
+      ["part-1", false],
+      ["part-2", true],
+      ["part-3", false],
+    ]);
+    expect(nav.previous?.slug).toBe("part-1");
+    expect(nav.next?.slug).toBe("part-3");
+    // 不在系列里的文章按同一个分类（这里都没有分类）的发布时间排
+    expect(articleNavigation(db, other)).toMatchObject({ series: null, previous: { slug: "part-1" }, next: { slug: "part-2" } });
+  });
+
+  it("修改时省略系列表示不变，传空字符串表示移出", () => {
+    const id = publish("solo", "单篇", "正文。", "某系列");
+    editDocumentAsOwner(db, OWNER, { documentId: id, title: "单篇", body: "正文，改了。" });
+    expect(getPublishedDocument(db, "solo")?.series).toBe("某系列");
+    editDocumentAsOwner(db, OWNER, { documentId: id, title: "单篇", body: "正文，又改了。", series: "" });
+    expect(getPublishedDocument(db, "solo")?.series).toBeNull();
   });
 });

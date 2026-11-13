@@ -49,6 +49,11 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 ENV GALLEY_DATA_DIR=/data
+# 分享卡片（文章转发到别处时的那张图）要用中文字体画标题。装 Debian 自带的思源宋体和思源黑体（Noto CJK），
+# 运行时不去网上下载字体：国内的服务器多半连不上谷歌字体。
+ARG APT_MIRROR
+RUN if [ -n "$APT_MIRROR" ]; then sed -i "s|deb.debian.org|$APT_MIRROR|g" /etc/apt/sources.list.d/debian.sources; fi \
+  && apt-get update && apt-get install -y --no-install-recommends fonts-noto-cjk && rm -rf /var/lib/apt/lists/*
 RUN mkdir -p /data && chown node:node /data
 COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static

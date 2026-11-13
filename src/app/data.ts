@@ -2,7 +2,7 @@ import { cacheLife, cacheTag } from "next/cache";
 import { connection } from "next/server";
 import { getDb } from "@/core/db/client";
 import { listCategories } from "@/core/services/categories";
-import { getPublishedDocument, listPublished, publishedSlugExists } from "@/core/services/documents";
+import { articleNavigation, getPublishedDocument, listPublished, publishedSlugExists } from "@/core/services/documents";
 import { listTerms, publicHistory, siteGraph } from "@/core/services/knowledge";
 import { listOperationLog } from "@/core/services/oplog";
 
@@ -118,4 +118,17 @@ async function cachedHistory(slug: string) {
 export async function loadHistory(slug: string) {
   await connection();
   return cachedHistory(slug);
+}
+
+async function cachedNavigation(documentId: string) {
+  "use cache";
+  cacheLife("max");
+  cacheTag(PUBLIC_CONTENT_TAG);
+  return articleNavigation(getDb(), documentId);
+}
+
+/** 文章页上的系列目录和上一篇、下一篇。 */
+export async function loadNavigation(documentId: string) {
+  await connection();
+  return cachedNavigation(documentId);
 }

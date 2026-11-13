@@ -8,7 +8,8 @@ const nextConfig: NextConfig = {
   output: process.env.GALLEY_STANDALONE ? "standalone" : undefined,
   // 运行演示代码的沙箱（QuickJS，WebAssembly 内嵌在 3 MB 的 JS 文件里）不打包，运行时直接从 node_modules 加载。
   // Mermaid 在服务端只用来检查图的写法（见 core/markup/mermaid.ts），也不打包，好让它和 DOMPurify 用同一份
-  serverExternalPackages: ["quickjs-emscripten-core", "@jitl/quickjs-singlefile-cjs-release-sync", "mermaid", "dompurify"],
+  // 分享卡片用的 resvg 是原生模块（.node 文件），同样不打包。
+  serverExternalPackages: ["quickjs-emscripten-core", "@jitl/quickjs-singlefile-cjs-release-sync", "mermaid", "dompurify", "@resvg/resvg-js"],
   experimental: {
     // 后台上传图片走服务端操作，默认只允许 1 MB。图片的上限是 10 MB，再留一点表单本身的开销。
     serverActions: { bodySizeLimit: "12mb" },

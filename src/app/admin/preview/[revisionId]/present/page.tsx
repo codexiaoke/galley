@@ -31,7 +31,7 @@ async function Preview({ params, searchParams }: { params: Promise<{ revisionId:
   return (
     <>
       <title>{`${doc.title} · 演示预览`}</title>
-      <Presentation backHref={back} cover={{ title: doc.title, summary: doc.summary || undefined, site: "演示预览（还没有上线）" }} slides={presentSlides(doc, traces)} />
+      <Presentation backHref={back} print={query.print === "1"} orientation={query.orientation === "portrait" ? "portrait" : "landscape"} cover={{ title: doc.title, summary: doc.summary || undefined, site: "演示预览（还没有上线）" }} slides={presentSlides(doc, traces)} />
     </>
   );
 }
