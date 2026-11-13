@@ -7,7 +7,7 @@ import { newQuickJSWASMModuleFromVariant, type QuickJSContext, type QuickJSWASMM
  * 不在页面本身里运行（那样代码能读到页面、发请求、带上读者的登录状态），
  * 而是在 QuickJS 里运行：一个用 WebAssembly 编译的独立解释器，和服务端运行演示代码用的是同一个。
  * 它没有网络、没有页面、没有存储，只有我们给它的 console 和定时器；时间和内存都有上限，死循环会被打断。
- * 这个文件只在读者点「运行」时才下载（约 300 KB）。
+ * 它跑在后台线程里（run-worker.ts），页面本身不会被卡住。这个文件只在读者点「运行」时才下载。
  *
  * 定时器是模拟的：不真的等待，按时间顺序依次执行，所以 setTimeout(fn, 1000) 也会马上出结果。
  */
@@ -23,6 +23,12 @@ export type RunOutput = { lines: OutputLine[]; error?: string; ms: number; trunc
 
 let quickjs: Promise<QuickJSWASMModule> | undefined;
 const load = () => (quickjs ??= newQuickJSWASMModuleFromVariant(variant as never));
+
+/** 先把 QuickJS 准备好（下载、编译）。运行的计时从准备好之后才开始。 */
+export const prepareSandbox = async () => void (await load());
+
+/** 运行的时间上限（毫秒）。页面在这之后再等一会儿，还没结果就直接结束后台线程 */
+export const RUN_TIME_LIMIT_MS = TIME_LIMIT_MS;
 
 /** 沙箱里的 console 和定时器。值的显示方式尽量接近 Node.js 和浏览器的控制台。 */
 const PRELUDE = String.raw`

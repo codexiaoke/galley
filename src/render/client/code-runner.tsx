@@ -1,13 +1,15 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { runInWorker, stopRunning } from "./run-client";
 import type { RunOutput } from "./run-sandbox";
 
 /**
  * 可以运行的代码块（```js run）下面的一条：「运行」「改一改」，以及运行的输出。
  *
  * 代码本身（带高亮的那份）由服务端渲染在上面；读者点「改一改」时把它换成一个可以编辑的文本框，
- * 改完再运行。运行在沙箱里进行，见 run-sandbox.ts，那部分代码点了「运行」才下载。
+ * 改完再运行。运行在后台线程的沙箱里进行（run-client.ts → run-worker.ts → run-sandbox.ts），
+ * 页面不会被卡住；那部分代码点了「运行」才下载。
  */
 export function CodeRunner({ code }: { code: string }) {
   const original = code.replace(/\n$/, "");
@@ -20,10 +22,7 @@ export function CodeRunner({ code }: { code: string }) {
   const run = async () => {
     setRunning(true);
     try {
-      const { runJavaScript } = await import("./run-sandbox");
-      setOutput(await runJavaScript(source));
-    } catch (e) {
-      setOutput({ lines: [], error: `运行环境没有加载成功：${e instanceof Error ? e.message : String(e)}`, ms: 0, truncated: false });
+      setOutput(await runInWorker(source));
     } finally {
       setRunning(false);
     }
@@ -52,7 +51,7 @@ export function CodeRunner({ code }: { code: string }) {
             // ⌘/Ctrl + 回车 运行；Tab 插入两个空格，不跳出文本框
             if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
               e.preventDefault();
-              void run();
+              if (!running) void run();
             } else if (e.key === "Tab" && !e.shiftKey) {
               e.preventDefault();
               const el = e.currentTarget;
@@ -64,12 +63,20 @@ export function CodeRunner({ code }: { code: string }) {
         />
       )}
       <div className="galley-run-bar">
-        <button type="button" className="galley-run-button" onClick={() => void run()} disabled={running}>
-          {running ? "运行中…" : "▶ 运行"}
-        </button>
+        {running ? (
+          // 跑的时候页面照常能用，按钮换成「停止」
+          <button type="button" className="galley-run-button" data-running="true" onClick={stopRunning}>
+            ■ 停止
+          </button>
+        ) : (
+          <button type="button" className="galley-run-button" onClick={() => void run()}>
+            ▶ 运行
+          </button>
+        )}
         <button type="button" onClick={toggleEdit} aria-pressed={editing}>
           {editing ? "收起编辑" : "改一改"}
         </button>
+        {source !== original && !editing && <span className="galley-run-meta-inline">（运行的是改过的版本）</span>}
         {source !== original && (
           <button
             type="button"

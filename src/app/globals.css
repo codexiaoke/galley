@@ -2198,6 +2198,9 @@ body {
 .galley-run-meta {
   margin-left: auto;
 }
+.galley-run-meta-inline {
+  color: var(--ink-faint);
+}
 .galley-run-output {
   max-height: 22rem;
   overflow: auto;
