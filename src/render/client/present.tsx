@@ -43,7 +43,7 @@ export function Presentation({
   slides,
   backHref,
   auto: autoParam = false,
-  orientation: orientationParam = "landscape",
+  orientation: orientationParam,
   captions: captionsParam = false,
   durations,
 }: {
@@ -60,7 +60,7 @@ export function Presentation({
   const total = slides.length + 2;
   const [page, setPage] = useState(0);
   const [auto, setAuto] = useState(autoParam);
-  const [orientation, setOrientation] = useState<Orientation>(orientationParam);
+  const [orientation, setOrientation] = useState<Orientation>(orientationParam ?? "landscape");
   const [captions, setCaptions] = useState(captionsParam);
   const [run, setRun] = useState(0); // 变了就把所有页重新挂载，动画回到开头
   // 自动播放的速度：翻页的停留时间和页里的动画一起按这个速度走（见 speed.ts）
@@ -77,7 +77,7 @@ export function Presentation({
 
   // ---- 录制 ----
   const [rec, setRec] = useState<RecState>("idle");
-  const [recOptions, setRecOptions] = useState<RecOptions>({ orientation: orientationParam, captions: true, mic: false, pacing: "auto", speed: 1 });
+  const [recOptions, setRecOptions] = useState<RecOptions>({ orientation: orientationParam ?? "landscape", captions: true, mic: false, pacing: "auto", speed: 1 });
   const [support, setSupport] = useState<RecordingSupport | null>(null);
   const [recError, setRecError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(3);
@@ -86,6 +86,15 @@ export function Presentation({
   const recording = useRef<Recording | null>(null);
   const recStarted = useRef(0);
   const recording_ = rec === "countdown" || rec === "recording";
+
+  // 没有指定画幅时跟随屏幕方向；录制期间保持用户选定的输出尺寸。
+  useLayoutEffect(() => {
+    if (orientationParam || rec !== "idle") return;
+    const adapt = () => setOrientation(window.innerHeight > window.innerWidth ? "portrait" : "landscape");
+    adapt();
+    window.addEventListener("resize", adapt);
+    return () => window.removeEventListener("resize", adapt);
+  }, [orientationParam, rec]);
 
   // 缩放到窗口大小（录制时下面留出提示条）
   useLayoutEffect(() => {
@@ -219,10 +228,18 @@ export function Presentation({
     return () => clearInterval(t);
   }, [rec]);
 
+  // 放大图表时暂停自动翻页，让读者能停下来查看细节。
+  useEffect(() => {
+    const pause = () => setAuto(false);
+    window.addEventListener("galley-diagram-open", pause);
+    return () => window.removeEventListener("galley-diagram-open", pause);
+  }, []);
+
   // 键盘
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (document.querySelector(".galley-diagram-dialog[open]")) return;
       if (rec === "setup" || rec === "done" || rec === "saving" || rec === "countdown") {
         if (e.key === "Escape" && (rec === "setup" || rec === "done")) setRec("idle");
         return;

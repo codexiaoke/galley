@@ -3297,6 +3297,91 @@ body {
   height: auto;
   margin: 0 auto;
 }
+/* 正文图表用有界视窗；SVG 按 viewBox 等比缩放，复杂图不再撑长整篇文章。 */
+.galley-diagram-viewer {
+  min-width: 0;
+  width: 100%;
+  font-family: var(--font-ui);
+}
+.galley-diagram-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: 48px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+.galley-diagram-toolbar button {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.galley-diagram-toolbar button:hover,
+.galley-diagram-toolbar button[aria-pressed="true"] {
+  color: var(--accent);
+  background: var(--paper-sunken);
+}
+.galley-diagram-toolbar button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.galley-diagram-toolbar output {
+  min-width: 32px;
+  font-variant-numeric: tabular-nums;
+}
+.galley-diagram-toolbar .galley-diagram-expand {
+  margin-left: auto;
+}
+.galley-diagram-viewport {
+  overflow: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-gutter: stable;
+}
+.galley-diagram-toolbar button:focus-visible,
+.galley-diagram-viewport:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.galley-diagram-viewport .galley-mermaid-svg {
+  margin-inline: auto;
+}
+.galley-diagram-viewport .galley-mermaid-svg svg {
+  width: 100%;
+  height: 100%;
+  min-width: 100%; /* 优先于 Mermaid 内联的 max-width，允许放大到原图以上。 */
+  display: block;
+}
+.galley-diagram-dialog {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 12px 24px;
+  border: 0;
+  color: var(--ink);
+  background: var(--paper);
+}
+.galley-diagram-dialog::backdrop {
+  background: var(--paper);
+}
+@media (max-width: 600px) {
+  .galley-diagram-dialog {
+    padding: 8px;
+  }
+  .galley-diagram-toolbar {
+    gap: 0;
+  }
+  .galley-diagram-toolbar button {
+    padding-inline: 6px;
+  }
+}
 .galley-mermaid[data-ready] .galley-mermaid-svg {
   animation: galley-tab-in 0.5s var(--ease-out);
 }
@@ -3313,6 +3398,29 @@ body {
   font-family: var(--font-geist-mono), "SF Mono", Menlo, Consolas, monospace;
   font-size: 0.8em;
   text-align: left;
+}
+
+/* 演示图按整张幻灯片的可用尺寸适配，取消普通组件的固定放大倍率。 */
+.galley-slide .galley-mermaid {
+  zoom: 1;
+  margin: 0;
+}
+.galley-slide .galley-diagram-viewer:not([data-expanded]) .galley-diagram-toolbar {
+  border: 0;
+}
+.galley-slide .galley-diagram-viewer:not([data-expanded]) .galley-diagram-viewport {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+.galley-slide .galley-diagram-viewer:not([data-expanded]) .galley-diagram-toolbar button:not(.galley-diagram-expand),
+.galley-slide .galley-diagram-viewer:not([data-expanded]) .galley-diagram-toolbar output {
+  display: none;
+}
+.galley-slide .galley-diagram-viewer:not([data-expanded]) .galley-diagram-expand {
+  font-size: 18px;
+}
+.galley-present[data-recording] .galley-diagram-expand {
+  visibility: hidden;
 }
 
 /* ---- 代码一步一步演变 --------------------------------------------------------- */
@@ -3587,8 +3695,7 @@ body {
 .galley-slide .galley-algo,
 .galley-slide .galley-codesteps,
 .galley-slide .galley-flow,
-.galley-slide .galley-chart,
-.galley-slide .galley-mermaid {
+.galley-slide .galley-chart {
   zoom: 1.35;
   margin: 0.4em 0 0;
 }

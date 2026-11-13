@@ -46,7 +46,7 @@ async function Present({ params, searchParams }: { params: Promise<{ slug: strin
       <Presentation
         backHref={`/posts/${doc.slug}`}
         auto={one("auto") === "1"}
-        orientation={one("orientation") === "portrait" ? "portrait" : "landscape"}
+        orientation={one("orientation") === "portrait" ? "portrait" : one("orientation") === "landscape" ? "landscape" : undefined}
         captions={one("captions") === "1"}
         durations={durations?.length ? durations : undefined}
         cover={{
