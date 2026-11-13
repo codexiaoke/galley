@@ -157,6 +157,7 @@ export function parseMarkup(body: string): ParsedMarkup {
       addRef({ mode: valueKey !== undefined ? "value" : "embed", blockId, valueKey, directive: component.name, param, line });
     }
     for (const message of checkStructure(component.name, d as never, body)) error(message, line);
+    for (const message of component.validate?.(data) ?? []) error(message, line);
   };
 
   // 注意：访问函数不能有返回值，unist-util-visit 会把返回的数字当作"跳到第几个子节点"。

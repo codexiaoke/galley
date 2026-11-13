@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ALGORITHM_NAMES, checkAlgorithm, describeAlgorithms } from "../algo";
 import type { BlockType } from "../db/schema";
 
 /**
@@ -25,6 +26,10 @@ export type ComponentDef = {
   inside?: string;
   /** 不在给 Agent 的组件清单里单独列出（说明写在外层组件里） */
   hidden?: boolean;
+  /** 参数之间的检查（参数各自的格式由 params 检查），返回错误信息 */
+  validate?: (params: Record<string, unknown>) => string[];
+  /** 附加在说明后面的详细清单（Markdown），比如可用的算法 */
+  details?: () => string;
 };
 
 const mediaUrl = z.string().regex(/^\/media\/[a-z0-9]+\.[a-z0-9]+$/, "只能用媒体库里的图片，地址以 /media/ 开头");
@@ -133,6 +138,27 @@ export const COMPONENTS: ComponentDef[] = [
     mediaParams: ["before", "after"],
   },
   {
+    name: "algo",
+    form: "leaf",
+    description:
+      "算法动画：给一个算法名和输入，页面上生成一个可以播放的演示，读者能播放、暂停、单步前进后退、调速度、拖进度条；每一步有一句说明，旁边的伪代码高亮正在执行的那一行，还显示变量的值。讲算法、讲数据结构时用，比一大段文字描述清楚得多。输入要小（排序 8 到 12 个数正合适），太大读者看不完。可用的算法和输入写法见下面的清单。",
+    example: '::algo{type=quick-sort input="38,27,43,3,9,82,10,55" title="快速排序是怎么分区的"}',
+    params: z.object({
+      type: z.enum(ALGORITHM_NAMES),
+      input: z.string().min(1),
+      target: z.string().optional(),
+      start: z.string().optional(),
+      title: z.string().optional(),
+    }),
+    validate: (p) => checkAlgorithm(String(p.type), { input: String(p.input), target: p.target as string | undefined, start: p.start as string | undefined }),
+    details: () =>
+      [
+        "| type | 算法 | input 怎么写 | 例子 |",
+        "|---|---|---|---|",
+        ...describeAlgorithms().map((a) => `| ${a.type} | ${a.label} | ${a.input} | \`${a.example}\` |`),
+      ].join("\n"),
+  },
+  {
     name: "fold",
     form: "container",
     description: "折叠段落：默认收起，读者点标题展开。用来放大部分读者不需要看的细节，比如完整的配置文件、推导过程。",
@@ -155,5 +181,6 @@ export function describeComponents() {
     description: c.description,
     example: c.example,
     params: z.toJSONSchema(c.params),
+    ...(c.details ? { details: c.details() } : {}),
   }));
 }

@@ -63,7 +63,11 @@ function defaultSkills(): Map<string, DefaultSkill> {
 function fillLiveContent(body: string): string {
   if (!body.includes("{{components}}")) return body;
   const components = describeComponents()
-    .map((c) => `### ${c.name}\n\n${c.description}\n\n\`\`\`markdown\n${c.example}\n\`\`\`\n\n参数：\n\n\`\`\`json\n${JSON.stringify(c.params, null, 2)}\n\`\`\``)
+    .map(
+      (c) =>
+        `### ${c.name}\n\n${c.description}\n\n\`\`\`markdown\n${c.example}\n\`\`\`\n\n参数：\n\n\`\`\`json\n${JSON.stringify(c.params, null, 2)}\n\`\`\`` +
+        ("details" in c && c.details ? `\n\n${c.details}` : ""),
+    )
     .join("\n\n");
   return body.replace("{{components}}", components);
 }

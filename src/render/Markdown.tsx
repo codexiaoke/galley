@@ -16,6 +16,8 @@ import type { BlockView } from "@/core/services/blocks";
 import type { PostCard } from "@/core/services/documents";
 import { CiteHover } from "./CiteHover";
 import { highlightCode, languageName, parseCodeMeta } from "./highlight";
+import { runAlgorithm } from "@/core/algo";
+import { AlgoPlayer } from "./client/algo/player";
 import { ChartView } from "./client/chart";
 import { CopyButton } from "./client/copy";
 import { Compare } from "./client/compare";
@@ -448,6 +450,14 @@ function Callout({ props }: { props: ElementProps }) {
   return <aside className={`galley-callout galley-callout-${CALLOUT_TYPES.includes(type) ? type : "info"}`}>{props.children}</aside>;
 }
 
+/** 算法动画：在这里按输入生成每一帧，播放交给 AlgoPlayer。 */
+function Algo({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
+  const { type, input, target, start, title } = attrsOf(props);
+  const run = runAlgorithm(type, { input, target, start });
+  if ("error" in run) return ctx.review ? <p className="galley-figcaption">算法动画出错：{run.error}</p> : null;
+  return <AlgoPlayer label={run.def.label} title={title} code={run.def.code} legend={run.def.legend} frames={run.frames} />;
+}
+
 function Fold({ props }: { props: ElementProps }) {
   return (
     <details className="galley-fold">
@@ -495,6 +505,7 @@ export function Markdown({
     "galley-quote": (props: ElementProps) => <Quote ctx={ctx} props={props} />,
     "galley-post": (props: ElementProps) => <Post ctx={ctx} props={props} />,
     "galley-fold": (props: ElementProps) => <Fold props={props} />,
+    "galley-algo": (props: ElementProps) => <Algo ctx={ctx} props={props} />,
     "galley-code": (props: ElementProps) => {
       const { code, lang, meta } = attrsOf(props);
       return <CodeBlock code={code} lang={lang} meta={meta} />;

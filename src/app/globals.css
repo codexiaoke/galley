@@ -2594,3 +2594,554 @@ body {
     display: none;
   }
 }
+
+/* ---- 算法动画 ------------------------------------------------------------ */
+/* 颜色统一由 data-tone 决定：每种状态一个颜色，所有画面（数组、迷宫、图、树、表格、链表）共用。 */
+
+.galley-algo {
+  --algo-base: color-mix(in srgb, var(--ink) 52%, var(--paper));
+  --algo-cell: color-mix(in srgb, var(--rule) 55%, var(--paper));
+  margin: 2.4em 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--paper-raised) 70%, var(--paper));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rule) 80%, transparent);
+  font-family: var(--font-ui);
+  text-align: left;
+  outline: none;
+}
+.galley-algo:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.galley-algo [data-tone="compare"] { --tone: var(--chart-3); }
+.galley-algo [data-tone="swap"],
+.galley-algo [data-tone="active"] { --tone: var(--accent); }
+.galley-algo [data-tone="pivot"],
+.galley-algo [data-tone="path"] { --tone: var(--chart-2); }
+.galley-algo [data-tone="sorted"],
+.galley-algo [data-tone="found"] { --tone: var(--chart-5); }
+.galley-algo [data-tone="visited"] { --tone: color-mix(in srgb, var(--chart-2) 26%, var(--paper)); --tone-ink: var(--ink); }
+.galley-algo [data-tone="frontier"] { --tone: color-mix(in srgb, var(--chart-3) 45%, var(--paper)); --tone-ink: var(--ink); }
+.galley-algo [data-tone="dim"] { --tone: var(--algo-cell); --tone-ink: var(--ink-faint); }
+
+.galley-algo-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.8rem 1.1rem 0;
+  font-size: 0.78rem;
+}
+.galley-algo-label {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+.galley-algo-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-faint);
+}
+.galley-algo-stage {
+  padding: 1.1rem 1.1rem 0.4rem;
+}
+.galley-algo-note {
+  min-height: 3.4em;
+  margin: 0;
+  padding: 0.5rem 1.1rem 0.4rem;
+  font-family: var(--font-serif);
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: var(--ink);
+  text-align: left;
+}
+
+/* 控制条 */
+.galley-algo-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0 0.7rem;
+  padding: 0.5rem 0.2rem;
+  border-top: 1px solid color-mix(in srgb, var(--rule) 70%, transparent);
+}
+.galley-algo-controls button {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  color: var(--ink-soft);
+  transition: background-color var(--dur-fast), color var(--dur-fast);
+}
+.galley-algo-controls button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  color: var(--ink);
+}
+.galley-algo-controls button:disabled {
+  opacity: 0.35;
+}
+.galley-algo-controls .galley-algo-play {
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--paper);
+}
+.galley-algo-controls .galley-algo-play:hover {
+  background: color-mix(in srgb, var(--accent) 88%, var(--ink)) !important;
+  color: var(--paper) !important;
+}
+.galley-algo-scrub {
+  flex: 1;
+  min-width: 3rem;
+  height: 1.6rem;
+  margin: 0 0.5rem;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.galley-algo-scrub::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent) var(--p), var(--rule) var(--p));
+}
+.galley-algo-scrub::-moz-range-track {
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent) var(--p), var(--rule) var(--p));
+}
+.galley-algo-scrub::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4.5px;
+  border-radius: 999px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+.galley-algo-scrub::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--paper);
+  box-shadow: 0 0 0 1.5px var(--accent);
+}
+.galley-algo-step {
+  min-width: 4.2rem;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+  text-align: right;
+}
+.galley-algo-controls .galley-algo-speed {
+  width: auto;
+  min-width: 2.4rem;
+  padding: 0 0.4rem;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 伪代码、变量、图例 */
+.galley-algo-detail {
+  display: grid;
+  gap: 0.8rem 1.4rem;
+  padding: 0.3rem 1.1rem 1rem;
+}
+@media (min-width: 720px) {
+  .galley-algo-detail {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  }
+}
+.galley-algo-code {
+  margin: 0;
+  overflow-x: auto;
+  border-radius: 6px;
+  background: var(--code-bg);
+  padding: 0.6rem 0;
+  font-family: var(--font-geist-mono), "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.74rem;
+  line-height: 1.8;
+  color: var(--code-foreground);
+}
+.galley-algo-code span {
+  display: block;
+  min-width: max-content;
+  padding: 0 0.9rem;
+  white-space: pre;
+  opacity: 0.62;
+  transition: background-color 0.25s, opacity 0.25s, box-shadow 0.25s;
+}
+.galley-algo-code span[data-current] {
+  opacity: 1;
+  background: var(--code-line-focus);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.galley-algo-side {
+  display: grid;
+  align-content: start;
+  gap: 0.8rem;
+}
+.galley-algo-vars {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0;
+}
+.galley-algo-vars div {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  border-radius: 5px;
+  background: var(--code-bg);
+  padding: 0.2rem 0.5rem;
+  font-size: 0.74rem;
+}
+.galley-algo-vars dt {
+  color: var(--ink-faint);
+}
+.galley-algo-vars dd {
+  margin: 0;
+  font-family: var(--font-geist-mono), "SF Mono", Menlo, Consolas, monospace;
+  color: var(--ink);
+}
+.galley-algo-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+}
+.galley-prose .galley-algo-legend li + li {
+  margin-top: 0;
+}
+.galley-algo-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.galley-algo-legend i {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 3px;
+  background: var(--tone, var(--algo-base));
+}
+.galley-algo-legend i[data-tone="dim"] {
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+
+/* 数组：柱子或方块。位置用 --x（第几个），换位置时平滑移过去 */
+.galley-algo-array {
+  --slot: calc(100% / var(--algo-n));
+}
+.galley-algo-cells {
+  position: relative;
+  height: 12rem;
+}
+.galley-algo-array[data-style="boxes"] .galley-algo-cells {
+  height: 2.8rem;
+}
+.galley-algo-cell {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: var(--slot);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0 2px;
+  transform: translateX(calc(var(--x) * 100%));
+  transition: transform 0.45s var(--ease-out), opacity 0.3s;
+}
+.galley-algo-cell[data-out] {
+  opacity: 0.28;
+}
+.galley-algo-bar {
+  width: 100%;
+  max-width: 2.6rem;
+  height: calc(var(--h) * (100% - 1.4rem));
+  border-radius: 3px 3px 1px 1px;
+  background: var(--tone, var(--algo-base));
+  transition: height 0.45s var(--ease-out), background-color 0.25s;
+}
+.galley-algo-value {
+  height: 1.4rem;
+  padding-top: 0.25rem;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
+.galley-algo-box {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  max-width: 3rem;
+  height: 2.6rem;
+  border-radius: 5px;
+  background: var(--tone, var(--algo-cell));
+  color: var(--tone-ink, var(--ink));
+  font-family: var(--font-geist-mono), "SF Mono", Menlo, Consolas, monospace;
+  font-size: clamp(0.62rem, 2.2vw, 0.85rem);
+  font-variant-numeric: tabular-nums;
+  transition: background-color 0.25s, color 0.25s;
+}
+.galley-algo-box[data-tone]:not([data-tone="visited"]):not([data-tone="frontier"]):not([data-tone="dim"]),
+.galley-algo-cell[data-tone]:not([data-tone="visited"]):not([data-tone="frontier"]):not([data-tone="dim"]) .galley-algo-box {
+  color: var(--paper);
+}
+.galley-algo-indexes {
+  display: grid;
+  grid-template-columns: repeat(var(--algo-n), minmax(0, 1fr));
+  height: 1.3rem;
+  margin-top: 0.25rem;
+  font-size: 0.66rem;
+  text-align: center;
+  color: var(--ink-faint);
+}
+.galley-algo-indexes span {
+  overflow: visible;
+  white-space: nowrap;
+  transition: opacity 0.3s;
+}
+.galley-algo-indexes span[data-out] {
+  opacity: 0.4;
+}
+.galley-algo-indexes b {
+  font-weight: 600;
+  color: var(--accent);
+}
+.galley-algo-aux {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 2.4rem;
+  margin-top: 0.7rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--rule);
+}
+.galley-algo-aux-label {
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+}
+.galley-algo-aux-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.galley-algo-aux-box {
+  width: 2rem;
+  height: 2rem;
+  animation: galley-algo-pop 0.3s var(--ease-out);
+}
+.galley-algo-aux-empty {
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+}
+@keyframes galley-algo-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+/* 迷宫 */
+.galley-algo-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  gap: 2px;
+  max-width: calc(var(--cols) * 2.2rem);
+  margin: 0 auto;
+}
+.galley-algo-grid span {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border-radius: 3px;
+  background: var(--tone, var(--algo-cell));
+  color: var(--paper);
+  font-size: clamp(0.5rem, 1.6vw, 0.7rem);
+  transition: background-color 0.3s;
+}
+.galley-algo-grid span[data-wall] {
+  background: color-mix(in srgb, var(--ink) 78%, var(--paper));
+}
+.galley-algo-grid span[data-tone="active"] {
+  animation: galley-algo-pulse 0.5s var(--ease-out);
+}
+@keyframes galley-algo-pulse {
+  from {
+    transform: scale(0.7);
+  }
+}
+
+/* 图和树：SVG，坐标是比例 */
+.galley-algo-graph,
+.galley-algo-tree svg {
+  display: block;
+  width: 100%;
+  max-height: 22rem;
+  margin: 0 auto;
+  overflow: visible;
+}
+.galley-algo-edge line,
+.galley-algo-tree-edge {
+  stroke: color-mix(in srgb, var(--ink) 30%, var(--paper));
+  stroke-width: 0.5;
+  transition: stroke 0.3s, stroke-width 0.3s, opacity 0.3s;
+}
+.galley-algo-edge[data-tone] line,
+.galley-algo-tree-edge[data-tone] {
+  stroke: var(--tone);
+  stroke-width: 1.1;
+}
+.galley-algo-edge[data-tone="dim"] line {
+  stroke: var(--rule);
+  stroke-dasharray: 1.5 1.5;
+  stroke-width: 0.5;
+}
+.galley-algo-graph marker path {
+  fill: color-mix(in srgb, var(--ink) 45%, var(--paper));
+}
+.galley-algo-weight {
+  font-size: 3.4px;
+  fill: var(--ink-soft);
+  paint-order: stroke;
+  stroke: var(--paper);
+  stroke-width: 1.6px;
+  stroke-linejoin: round;
+}
+.galley-algo-node circle {
+  fill: var(--paper-raised);
+  stroke: color-mix(in srgb, var(--ink) 45%, var(--paper));
+  stroke-width: 0.5;
+  transition: fill 0.3s, stroke 0.3s;
+}
+.galley-algo-node[data-tone] circle {
+  fill: var(--tone);
+  stroke: var(--tone);
+}
+.galley-algo-node text {
+  fill: var(--ink);
+  font-size: 3.8px;
+  font-weight: 500;
+}
+.galley-algo-node[data-tone]:not([data-tone="visited"]):not([data-tone="frontier"]):not([data-tone="dim"]) text {
+  fill: var(--paper);
+}
+.galley-algo-node .galley-algo-node-label {
+  fill: var(--accent) !important;
+  font-size: 3.2px;
+  font-weight: 600;
+}
+.galley-algo-tree-node {
+  animation: galley-algo-pop 0.4s var(--ease-out);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.galley-algo-tree-node text {
+  font-size: 2.8px;
+}
+
+/* 动态规划的表 */
+.galley-algo-table-wrap {
+  overflow-x: auto;
+}
+.galley-prose .galley-algo-table {
+  width: auto;
+  margin: 0 auto;
+  border-collapse: separate;
+  border-spacing: 2px;
+  font-size: 0.78rem;
+}
+.galley-prose .galley-algo-table th,
+.galley-prose .galley-algo-table td {
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.3rem;
+  border: 0;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.galley-prose .galley-algo-table th {
+  font-weight: 500;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.galley-prose .galley-algo-table td {
+  border-radius: 4px;
+  background: var(--tone, var(--algo-cell));
+  color: var(--ink);
+  transition: background-color 0.25s, color 0.25s;
+}
+.galley-prose .galley-algo-table td[data-empty] {
+  background: color-mix(in srgb, var(--algo-cell) 45%, transparent);
+}
+.galley-prose .galley-algo-table td[data-tone="active"],
+.galley-prose .galley-algo-table td[data-tone="path"],
+.galley-prose .galley-algo-table td[data-tone="found"],
+.galley-prose .galley-algo-table td[data-tone="compare"] {
+  color: var(--paper);
+}
+
+/* 链表 */
+.galley-algo-list {
+  display: block;
+  width: 100%;
+  max-height: 12rem;
+  overflow: visible;
+}
+.galley-algo-list-node rect {
+  fill: var(--paper-raised);
+  stroke: color-mix(in srgb, var(--ink) 45%, var(--paper));
+  stroke-width: 1;
+  transition: fill 0.3s, stroke 0.3s;
+}
+.galley-algo-list-node[data-tone] rect {
+  fill: var(--tone);
+  stroke: var(--tone);
+}
+.galley-algo-list-node text {
+  fill: var(--ink);
+  font-size: 13px;
+}
+.galley-algo-list-node[data-tone] .galley-algo-list-value {
+  fill: var(--paper);
+}
+.galley-algo-list-arrow {
+  fill: none;
+  stroke: var(--ink-soft);
+  stroke-width: 1.3;
+  animation: galley-algo-draw 0.5s var(--ease-out);
+}
+.galley-algo-list marker path {
+  fill: var(--ink-soft);
+}
+@keyframes galley-algo-draw {
+  from {
+    opacity: 0;
+  }
+}
+.galley-algo-null {
+  font-size: 10px !important;
+  fill: var(--ink-faint) !important;
+}
+.galley-algo-list-pointer {
+  font-size: 11px !important;
+  font-weight: 600;
+  fill: var(--accent) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .galley-algo *,
+  .galley-algo *::before {
+    transition: none !important;
+    animation: none !important;
+  }
+}
