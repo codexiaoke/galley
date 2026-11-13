@@ -13,11 +13,11 @@
 
 `deploy.sh` 第一次运行时会问三个问题：对外开放的端口（默认 3000）、域名（可以不填）、后台密码（至少 8 位，可以让它自动生成），写进 `.env`。本机防火墙（ufw、firewalld）开着时，它会问你要不要放行端口。
 
-镜像是 GitHub 自动构建好的：每次往 main 推送代码，GitHub 先跑检查和测试，再在原生的 x86 和 ARM 机器上构建，发布到 `ghcr.io/codexiaoke/galley`。服务器只下载、不构建，2 核 2G 的机器也很轻松。想换成别的镜像地址（比如你自己同步到国内的镜像仓库），在 `.env` 里写 `GALLEY_IMAGE=地址`。
+镜像是 GitHub 自动构建好的：每次往 main 推送代码，GitHub 先跑检查和测试，再在原生的 x86 和 ARM 机器上构建，发布到 `ghcr.io/codexiaoke/galley`。部署默认通过[毫秒镜像](https://1ms.run/guide/temp)加速下载，地址是 `ghcr.1ms.run/codexiaoke/galley:latest`。服务器只下载、不构建，2 核 2G 的机器也很轻松。想换成别的镜像地址，在 `.env` 里写 `GALLEY_IMAGE=地址`；直连原站可设置 `GALLEY_IMAGE=ghcr.io/codexiaoke/galley:latest`。
 
-## 服务器连不上 ghcr.io：在自己电脑上构建好再上传
+## 服务器无法下载镜像：在自己电脑上构建好再上传
 
-服务器下载 GitHub 的镜像太慢或者连不上时，可以在自己电脑上构建好镜像，传到服务器上直接运行。服务器只需要装好 Docker：
+服务器通过加速站下载镜像仍然太慢或者连不上时，可以在自己电脑上构建好镜像，传到服务器上直接运行。服务器只需要装好 Docker：
 
 ```bash
 ./release.sh 用户名@服务器地址
@@ -66,7 +66,7 @@ tar xf galley-deploy.tar && cd galley-deploy && ./deploy.sh
 | `GALLEY_DATA_DIR` | 数据目录。镜像里默认是 `/data`，本地运行时默认是项目下的 `data` |
 | `GALLEY_PORT` | 用 Docker 部署时对外开放的端口，默认 3000（写在 `.env` 里，`deploy.sh` 会帮你填） |
 | `GALLEY_DOMAIN` | 用 Docker 部署时绑定的域名。填了就自动配置 HTTPS |
-| `GALLEY_IMAGE` | 用 Docker 部署时用哪个镜像，默认 `ghcr.io/codexiaoke/galley:latest`。想固定在某个版本，写成 `ghcr.io/codexiaoke/galley:sha-提交号` |
+| `GALLEY_IMAGE` | 用 Docker 部署时用哪个镜像，默认 `ghcr.1ms.run/codexiaoke/galley:latest`（毫秒镜像）。想固定在某个版本，写成 `ghcr.1ms.run/codexiaoke/galley:sha-提交号` |
 | `PORT` | 程序在容器里监听的端口，默认 3000，一般不用改 |
 | `GALLEY_SMTP_URL` | 可选。发通知邮件用的 SMTP 地址，例如 `smtps://用户名:密码@smtp.example.com:465`。也可以不用环境变量，直接在后台「站点设置」里填；两边都有时以环境变量为准 |
 | `GALLEY_NOTIFY_TO` | 可选。收通知的邮箱。和上一项一起配置才会发邮件 |

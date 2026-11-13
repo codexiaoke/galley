@@ -9,7 +9,7 @@
 #   ./deploy.sh stop     停止（数据保留）
 #
 # 镜像有三种来源，平时用第一种：
-#   - 默认：下载 GitHub 上自动构建好的镜像（ghcr.io/codexiaoke/galley），服务器上不构建。
+#   - 默认：通过毫秒镜像下载 GitHub 自动构建的镜像（ghcr.1ms.run/codexiaoke/galley），服务器上不构建。
 #   - 自己构建：在 .env 里写 GALLEY_BUILD=1，用这个目录里的源代码在服务器上构建。
 #   - 本地构建上传：在自己电脑上运行 ./release.sh，镜像由它传上来。
 #
@@ -151,7 +151,7 @@ open_firewall() {
 
 # ---- 启动 -------------------------------------------------------------------
 
-# 镜像从哪里来：prebuilt（release.sh 传上来的）、build（在服务器上构建）、pull（下载 GitHub 上构建好的，默认）。
+# 镜像从哪里来：prebuilt（release.sh 传上来的）、build（在服务器上构建）、pull（通过毫秒镜像下载成品，默认）。
 image_source() {
   if [ "${GALLEY_PREBUILT:-}" = 1 ] || [ "$(env_get GALLEY_PREBUILT)" = 1 ] || [ -f galley-image.tar.gz ]; then
     echo prebuilt
@@ -230,10 +230,10 @@ up() {
       compose up -d --build --remove-orphans
       ;;
     pull)
-      # 以前用过别的方式部署时留下的设置，换回默认的 GitHub 镜像。自己填的其他镜像地址（比如国内的镜像仓库）保留。
+      # 以前用过别的方式部署时留下的设置，换回默认的加速镜像。自己填的其他镜像地址保留。
       [ "$(env_get GALLEY_IMAGE)" = galley:latest ] && env_del GALLEY_IMAGE
       say "下载镜像（第一次一百多 MB，之后只下载有变化的部分）"
-      compose pull || fail "镜像下载失败。服务器连 ghcr.io 太慢或者连不上的话，可以在自己电脑上运行 ./release.sh 把镜像传上来。"
+      compose pull || fail "镜像下载失败。默认通过毫秒镜像加速；可以在 .env 里用 GALLEY_IMAGE 指定其他镜像地址，或在自己电脑上运行 ./release.sh 把镜像传上来。"
       say "启动"
       compose up -d --no-build --remove-orphans
       ;;

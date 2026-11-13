@@ -21,12 +21,15 @@ and the admin password (8 characters or more, or let it generate one) — and wr
 local firewall (ufw, firewalld) is active, it offers to open the port.
 
 Images are built by GitHub Actions: every push to `main` runs the checks and tests, then builds on native
-x86 and ARM runners and publishes to `ghcr.io/codexiaoke/galley`. The server only downloads, so two cores
-are plenty. To pull from somewhere else — a mirror you maintain, say — set `GALLEY_IMAGE=...` in `.env`.
+x86 and ARM runners and publishes to `ghcr.io/codexiaoke/galley`. Deployments download through the
+[1ms mirror](https://1ms.run/guide/temp) by default, using `ghcr.1ms.run/codexiaoke/galley:latest`.
+The server only downloads, so two cores are plenty. To use another registry, set `GALLEY_IMAGE=...`
+in `.env`; use `GALLEY_IMAGE=ghcr.io/codexiaoke/galley:latest` to pull directly from GHCR.
 
-## When the server cannot reach ghcr.io
+## When the server cannot download the image
 
-Build the image on your own machine and ship it over SSH. The server still only needs Docker:
+If downloading through the mirror is still slow or unavailable, build the image on your own machine
+and ship it over SSH. The server still only needs Docker:
 
 ```bash
 ./release.sh user@server
@@ -86,7 +89,7 @@ for dependency downloads if so.
 | `GALLEY_DATA_DIR` | Data directory. `/data` in the image, `./data` when running locally |
 | `GALLEY_PORT` | Public port when deploying with Docker, default 3000 (in `.env`; `deploy.sh` fills it in) |
 | `GALLEY_DOMAIN` | Domain to bind when deploying with Docker. Set it and HTTPS is configured automatically |
-| `GALLEY_IMAGE` | Which image to run, default `ghcr.io/codexiaoke/galley:latest`. Pin a version with `ghcr.io/codexiaoke/galley:sha-<commit>` |
+| `GALLEY_IMAGE` | Which image to run, default `ghcr.1ms.run/codexiaoke/galley:latest` (1ms mirror). Pin a version with `ghcr.1ms.run/codexiaoke/galley:sha-<commit>` |
 | `PORT` | Port the process listens on inside the container, default 3000. Rarely needs changing |
 | `GALLEY_SMTP_URL` | Optional. SMTP URL for notifications, e.g. `smtps://user:password@smtp.example.com:465`. Can also be set in the admin; the environment wins if both are present |
 | `GALLEY_NOTIFY_TO` | Optional. Where notifications go. Needed together with the one above |

@@ -17,7 +17,7 @@ body:
     attributes:
       label: Version / 版本
       description: The image tag or the commit you are running. 正在跑的镜像标签或提交号。
-      placeholder: ghcr.io/codexiaoke/galley:latest
+      placeholder: ghcr.1ms.run/codexiaoke/galley:latest
     validations:
       required: true
   - type: dropdown
