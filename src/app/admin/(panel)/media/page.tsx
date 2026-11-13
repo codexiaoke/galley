@@ -6,7 +6,7 @@ import { removeMedia, saveMediaAlt, uploadMedia } from "../../actions";
 import { requireOwner } from "../../auth";
 import { CopyInline } from "../../copy";
 import { ModalForm } from "../../modal";
-import { Card, EmptyState, Field, formatRelative, INPUT, PageHeader, PageSkeleton, RowActions, Table } from "../../ui";
+import { Badge, Card, EmptyState, Field, formatRelative, INPUT, PageHeader, PageSkeleton, RowActions, Table } from "../../ui";
 
 export default function MediaPage() {
   return (
@@ -66,6 +66,11 @@ async function MediaLibrary() {
                   <div className="min-w-0">
                     <div className="max-w-56 truncate text-a-text">{item.alt || <span className="text-a-muted">没有说明</span>}</div>
                     {item.originalName && <div className="max-w-56 truncate text-xs text-a-muted">{item.originalName}</div>}
+                    {item.uploadedBy && (
+                      <div className="mt-1">
+                        <Badge tone="purple">{item.uploadedBy} 上传</Badge>
+                      </div>
+                    )}
                   </div>
                 </div>
               </td>

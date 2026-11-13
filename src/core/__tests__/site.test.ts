@@ -12,7 +12,7 @@ import { parseMarkup } from "../markup/parse";
 import { authenticateAgent, createAgent } from "../services/agents";
 import { decideChangeSet, openChangeSet, submitChangeSet } from "../services/changeSets";
 import { getPublishedDocument, saveDocument } from "../services/documents";
-import { deleteMedia, findMediaFile, listMedia, saveMedia } from "../services/media";
+import { deleteMedia, findMediaFile, listMedia, MAX_AGENT_UNUSED_MEDIA, saveMedia, updateMediaAlt } from "../services/media";
 import { DEFAULT_SETTINGS, getSiteSettings, updateSiteSettings } from "../services/settings";
 import { settings as settingsTable } from "../db/schema";
 import { DEFAULT_THEME, THEMES } from "../themes";
@@ -108,10 +108,29 @@ describe("媒体库", () => {
     expect(findMediaFile(db, "../galley.db")).toBeUndefined();
   });
 
-  it("拒绝不是图片的文件、空文件和 Agent 的上传", () => {
+  it("拒绝不是图片的文件和空文件", () => {
     expectError(() => saveMedia(db, OWNER, { bytes: new TextEncoder().encode("<svg onload=alert(1)></svg>") }), "invalid", /只支持/);
     expectError(() => saveMedia(db, OWNER, { bytes: new Uint8Array() }), "invalid");
-    expectError(() => saveMedia(db, agent, { bytes: PNG }), "forbidden");
+  });
+
+  it("Agent 可以上传，记下是谁传的；但不能删除、不能改说明", () => {
+    const item = saveMedia(db, agent, { bytes: PNG, alt: "Agent 传的" });
+    expect(item.uploadedByKind).toBe("agent");
+    expect(listMedia(db).find((m) => m.id === item.id)?.uploadedBy).toBe("测试 Agent");
+    const mine = saveMedia(db, OWNER, { bytes: PNG });
+    expect(listMedia(db).find((m) => m.id === mine.id)?.uploadedBy).toBeNull();
+    expectError(() => deleteMedia(db, agent, item.id), "forbidden");
+    expectError(() => updateMediaAlt(db, agent, item.id, "改一下"), "forbidden");
+  });
+
+  it("Agent 传了没用上的图片攒够就不让再传；用进文章里的不算", () => {
+    const items = Array.from({ length: MAX_AGENT_UNUSED_MEDIA }, () => saveMedia(db, agent, { bytes: PNG, alt: "图" }));
+    expectError(() => saveMedia(db, agent, { bytes: PNG }), "conflict", /没有用到任何文章/);
+    // 站长自己传多少都不受这条限制
+    expect(saveMedia(db, OWNER, { bytes: PNG }).uploadedByKind).toBe("owner");
+    // 把其中一张用进文章，就空出一个位置
+    publish("with-image", `正文。\n\n![图](/media/${items[0].name})`);
+    expect(saveMedia(db, agent, { bytes: PNG, alt: "再传一张" }).uploadedByKind).toBe("agent");
   });
 
   it("正文只能引用媒体库里的图片", () => {

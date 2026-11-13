@@ -64,7 +64,9 @@ there are no model keys to configure and no vendor to lock into.
 - Six kinds of knowledge block (fact, concept, code, data, opinion, experience), full-text search,
   near-duplicate detection, source links, staleness tracking, version-pinned citations.
 - Change sets with inline review comments, rejection rounds, and an audit trail of every decision.
-- 30 MCP tools, per-agent access keys, a call log, and per-agent switches for every optional tool.
+- 31 MCP tools, per-agent access keys, a call log, and per-agent switches for every optional tool.
+- Agents can upload their own images, within limits: bytes only (never a URL to fetch), format checked by
+  content, and a cap on how many unused images one agent may leave behind.
 - Three editable skills (overview, writing, inbox) served over MCP, with revision history.
 
 **Articles that do more than hold text**

@@ -1,9 +1,9 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import fs from "node:fs";
 import path from "node:path";
-import type { Actor } from "../actor";
+import { actorColumns, type Actor } from "../actor";
 import { dataDir, type Db } from "../db/client";
-import { changeSets, documentRevisions, documents, media } from "../db/schema";
+import { agents, changeSets, documentRevisions, documents, media } from "../db/schema";
 import { conflict, forbidden, invalid, notFound } from "../errors";
 import { newId } from "../ids";
 import type { MarkupIssue, ParsedImage } from "../markup/parse";
@@ -20,6 +20,15 @@ export type Media = typeof media.$inferSelect;
 /** 单个文件的大小上限。 */
 export const MAX_MEDIA_BYTES = 10 * 1024 * 1024;
 
+/**
+ * 一个 Agent 最多能留下多少张"传了还没用上"的图片。
+ *
+ * Agent 可以上传，但不能删除，所以要有个地方止住：写错了循环、或者反复重传，
+ * 不至于把磁盘堆满。用到文章里（哪怕只是还没提交的草稿）就不算在内，所以正常写稿碰不到这个上限；
+ * 真顶到了，说明有一堆图没派上用场，该由站长去媒体库看一眼。
+ */
+export const MAX_AGENT_UNUSED_MEDIA = 10;
+
 const ascii = (bytes: Uint8Array, from: number, to: number) => String.fromCharCode(...bytes.subarray(from, to));
 
 /** 支持的图片格式，以及怎样从文件开头认出它。不支持 SVG：它可以带脚本。 */
@@ -34,7 +43,19 @@ const TYPES: { mime: string; ext: string; matches: (b: Uint8Array) => boolean }[
 export const mediaDir = () => path.join(dataDir(), "media");
 
 export function saveMedia(db: Db, actor: Actor, input: { bytes: Uint8Array; originalName?: string; alt?: string }): Media {
-  if (actor.kind !== "owner") throw forbidden("只有站长可以上传图片。");
+  const who = actorColumns(actor);
+  if (who.kind === "agent") {
+    const used = usage(db);
+    const unused = db
+      .select({ name: media.name })
+      .from(media)
+      .where(and(eq(media.uploadedByKind, "agent"), eq(media.uploadedById, who.id!)))
+      .all()
+      .filter((m) => !used.has(m.name)).length;
+    if (unused >= MAX_AGENT_UNUSED_MEDIA) {
+      throw conflict(`你传的图片里已经有 ${unused} 张没有用到任何文章里，先把它们用上，或者请站长在后台的媒体库里清理掉，再传新的。`);
+    }
+  }
   const { bytes } = input;
   if (bytes.length === 0) throw invalid("请选择一张图片。");
   if (bytes.length > MAX_MEDIA_BYTES) throw invalid(`图片不能超过 ${MAX_MEDIA_BYTES / 1024 / 1024} MB。`);
@@ -49,6 +70,8 @@ export function saveMedia(db: Db, actor: Actor, input: { bytes: Uint8Array; orig
     size: bytes.length,
     alt: input.alt?.trim() ?? "",
     originalName: path.basename(input.originalName ?? "").slice(0, 200),
+    uploadedByKind: who.kind,
+    uploadedById: who.id,
     createdAt: new Date(),
   };
   fs.mkdirSync(mediaDir(), { recursive: true });
@@ -82,12 +105,19 @@ function usage(db: Db): Map<string, Set<string>> {
 
 export function listMedia(db: Db) {
   const used = usage(db);
+  const names = new Map(db.select({ id: agents.id, name: agents.name }).from(agents).all().map((a) => [a.id, a.name]));
   return db
     .select()
     .from(media)
     .orderBy(desc(media.createdAt))
     .all()
-    .map((m) => ({ ...m, url: `/media/${m.name}`, usedBy: used.get(m.name)?.size ?? 0 }));
+    .map((m) => ({
+      ...m,
+      url: `/media/${m.name}`,
+      usedBy: used.get(m.name)?.size ?? 0,
+      /** Agent 传的图片在后台标出来；站长自己传的是 null */
+      uploadedBy: m.uploadedByKind === "agent" ? (names.get(m.uploadedById ?? "") ?? "已删除的 Agent") : null,
+    }));
 }
 
 export function updateMediaAlt(db: Db, actor: Actor, id: string, alt: string) {

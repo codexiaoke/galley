@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { Actor } from "@/core/actor";
 import type { Db } from "@/core/db/client";
 import { BLOCK_TYPES, CHANGE_SET_KINDS, DOCUMENT_KINDS, VISIBILITIES } from "@/core/db/schema";
-import { GalleyError, notFound } from "@/core/errors";
+import { GalleyError, invalid, notFound } from "@/core/errors";
 import { describeComponents } from "@/core/markup/components";
 import { disabledToolsOf, logAgentCall } from "@/core/services/agents";
 import { createBlock, markBlockStale, proposeBlockUpdate, readBlockAsAgent, searchBlocks } from "@/core/services/blocks";
@@ -12,7 +12,7 @@ import { listCategories } from "@/core/services/categories";
 import { changeSetContents, findChangeSet, openChangeSet, submitChangeSet, withdrawChangeSet } from "@/core/services/changeSets";
 import { checkDocumentBody, getDocumentForEditing, listDocuments, replaceInDocument, saveDocument } from "@/core/services/documents";
 import { lineOfQuote, listComments, replyToComment } from "@/core/services/comments";
-import { listMedia } from "@/core/services/media";
+import { listMedia, saveMedia } from "@/core/services/media";
 import { addMaterial, getMaterial, listMaterials, markMaterialProcessed } from "@/core/services/materials";
 import { getNextTasks } from "@/core/services/tasks";
 import { claimTopic, createTopic, listTopics } from "@/core/services/topics";
@@ -491,6 +491,26 @@ export function createMcpServer(
       listDocuments(db)
         .filter((d) => d.kind === "article")
         .map((d) => ({ documentId: d.id, slug: d.slug, title: d.title, category: d.categoryName, series: d.series, status: d.status })),
+  );
+
+  tool(
+    "upload_image",
+    "往媒体库传一张图片，传完就能在正文里用 ![说明](返回的 url) 引用。只收你自己做出来的图：截图、自己画的图表、自己生成的插图。不要把从网上找到的图片传上来，版权不清楚；也不要传含有私人信息的截图。传上来的图片站长在审阅时会一起看到，不合适会被删掉。",
+    {
+      data: z.string().describe("图片内容，base64 编码。支持 PNG、JPEG、GIF、WebP、AVIF，单张不超过 10 MB。不支持 SVG"),
+      alt: z.string().min(1).describe("图片说明，讲清楚图里有什么。看不见图的读者靠它理解，搜索引擎也读它，必须填"),
+      filename: z.string().optional().describe("原始文件名，只用于站长在后台辨认"),
+    },
+    ({ data, alt, filename }) => {
+      let bytes: Buffer;
+      try {
+        bytes = Buffer.from(data, "base64");
+      } catch {
+        throw invalid("图片内容不是合法的 base64。");
+      }
+      const saved = saveMedia(db, actor, { bytes: new Uint8Array(bytes), alt, originalName: filename });
+      return { url: `/media/${saved.name}`, alt: saved.alt, markdown: `![${saved.alt}](/media/${saved.name})` };
+    },
   );
 
   // ---- 访问数据 ----

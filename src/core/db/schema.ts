@@ -293,6 +293,9 @@ export const media = sqliteTable("media", {
   alt: text("alt").notNull().default(""),
   /** 上传时的原始文件名，只用于在后台辨认 */
   originalName: text("original_name").notNull().default(""),
+  /** 谁传的。Agent 传的图片在后台标出来，站长一眼能认出哪些不是自己传的 */
+  uploadedByKind: text("uploaded_by_kind", { enum: ACTOR_KINDS }).notNull().default("owner"),
+  uploadedById: text("uploaded_by_id"),
   createdAt: createdAt(),
 });
 
