@@ -90,7 +90,9 @@ git clone https://github.com/codexiaoke/galley.git && cd galley
 ./deploy.sh
 ```
 
-脚本会问三个问题：对外开放的端口（默认 3000）、域名（可以不填）、后台密码（可以让它自动生成），写进 `.env`，然后构建、启动、等服务就绪，最后告诉你访问地址。本机防火墙（ufw、firewalld）开着时，它会问你要不要放行端口。
+脚本会问三个问题：对外开放的端口（默认 3000）、域名（可以不填）、后台密码（至少 8 位，可以让它自动生成），写进 `.env`，然后下载镜像、启动、等服务就绪，最后告诉你访问地址。本机防火墙（ufw、firewalld）开着时，它会问你要不要放行端口。
+
+镜像是 GitHub 自动构建好的：每次往 main 推送代码，GitHub 先跑检查和测试，再在原生的 x86 和 ARM 机器上构建，发布到 `ghcr.io/codexiaoke/galley`。服务器只下载、不构建，2 核 2G 的机器也很轻松。想换成别的镜像地址（比如你自己同步到国内的镜像仓库），在 `.env` 里写 `GALLEY_IMAGE=地址`。
 
 两种对外开放的方式：
 
@@ -99,9 +101,9 @@ git clone https://github.com/codexiaoke/galley.git && cd galley
 
 用云服务器（阿里云、腾讯云、AWS 等）时，还要在控制台的"安全组"里放行对应的端口（直接开放时是你填的端口，用域名时是 80 和 443），脚本改不了这个。
 
-### 服务器上构建太慢：在自己电脑上构建好再上传
+### 服务器连不上 ghcr.io：在自己电脑上构建好再上传
 
-服务器在国内、内存小（比如 2 核 2G）时，在服务器上下载依赖和构建会很慢，甚至因为内存不够失败。这时可以在自己电脑上构建好镜像，传到服务器上直接运行。服务器只需要装好 Docker，不用下载代码和依赖：
+服务器下载 GitHub 的镜像太慢或者连不上时，可以在自己电脑上构建好镜像，传到服务器上直接运行。服务器只需要装好 Docker：
 
 ```bash
 ./release.sh 用户名@服务器地址
@@ -125,14 +127,14 @@ tar xf galley-deploy.tar && cd galley-deploy && ./deploy.sh
 - Mac（ARM）给 x86 服务器构建时，Docker 会模拟 x86 来构建，比构建本机的镜像慢一些。
 - 上传的镜像压缩后一百多 MB。
 
-坚持在服务器上构建的话，`deploy.sh` 第一次运行时会问服务器是不是在中国大陆，选是就改用国内的镜像源下载依赖。
+坚持在服务器上用源代码构建的话，在 `.env` 里写 `GALLEY_BUILD=1` 再运行 `./deploy.sh`。第一次运行时它会问服务器是不是在中国大陆，选是就改用国内的镜像源下载依赖。
 
 之后的日常操作：
 
 | 命令 | 作用 |
 |---|---|
 | `./deploy.sh` | 改了 `.env`（端口、域名、密码）之后重新启动 |
-| `./deploy.sh update` | 拉取最新代码，重新构建并启动（用 `release.sh` 部署的服务器上，改在本机运行 `./release.sh`） |
+| `./deploy.sh update` | 下载最新的镜像并重新启动（用 `release.sh` 部署的服务器上，改在本机运行 `./release.sh`） |
 | `./deploy.sh status` | 运行状态和健康检查 |
 | `./deploy.sh logs` | 看日志 |
 | `./deploy.sh stop` | 停止，数据保留 |
@@ -150,6 +152,7 @@ tar xf galley-deploy.tar && cd galley-deploy && ./deploy.sh
 | `GALLEY_DATA_DIR` | 数据目录。镜像里默认是 `/data`，本地运行时默认是项目下的 `data` |
 | `GALLEY_PORT` | 用 Docker 部署时对外开放的端口，默认 3000（写在 `.env` 里，`deploy.sh` 会帮你填） |
 | `GALLEY_DOMAIN` | 用 Docker 部署时绑定的域名。填了就自动配置 HTTPS |
+| `GALLEY_IMAGE` | 用 Docker 部署时用哪个镜像，默认 `ghcr.io/codexiaoke/galley:latest`。想固定在某个版本，写成 `ghcr.io/codexiaoke/galley:sha-提交号` |
 | `PORT` | 程序在容器里监听的端口，默认 3000，一般不用改 |
 | `GALLEY_SMTP_URL` | 可选。发通知邮件用的 SMTP 地址，例如 `smtps://用户名:密码@smtp.example.com:465`。也可以不用环境变量，直接在后台"站点设置"里填；两边都有时以环境变量为准 |
 | `GALLEY_NOTIFY_TO` | 可选。收通知的邮箱。和上一项一起配置才会发邮件 |
