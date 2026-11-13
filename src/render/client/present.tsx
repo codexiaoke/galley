@@ -92,8 +92,9 @@ export function Presentation({
   const recording_ = rec === "countdown" || rec === "recording";
 
   // 没有指定画幅时跟随屏幕方向；录制期间保持用户选定的输出尺寸。
+  // 只认手机、平板这类触屏设备：电脑上把窗口拉窄不是要竖屏演示，画幅跟着变反而突兀。
   useLayoutEffect(() => {
-    if (orientationParam || rec !== "idle") return;
+    if (orientationParam || rec !== "idle" || !window.matchMedia("(pointer: coarse)").matches) return;
     const adapt = () => setOrientation(window.innerHeight > window.innerWidth ? "portrait" : "landscape");
     adapt();
     window.addEventListener("resize", adapt);

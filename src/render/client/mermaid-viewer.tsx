@@ -59,9 +59,13 @@ function DiagramViewport({ diagram, expanded = false, presentation = false, hide
       if (!width) return;
       const screenHeight = window.visualViewport?.height ?? window.innerHeight;
       const toolbarHeight = el.querySelector(".galley-diagram-toolbar")?.clientHeight ?? 48;
+      // 正文里的图整张显示，不收进滚动框：读者往下滚页面就能看完，不用先发现框里还能滚。
+      // 只有超过两屏的超长图才收进框里，否则一张图会占掉很长一段页面。
       let height = expanded
         ? Math.max(120, screenHeight - toolbarHeight - 48)
-        : Math.max(120, Math.min(672, screenHeight * 0.7));
+        : diagram.height > screenHeight * 2
+          ? Math.max(120, Math.min(672, screenHeight * 0.7))
+          : diagram.height;
       if (presentation) {
         const slide = el.closest<HTMLElement>(".galley-slide");
         const body = slide?.querySelector<HTMLElement>(".galley-slide-body");
@@ -86,7 +90,7 @@ function DiagramViewport({ diagram, expanded = false, presentation = false, hide
       window.removeEventListener("resize", measure);
       window.visualViewport?.removeEventListener("resize", measure);
     };
-  }, [expanded, presentation]);
+  }, [expanded, presentation, diagram.height]);
 
   useLayoutEffect(() => {
     const el = viewport.current!;

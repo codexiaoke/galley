@@ -3949,6 +3949,7 @@ body {
 }
 /* 正文图表用有界视窗；SVG 按 viewBox 等比缩放，复杂图不再撑长整篇文章。 */
 .galley-diagram-viewer {
+  position: relative;
   min-width: 0;
   width: 100%;
   font-family: var(--font-ui);
@@ -3962,6 +3963,34 @@ body {
   border-bottom: 1px solid var(--rule);
   color: var(--ink-soft);
   font-size: 12px;
+}
+/* 平时每张图上方都顶着一条按钮太碎，所以收起来：浮在图的右上角，鼠标移到图上（或键盘聚焦）才淡入。
+   放大查看的弹窗里始终显示，那里的按钮是读者正在用的。 */
+.galley-diagram-viewer:not([data-expanded]) .galley-diagram-toolbar {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+  min-height: 0;
+  border: 0;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--paper) 86%, transparent);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-fast);
+}
+.galley-diagram-viewer:not([data-expanded]):hover .galley-diagram-toolbar,
+.galley-diagram-viewer:not([data-expanded]):focus-within .galley-diagram-toolbar {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* 手机、平板上没有悬停，一直显示，否则读者不知道图还能放大 */
+@media (hover: none) {
+  .galley-diagram-viewer:not([data-expanded]) .galley-diagram-toolbar {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 .galley-diagram-toolbar button {
   min-height: 44px;
