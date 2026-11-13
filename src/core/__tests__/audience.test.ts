@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { OWNER, type Actor } from "../actor";
 import { openDb, type Db } from "../db/client";
-import { messages, pageViews } from "../db/schema";
+import { eq } from "drizzle-orm";
+import { documents, messages, pageViews } from "../db/schema";
 import { GalleyError } from "../errors";
 import { plainText } from "../markup/text";
 import { authenticateAgent, createAgent } from "../services/agents";
-import { dayKey, operationStats, recordPageView, topPages, topReferrers, visitTrend } from "../services/analytics";
+import { dayKey, operationStats, readerStats, recordPageView, topPages, topReferrers, visitTrend } from "../services/analytics";
 import { createBlock } from "../services/blocks";
 import { decideChangeSet, openChangeSet, submitChangeSet } from "../services/changeSets";
 import { createDocumentAsOwner, getPublishedDocument, listPublished, publishedSlugExists, saveDocument } from "../services/documents";
@@ -174,6 +175,38 @@ describe("访问统计", () => {
     recordPageView(db, { path: "/posts/a", ip: "1.1.1.1", userAgent: "Mozilla/5.0 Safari", now: tomorrow });
     const [first, second] = db.select().from(pageViews).all();
     expect(first.visitor).not.toBe(second.visitor);
+  });
+
+  it("给 Agent 的概况：热门和冷门分开，新文章不算冷门，和上一段比得出涨跌", () => {
+    const hot = publish("hot", "有人读的", "正文。");
+    publish("cold", "没人读的", "正文。");
+    const fresh = publish("fresh", "刚发的", "正文。");
+    // 发布时间：前两篇一个月前，第三篇是今天，今天这篇不该被算成"没人读"
+    db.update(documents).set({ publishedAt: new Date(2026, 9, 10) }).where(eq(documents.id, hot)).run();
+    db.update(documents).set({ publishedAt: new Date(2026, 9, 10) }).where(eq(documents.slug, "cold")).run();
+    db.update(documents).set({ publishedAt: today }).where(eq(documents.id, fresh)).run();
+
+    // 上一段时间（30 天前那一段）有一次访问，这一段有三次，应该是涨
+    recordPageView(db, { path: "/posts/hot", ip: "9.9.9.9", userAgent: "Mozilla/5.0 Safari", now: new Date(2026, 9, 1, 10, 0, 0) });
+    visit("/posts/hot", "1.1.1.1", { referrer: "https://news.example/" });
+    visit("/posts/hot", "2.2.2.2");
+    visit("/", "3.3.3.3");
+
+    const stats = readerStats(db, { days: 30, today });
+    expect(stats.until).toBe(dayKey(today));
+    expect(stats.views).toBe(3);
+    expect(stats.changeVsPrevious).toBe(200);
+    expect(stats.topPosts.map((p) => p.slug)).toEqual(["hot"]);
+    expect(stats.topPosts[0]).toMatchObject({ title: "有人读的", views: 2 });
+    // 冷门里有发了一个月没人读的，没有今天刚发的
+    expect(stats.quietPosts.map((p) => p.slug)).toContain("cold");
+    expect(stats.quietPosts.map((p) => p.slug)).not.toContain("fresh");
+    expect(stats.referrers).toEqual([{ referrer: "news.example", views: 1 }]);
+  });
+
+  it("没有任何访问时也能读，不报错", () => {
+    const stats = readerStats(db, { days: 7, today });
+    expect(stats).toMatchObject({ days: 7, views: 0, visitors: 0, changeVsPrevious: null, topPosts: [], referrers: [] });
   });
 
   it("趋势补齐没有访问的日子；排行带上文章标题；来源不算本站自己", () => {

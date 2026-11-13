@@ -17,6 +17,7 @@ import { addMaterial, getMaterial, listMaterials, markMaterialProcessed } from "
 import { getNextTasks } from "@/core/services/tasks";
 import { claimTopic, createTopic, listTopics } from "@/core/services/topics";
 import { getSkill, listSkills, suggestSkillChange } from "@/core/services/skills";
+import { readerStats } from "@/core/services/analytics";
 import { listTags } from "@/core/services/tags";
 import { findTool } from "@/core/tools";
 
@@ -45,6 +46,7 @@ const READ_ONLY_TOOLS = new Set([
   "list_topics",
   "list_documents",
   "list_media",
+  "get_analytics",
 ]);
 
 /** 每个服务实例实际注册了哪些工具。测试用它来确认工具清单和开关是否生效。 */
@@ -489,6 +491,17 @@ export function createMcpServer(
       listDocuments(db)
         .filter((d) => d.kind === "article")
         .map((d) => ({ documentId: d.id, slug: d.slug, title: d.title, category: d.categoryName, series: d.series, status: d.status })),
+  );
+
+  // ---- 访问数据 ----
+  tool(
+    "get_analytics",
+    "读站点的访问数据：哪些文章有人读、哪些发出去没人看、读者从哪个站点过来、哪些分类和标签读得多。提选题之前先看这里，按读者真正在读的方向定题，不要凭空想。只有汇总数字，没有具体某个读者的信息。",
+    {
+      days: z.number().int().min(1).max(365).optional().describe("往前看多少天，默认 30"),
+      limit: z.number().int().min(1).max(50).optional().describe("热门文章和标签各列几条，默认 10"),
+    },
+    ({ days, limit }) => readerStats(db, { days, limit }),
   );
 
   tool(

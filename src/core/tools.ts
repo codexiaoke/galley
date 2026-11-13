@@ -42,6 +42,8 @@ export const TOOLS: ToolInfo[] = [
   { name: "edit_document", group: "文章", label: "只改正文里的一小段" },
   { name: "list_media", group: "文章", label: "查看媒体库里的图片" },
 
+  { name: "get_analytics", group: "访问数据", label: "读访问数据（只有汇总数字）" },
+
   { name: "add_material", group: "素材和选题", label: "替站长记素材" },
   { name: "list_materials", group: "素材和选题", label: "读取素材箱" },
   { name: "mark_material_processed", group: "素材和选题", label: "标记素材已处理" },

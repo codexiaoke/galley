@@ -233,3 +233,93 @@ export function viewsByGroup(db: Db, days = 30, today = new Date()) {
   const sorted = (m: Map<string, number>) => [...m].map(([name, views]) => ({ name, views })).sort((a, b) => b.views - a.views || a.name.localeCompare(b.name, "zh-CN"));
   return { categories: sorted(byCategory), tags: sorted(byTag) };
 }
+
+export type ReaderStats = {
+  /** 统计的区间，含头含尾 */
+  days: number;
+  since: string;
+  until: string;
+  /**
+   * 访客数是"每天的访客数加起来"。访客标记每天换一个新盐，过了当天就对不上，
+   * 所以跨天没法去重：同一个人连着看三天算三个。这是记录方式决定的，不是算错了。
+   */
+  visitors: number;
+  views: number;
+  /** 和前面同样长的一段时间相比，浏览量变化了百分之多少。之前没有数据时是 null */
+  changeVsPrevious: number | null;
+  /** 读得最多的文章 */
+  topPosts: { slug: string; title: string; views: number; publishedAt: string | null }[];
+  /** 发布超过一周、这段时间里读得最少的文章。选题时可以想想是题目没选对还是标题没写好 */
+  quietPosts: { slug: string; title: string; views: number; publishedAt: string | null }[];
+  /** 读者从哪个站点过来的，只有域名 */
+  referrers: { referrer: string; views: number }[];
+  /** 按分类、标签汇总的文章浏览量 */
+  categories: { name: string; views: number }[];
+  tags: { name: string; views: number }[];
+};
+
+/**
+ * 给 Agent 看的访问概况（MCP 的 get_analytics）。
+ *
+ * 后台看板用的是上面那几个函数，这里把它们揉成一份能直接拿来做判断的摘要：
+ * 哪些文章有人读、哪些发出去没人看、读者从哪来。只有汇总数字，没有任何能对到具体某个人的东西。
+ */
+export function readerStats(db: Db, options: { days?: number; limit?: number; today?: Date } = {}): ReaderStats {
+  const days = Math.min(365, Math.max(1, Math.round(options.days ?? 30)));
+  const limit = Math.min(50, Math.max(1, Math.round(options.limit ?? 10)));
+  const today = options.today ?? new Date();
+
+  // 取两倍长度，前一半当作"上一段时间"，用来看涨还是跌
+  const trend = visitTrend(db, days * 2, today);
+  const current = trend.slice(days);
+  const previous = trend.slice(0, days);
+  const total = (rows: typeof trend, key: "views" | "visitors") => rows.reduce((n, r) => n + r[key], 0);
+  const beforeViews = total(previous, "views");
+  const nowViews = total(current, "views");
+
+  const since = current[0].day;
+  const until = current[current.length - 1].day;
+  const viewsBySlug = new Map(
+    db
+      .select({ path: pageViews.path, views: sql<number>`count(*)` })
+      .from(pageViews)
+      .where(and(gte(pageViews.day, since), sql`${pageViews.path} like '/posts/%'`))
+      .groupBy(pageViews.path)
+      .all()
+      .map((r) => [r.path.slice("/posts/".length), r.views]),
+  );
+  const articles = db
+    .select({ slug: documents.slug, title: documentRevisions.title, publishedAt: documents.publishedAt })
+    .from(documents)
+    .innerJoin(documentRevisions, eq(documents.currentRevisionId, documentRevisions.id))
+    .where(and(eq(documents.kind, "article"), eq(documents.status, "published")))
+    .all()
+    .map((a) => ({
+      slug: a.slug,
+      title: a.title,
+      views: viewsBySlug.get(a.slug) ?? 0,
+      publishedAt: a.publishedAt ? dayKey(new Date(a.publishedAt)) : null,
+    }));
+
+  const byViews = [...articles].sort((a, b) => b.views - a.views || a.slug.localeCompare(b.slug));
+  // 刚发出来的文章还没来得及被读到，不算"没人读"
+  const settled = dayKey(addDays(today, -7));
+  const groups = viewsByGroup(db, days, today);
+
+  return {
+    days,
+    since,
+    until,
+    visitors: total(current, "visitors"),
+    views: nowViews,
+    changeVsPrevious: beforeViews === 0 ? null : Math.round(((nowViews - beforeViews) / beforeViews) * 100),
+    topPosts: byViews.filter((a) => a.views > 0).slice(0, limit),
+    quietPosts: byViews
+      .filter((a) => a.publishedAt !== null && a.publishedAt <= settled)
+      .reverse()
+      .slice(0, 5),
+    referrers: topReferrers(db, days, 8, today),
+    categories: groups.categories,
+    tags: groups.tags.slice(0, limit),
+  };
+}
