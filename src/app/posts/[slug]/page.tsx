@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense, ViewTransition, type CSSProperties } from "react";
 import { Markdown } from "@/render/Markdown";
+import { Toc } from "@/render/client/toc";
+import { extractToc } from "@/render/toc";
 import { loadPublishedDocument } from "../../data";
 import { tagPath } from "@/core/tags";
 import { ReaderSettings } from "../../reader-settings";
@@ -35,6 +37,7 @@ async function Post({ params }: { params: Promise<{ slug: string }> }) {
   // 页面（比如"关于"）有自己的网址，不在文章的网址下显示。
   if (!doc || doc.kind !== "article") notFound();
 
+  const toc = extractToc(doc.body);
   const published = formatDate(doc.publishedAt);
   const revised = formatDate(doc.revisedAt);
   return (
@@ -60,6 +63,7 @@ async function Post({ params }: { params: Promise<{ slug: string }> }) {
             )}
           </p>
         </header>
+        {toc.length >= 3 && <Toc items={toc} />}
         <div className="galley-rise" style={{ "--i": 2 } as CSSProperties}>
           <Markdown body={doc.body} blocks={doc.blocks} posts={doc.posts} />
         </div>

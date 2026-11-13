@@ -8,6 +8,7 @@ import { toString } from "mdast-util-to-string";
 import type { RefMode } from "../db/schema";
 import { BLOCK_ID_PATTERN } from "../ids";
 import { getComponent } from "./components";
+import { checkStructure } from "./structure";
 
 export type ParsedRef = {
   mode: RefMode;
@@ -85,7 +86,7 @@ export function parseMarkup(body: string): ParsedMarkup {
     refs.push({ ...ref, ordinal: ordinal++ });
   };
 
-  const handle = (d: DirectiveNode): void => {
+  const handle = (d: DirectiveNode, parent: DirectiveNode | undefined): void => {
     const form = FORM_OF[d.type];
     const attrs = d.attributes ?? {};
     const line = d.position?.start.line;
@@ -131,25 +132,36 @@ export function parseMarkup(body: string): ParsedMarkup {
       return;
     }
     if (!expectForm(component.form)) return;
+    if (component.inside && !(parent && isDirective(parent) && parent.name === component.inside)) {
+      return error(`${component.name} 只能写在 ${component.inside} 里面。`, line);
+    }
 
     const parsed = component.params.safeParse(attrs);
     if (!parsed.success) {
       const detail = parsed.error.issues.map((i) => `${i.path.join(".") || "参数"}: ${i.message}`).join("；");
       return error(`${component.name} 的参数不合法：${detail}`, line);
     }
+    const data = parsed.data as Record<string, unknown>;
     for (const param of component.postParams ?? []) {
-      const slug = (parsed.data as Record<string, unknown>)[param];
+      const slug = data[param];
       if (typeof slug === "string") posts.push({ slug, line });
     }
-    for (const param of Object.keys(component.blockParams ?? {})) {
-      const blockId = (parsed.data as Record<string, unknown>)[param];
-      if (typeof blockId === "string") addRef({ mode: "embed", blockId, directive: component.name, param, line });
+    for (const param of component.mediaParams ?? []) {
+      const match = MEDIA_URL_PATTERN.exec(String(data[param] ?? ""));
+      if (match) images.push({ name: match[1], line });
     }
+    for (const param of Object.keys(component.blockParams ?? {})) {
+      const blockId = data[param];
+      if (typeof blockId !== "string") continue;
+      const valueKey = component.valueKeyParam ? String(data[component.valueKeyParam] ?? "") : undefined;
+      addRef({ mode: valueKey !== undefined ? "value" : "embed", blockId, valueKey, directive: component.name, param, line });
+    }
+    for (const message of checkStructure(component.name, d as never, body)) error(message, line);
   };
 
   // 注意：访问函数不能有返回值，unist-util-visit 会把返回的数字当作"跳到第几个子节点"。
-  visit(parseToTree(body), (node) => {
-    if (isDirective(node)) handle(node as unknown as DirectiveNode);
+  visit(parseToTree(body), (node, _index, parent) => {
+    if (isDirective(node)) handle(node as unknown as DirectiveNode, parent as unknown as DirectiveNode | undefined);
     if (node.type === "image") {
       // 图片只能用媒体库里的：外部图片会失效，也会让读者的浏览器去访问别的网站。
       const line = node.position?.start.line;

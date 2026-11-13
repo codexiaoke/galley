@@ -17,7 +17,17 @@ export type ComponentDef = {
   blockParams?: Record<string, BlockType[]>;
   /** 指向站内文章的参数（值是文章的网址别名） */
   postParams?: string[];
+  /** 取知识块命名取值的参数：引用按"取值"记录，保存时检查这个取值存在 */
+  valueKeyParam?: string;
+  /** 指向媒体库图片的参数（值是 /media/ 开头的地址） */
+  mediaParams?: string[];
+  /** 只能写在哪个组件里面，例如 tab 只能放在 tabs 里 */
+  inside?: string;
+  /** 不在给 Agent 的组件清单里单独列出（说明写在外层组件里） */
+  hidden?: boolean;
 };
+
+const mediaUrl = z.string().regex(/^\/media\/[a-z0-9]+\.[a-z0-9]+$/, "只能用媒体库里的图片，地址以 /media/ 开头");
 
 export const COMPONENTS: ComponentDef[] = [
   {
@@ -30,8 +40,9 @@ export const COMPONENTS: ComponentDef[] = [
   {
     name: "chart",
     form: "leaf",
-    description: "把一个数据类知识块画成图表。第一列作为类别，其余列作为数值序列。",
-    example: '::chart{data=d81k2mvv type=bar title="各系统支持 MCP 的时间"}',
+    description:
+      "把一个数据类知识块画成图表，滚动到读者眼前时带生长动画。第一列作为类别，其余列作为数值序列。bar 横向柱状图，比较几样东西的大小（多列时并排分组）；line 折线图，看随时间的变化，第一列应当是时间（可以多条线）；pie 环形图，看各部分占整体的比例，只用第二列，三到六项最合适。",
+    example: '::chart{data=d81k2mvv type=line title="每月的访问量"}',
     params: z.object({
       data: z.string(),
       type: z.enum(["bar", "line", "pie"]).default("bar"),
@@ -64,6 +75,70 @@ export const COMPONENTS: ComponentDef[] = [
     params: z.object({ slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "网址别名只能用小写字母、数字和连字符") }),
     postParams: ["slug"],
   },
+  {
+    name: "stat",
+    form: "leaf",
+    description:
+      "关键数字：把事实块的一个命名取值放大显示，滚动到眼前时从 0 滚动到这个数，下面一行小字说明。连续写两三个会自动排成一行。只用于全文最想让读者记住的一两个数字，不要滥用。",
+    example: '::stat{b=n5t2r8ye key=stars label="GitHub 星标"}\n::stat{b=n5t2r8ye key=contributors label="贡献者"}',
+    params: z.object({ b: z.string(), key: z.string(), label: z.string() }),
+    blockParams: { b: ["fact"] },
+    valueKeyParam: "key",
+  },
+  {
+    name: "steps",
+    form: "container",
+    description:
+      "分步讲解一段代码：一边是步骤说明，一边是代码，读到哪一步就高亮哪几行。里面先放一个代码块（普通的 ``` 代码块，或者 ::block 嵌入的代码知识块），再写一个有序列表，每一项以花括号里的行号开头，后面是这一步的说明。三到六步最合适。",
+    example:
+      ":::steps\n```ts\nconst block = await getBlock(id);\nif (!block) return null;\nreturn render(block);\n```\n\n1. {1} 先按编号取出知识块。\n2. {2} 取不到时什么都不显示，不报错。\n3. {3} 最后交给渲染函数。\n:::",
+    params: z.object({}),
+  },
+  {
+    name: "flow",
+    form: "container",
+    description:
+      "流程图：节点和连线依次出现，连线上有流动的小点表示走向。适合讲架构、讲一件事经过哪几个环节。里面写一个列表，每项一条连线：「甲 -> 乙」，要说明时写「甲 -> 乙: 说明」；也可以连写「甲 -> 乙 -> 丙」。节点最多 12 个，名字尽量短。",
+    example: ":::flow\n- Agent -> MCP 接口: 提交变更集\n- MCP 接口 -> 站长: 等待审阅\n- 站长 -> 网站: 批准后发布\n:::",
+    params: z.object({}),
+  },
+  {
+    name: "tabs",
+    form: "container",
+    description:
+      "标签页：几种并列的写法只显示一种，读者点标签切换。适合同一件事在不同系统、不同语言里的写法。外层用四个冒号 ::::tabs，里面每一页写成 :::tab{label=名字} 内容 :::（三个冒号）。外层的冒号必须比里层多。",
+    example: "::::tabs\n:::tab{label=macOS}\n```bash\nbrew install sqlite\n```\n:::\n:::tab{label=Ubuntu}\n```bash\nsudo apt install sqlite3\n```\n:::\n::::",
+    params: z.object({}),
+  },
+  {
+    name: "tab",
+    form: "container",
+    description: "标签页里的一页，只能写在 tabs 里面。",
+    example: ":::tab{label=macOS}\n内容\n:::",
+    params: z.object({ label: z.string().min(1) }),
+    inside: "tabs",
+    hidden: true,
+  },
+  {
+    name: "compare",
+    form: "leaf",
+    description: "前后对比：两张同样大小的图片叠在一起，读者左右拖动分隔线对比。适合改版前后、优化前后。两张图都要来自媒体库。",
+    example: '::compare{before=/media/k2x9.png after=/media/p7q3.png beforeLabel="改版前" afterLabel="改版后"}',
+    params: z.object({
+      before: mediaUrl,
+      after: mediaUrl,
+      beforeLabel: z.string().default("之前"),
+      afterLabel: z.string().default("之后"),
+    }),
+    mediaParams: ["before", "after"],
+  },
+  {
+    name: "fold",
+    form: "container",
+    description: "折叠段落：默认收起，读者点标题展开。用来放大部分读者不需要看的细节，比如完整的配置文件、推导过程。",
+    example: ':::fold{title="完整的配置文件"}\n```yaml\n...\n```\n:::',
+    params: z.object({ title: z.string().min(1) }),
+  },
 ];
 
 const byName = new Map(COMPONENTS.map((c) => [c.name, c]));
@@ -74,7 +149,7 @@ export const getComponent = (name: string) => byName.get(name);
 export const BUILTIN_DIRECTIVES = ["cite", "value", "block"] as const;
 
 export function describeComponents() {
-  return COMPONENTS.map((c) => ({
+  return COMPONENTS.filter((c) => !c.hidden).map((c) => ({
     name: c.name,
     form: c.form,
     description: c.description,

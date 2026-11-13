@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { OWNER, type Actor } from "../actor";
 import { openDb, type Db } from "../db/client";
 import { parseMarkup } from "../markup/parse";
+import { parseFlow } from "../markup/flow";
 import { plainText } from "../markup/text";
 import { authenticateAgent, createAgent } from "../services/agents";
 import { createBlock } from "../services/blocks";
@@ -57,4 +58,60 @@ describe("组件", () => {
     expect(parseMarkup(table).issues).toEqual([]);
     expect(plainText(table).replace(/\s+/g, " ").trim()).toBe("方案 结论 SQLite 够用");
   });
+
+  it("分步讲解要有代码和带行号的有序列表", () => {
+    const ok = ":::steps\n```ts\nconst a = 1;\nconst b = 2;\n```\n\n1. {1} 先定义 a。\n2. {2} 再定义 b。\n:::";
+    expect(parseMarkup(ok).issues).toEqual([]);
+    expect(parseMarkup(":::steps\n1. {1} 只有步骤。\n2. {2} 没有代码。\n:::").issues[0].message).toMatch(/先放一个代码块/);
+    expect(parseMarkup(":::steps\n```ts\nx\n```\n\n1. 没写行号。\n2. 也没写。\n:::").issues[0].message).toMatch(/花括号里的行号/);
+    expect(parseMarkup(":::steps\n```ts\nx\n```\n\n- {1} 无序列表\n- {1} 不行\n:::").issues[0].message).toMatch(/有序列表/);
+  });
+
+  it("流程图：一行一条连线，可以连写，可以带说明", () => {
+    expect(parseMarkup(":::flow\n- 甲 -> 乙: 说明\n- 乙 -> 丙 -> 丁\n:::").issues).toEqual([]);
+    expect(parseMarkup(":::flow\n- 甲 -> 甲\n:::").issues[0].message).toMatch(/指向了自己/);
+    expect(parseMarkup(":::flow\n:::").issues[0].message).toMatch(/写一个列表/);
+    const many = Array.from({ length: 13 }, (_, i) => `- 节点${i} -> 节点${i + 1}`).join("\n");
+    expect(parseMarkup(`:::flow\n${many}\n:::`).issues.some((i) => /最多 12 个节点/.test(i.message))).toBe(true);
+  });
+
+  it("流程图的说明要用中文冒号或者冒号加空格，localhost:3000 这样的名字不会被拆开", () => {
+    const { graph } = parseFlow(["浏览器 -> localhost:3000", "localhost:3000 -> 数据库：查询"]);
+    expect(graph.nodes).toEqual(["浏览器", "localhost:3000", "数据库"]);
+    expect(graph.edges[1]).toMatchObject({ from: 1, to: 2, label: "查询" });
+  });
+
+  it("标签页：外层冒号比里层多；tab 不能单独用", () => {
+    expect(parseMarkup("::::tabs\n:::tab{label=甲}\n一\n:::\n:::tab{label=乙}\n二\n:::\n::::").issues).toEqual([]);
+    expect(parseMarkup(":::tab{label=甲}\n一\n:::").issues[0].message).toMatch(/只能写在 tabs 里面/);
+    expect(parseMarkup("::::tabs\n:::tab{label=甲}\n一\n:::\n::::").issues[0].message).toMatch(/至少要有两页/);
+  });
+
+  it("关键数字要取事实块里存在的命名取值", () => {
+    const cs = openChangeSet(db, agent, { kind: "knowledge", title: "整理" });
+    const fact = createBlock(db, agent, {
+      changeSetId: cs.id,
+      type: "fact",
+      title: "星标",
+      body: "项目有一万多个星标",
+      data: { values: { stars: "12,480" } },
+      sources: [{ url: "https://example.com" }],
+    });
+    if (!fact.created) throw new Error("没有创建成功");
+    expect(previewDocumentBody(db, `::stat{b=${fact.blockId} key=stars label="星标"}`, cs.id).issues).toEqual([]);
+    expect(previewDocumentBody(db, `::stat{b=${fact.blockId} key=forks label="分支"}`, cs.id).issues[0].message).toMatch(/没有名为 forks 的取值/);
+    expect(parseMarkup(`::stat{b=${fact.blockId} key=stars}`).issues[0].message).toMatch(/stat 的参数不合法/);
+  });
+
+  it("前后对比只能用媒体库里的图片", () => {
+    expect(parseMarkup("::compare{before=https://x.com/a.png after=/media/b.png}").issues[0].message).toMatch(/媒体库/);
+    expect(parseMarkup("::compare{before=/media/a1.png after=/media/b2.png}").images.map((i) => i.name)).toEqual(["a1.png", "b2.png"]);
+    expect(previewDocumentBody(db, "::compare{before=/media/a1.png after=/media/b2.png}").issues[0].message).toMatch(/a1\.png/);
+  });
+
+  it("折叠段落要有标题", () => {
+    expect(parseMarkup(':::fold{title="完整配置"}\n内容\n:::').issues).toEqual([]);
+    expect(parseMarkup(":::fold\n内容\n:::").issues[0].message).toMatch(/fold 的参数不合法/);
+  });
 });
+
