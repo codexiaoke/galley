@@ -58,6 +58,11 @@ tar xf galley-deploy.tar && cd galley-deploy && ./deploy.sh
 - Building an x86 image on an ARM Mac goes through emulation and is slower than a native build.
 - The compressed image is a bit over 100 MB.
 
+Local builds use npmmirror for npm/pnpm dependencies and the Aliyun Debian mirror for system packages
+by default. Override them with the local environment variables `GALLEY_NPM_REGISTRY` and
+`GALLEY_APT_MIRROR` before running `release.sh`; explicitly empty values select the official sources.
+The script does not read your local `.env`. Runtime settings still come from the server's `.env`.
+
 If you would rather build from source on the server, set `GALLEY_BUILD=1` in `.env` before running
 `./deploy.sh`. On its first run it asks whether the server is in mainland China and switches to mirrors
 for dependency downloads if so.

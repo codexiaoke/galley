@@ -34,7 +34,11 @@ DEPLOY_FILES=(docker-compose.yml deploy.sh deploy/Caddyfile .env.example)
 build_image() {
   say "在本机构建镜像（$1）"
   # 本机和服务器的处理器不一样时（比如 Mac 是 ARM、服务器是 x86），Docker 会模拟服务器的处理器来构建，会慢一些。
-  docker buildx build --platform "$1" --load -t galley:latest .
+  # 默认用国内软件源；从本机环境变量读取覆盖值，不读取或上传本机的 .env。显式传空值时使用官方源。
+  docker buildx build --platform "$1" \
+    --build-arg "NPM_REGISTRY=${GALLEY_NPM_REGISTRY-https://registry.npmmirror.com}" \
+    --build-arg "APT_MIRROR=${GALLEY_APT_MIRROR-mirrors.aliyun.com}" \
+    --load -t galley:latest .
 }
 
 # ---- 只打包：生成一个自己上传的部署包 ----------------------------------------

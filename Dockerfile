@@ -4,7 +4,7 @@
 # 数据（数据库和上传的图片）不在镜像里，在 /data 这个卷里。
 
 FROM node:22-bookworm-slim AS base
-# 国内服务器上构建时可以换成国内的镜像源，下载会快很多（deploy.sh 第一次运行时会问）。
+# 构建时可传入国内软件源：release.sh 默认启用，deploy.sh 在首次服务器构建时询问。
 #   NPM_REGISTRY 例如 https://registry.npmmirror.com
 #   APT_MIRROR   例如 mirrors.aliyun.com
 ARG NPM_REGISTRY=

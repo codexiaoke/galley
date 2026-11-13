@@ -41,6 +41,8 @@ tar xf galley-deploy.tar && cd galley-deploy && ./deploy.sh
 - Mac（ARM）给 x86 服务器构建时，Docker 会模拟 x86 来构建，比构建本机的镜像慢一些。
 - 上传的镜像压缩后一百多 MB。
 
+本地构建默认用 npmmirror 下载 npm/pnpm 依赖，用阿里云 Debian 源下载系统软件包。需要换源时，在运行 `release.sh` 前设置本机环境变量 `GALLEY_NPM_REGISTRY` 和 `GALLEY_APT_MIRROR`；显式设为空值则使用官方源。脚本不读取本机 `.env`，运行配置仍来自服务器上的 `.env`。
+
 坚持在服务器上用源代码构建的话，在 `.env` 里写 `GALLEY_BUILD=1` 再运行 `./deploy.sh`。第一次运行时它会问服务器是不是在中国大陆，选是就改用国内的镜像源下载依赖。
 
 ## 日常操作

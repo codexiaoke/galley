@@ -20,7 +20,7 @@ services:
     build:
       context: .
       args:
-        # 国内服务器上构建时用的镜像源，deploy.sh 会帮你填。用本地构建好再上传（release.sh）时用不到。
+        # 服务器构建用的软件源，deploy.sh 会帮你填；release.sh 在本机直接把同名环境变量传给 Docker。
         NPM_REGISTRY: ${GALLEY_NPM_REGISTRY:-}
         APT_MIRROR: ${GALLEY_APT_MIRROR:-}
     # 默认通过毫秒镜像下载成品镜像。自己构建或者用 release.sh 上传时，deploy.sh 会把它改成 galley:latest。
