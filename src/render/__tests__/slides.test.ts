@@ -44,3 +44,22 @@ describe("演示和代码演变", () => {
   });
 });
 
+
+describe("Mermaid 演示分页", () => {
+  const graph = "```mermaid\nflowchart TB\nA --> B\n```";
+  it("长篇说明与图各自分页，原图方向和前后正文保持完整", () => {
+    const slides = splitSlides(`## 支付流程\n\n前置说明。\n\n${graph}\n\n后续说明。`);
+    expect(slides).toHaveLength(3);
+    expect(slides[0].source).toContain("前置说明。");
+    expect(slides[1].source).toBe(graph);
+    expect(slides[1].section).toBe("支付流程");
+    expect(slides[2].source).toBe("后续说明。");
+  });
+  it("仅有标题和图时不生成空页，图后的讲稿仍归属于图", () => {
+    const slides = splitSlides(`## 支付流程\n\n${graph}\n\n:::notes\n图的讲稿\n:::`);
+    expect(slides).toHaveLength(1);
+    expect(slides[0].source).toBe(graph);
+    expect(slides[0].section).toBe("支付流程");
+    expect(slides[0].notes).toBe("图的讲稿");
+  });
+});

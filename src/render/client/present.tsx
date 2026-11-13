@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { download, prepareRecording, recordingSupport, type Recording, type RecordingSupport } from "./recorder";
 import { formatSpeed, PresentSpeed, SPEEDS } from "./speed";
+import { printWhenDiagramsReady } from "../print-readiness";
 
 /**
  * 演示模式：文章变成全屏的幻灯片。
@@ -43,7 +44,7 @@ export function Presentation({
   slides,
   backHref,
   auto: autoParam = false,
-  orientation: orientationParam = "landscape",
+  orientation: orientationParam,
   captions: captionsParam = false,
   durations,
   print = false,
@@ -63,7 +64,7 @@ export function Presentation({
   const total = slides.length + 2;
   const [page, setPage] = useState(0);
   const [auto, setAuto] = useState(autoParam);
-  const [orientation, setOrientation] = useState<Orientation>(orientationParam);
+  const [orientation, setOrientation] = useState<Orientation>(orientationParam ?? "landscape");
   const [captions, setCaptions] = useState(captionsParam);
   const [run, setRun] = useState(0); // 变了就把所有页重新挂载，动画回到开头
   // 自动播放的速度：翻页的停留时间和页里的动画一起按这个速度走（见 speed.ts）
@@ -80,7 +81,7 @@ export function Presentation({
 
   // ---- 录制 ----
   const [rec, setRec] = useState<RecState>("idle");
-  const [recOptions, setRecOptions] = useState<RecOptions>({ orientation: orientationParam, captions: true, mic: false, pacing: "auto", speed: 1 });
+  const [recOptions, setRecOptions] = useState<RecOptions>({ orientation: orientationParam ?? "landscape", captions: true, mic: false, pacing: "auto", speed: 1 });
   const [support, setSupport] = useState<RecordingSupport | null>(null);
   const [recError, setRecError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(3);
@@ -89,6 +90,15 @@ export function Presentation({
   const recording = useRef<Recording | null>(null);
   const recStarted = useRef(0);
   const recording_ = rec === "countdown" || rec === "recording";
+
+  // 没有指定画幅时跟随屏幕方向；录制期间保持用户选定的输出尺寸。
+  useLayoutEffect(() => {
+    if (orientationParam || rec !== "idle") return;
+    const adapt = () => setOrientation(window.innerHeight > window.innerWidth ? "portrait" : "landscape");
+    adapt();
+    window.addEventListener("resize", adapt);
+    return () => window.removeEventListener("resize", adapt);
+  }, [orientationParam, rec]);
 
   // 缩放到窗口大小（录制时下面留出提示条）
   useLayoutEffect(() => {
@@ -135,18 +145,11 @@ export function Presentation({
     };
   }, [print, size.w]);
 
-  // 打印：等字体和页里的图（比如 Mermaid）画好，再打开打印对话框
+  // 打印：等待所有 Mermaid 页完成渲染和布局，避免导出的 PDF 留下占位框。
   useEffect(() => {
-    if (!print) return;
-    let cancelled = false;
-    void document.fonts.ready.then(() =>
-      setTimeout(() => {
-        if (!cancelled) window.print();
-      }, 1500),
-    );
-    return () => {
-      cancelled = true;
-    };
+    const stage = stageRef.current;
+    if (!print || !stage) return;
+    return printWhenDiagramsReady(stage, document.fonts.ready, () => window.print());
   }, [print]);
 
   /** 让当前页里的动画走一步；返回它接没接，以及建议等多久再走下一步 */
@@ -248,11 +251,19 @@ export function Presentation({
     return () => clearInterval(t);
   }, [rec]);
 
+  // 放大图表时暂停自动翻页，让读者能停下来查看细节。
+  useEffect(() => {
+    const pause = () => setAuto(false);
+    window.addEventListener("galley-diagram-open", pause);
+    return () => window.removeEventListener("galley-diagram-open", pause);
+  }, []);
+
   // 键盘（打印模式下不翻页）
   useEffect(() => {
     if (print) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (document.querySelector(".galley-diagram-dialog[open]")) return;
       if (rec === "setup" || rec === "done" || rec === "saving" || rec === "countdown") {
         if (e.key === "Escape" && (rec === "setup" || rec === "done")) setRec("idle");
         return;
@@ -451,7 +462,7 @@ export function Presentation({
               全屏
             </button>
             {/* 存成 PDF：换成打印模式（网址加上 print=1），所有页排好后打开打印对话框 */}
-            <a href={`?print=1${orientation === "portrait" ? "&orientation=portrait" : ""}`} title="存成 PDF（每页一张幻灯片）">
+            <a href={`?print=1&orientation=${orientation}`} title="存成 PDF（每页一张幻灯片）">
               PDF
             </a>
             <button

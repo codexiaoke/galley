@@ -13,7 +13,7 @@ import { parseToTree } from "@/core/markup/parse";
  */
 export type Slide = { title?: string; section?: string; source: string; notes: string };
 
-type Node = { type: string; depth?: number; name?: string; position?: { start: { offset?: number }; end: { offset?: number } }; children?: Node[] };
+type Node = { type: string; depth?: number; name?: string; lang?: string; position?: { start: { offset?: number }; end: { offset?: number } }; children?: Node[] };
 
 export function splitSlides(body: string): Slide[] {
   const tree = parseToTree(body) as unknown as Node;
@@ -49,7 +49,7 @@ export function splitSlides(body: string): Slide[] {
   flush();
 
   // 一页里有好几个大块（代码演变、算法动画、图、表格……）时，一个大块一页
-  const pages = slides.flatMap((d) => splitHeavy(d, body));
+  const pages = slides.flatMap((d) => splitHeavy(d, body)).flatMap(splitMermaid);
 
   const slice = (n: Node) => body.slice(n.position?.start.offset ?? 0, n.position?.end.offset ?? 0);
   return pages.map((s) => {
@@ -104,4 +104,33 @@ function splitHeavy(d: DraftPage, body: string): DraftPage[] {
   }
   const kicker = d.section ?? d.title;
   return pages.map((parts, i) => (i === 0 ? { ...d, parts } : { title: undefined, section: kicker, parts }));
+}
+
+/** Mermaid 独占演示页，前后说明保留在相邻页，避免图与长文互相挤占可用高度。 */
+function splitMermaid(d: DraftPage): DraftPage[] {
+  if (!d.parts.some((n) => n.type === "code" && n.lang === "mermaid")) return [d];
+  const pages: DraftPage[] = [];
+  let pending: Node[] = [];
+  const section = d.title ?? d.section;
+  const isNotes = (n: Node) => n.type === "containerDirective" && n.name === "notes";
+  const flushText = () => {
+    if (!pending.some((n) => n.type !== "heading" && !isNotes(n))) return;
+    pages.push(pages.length ? { section, parts: pending } : { ...d, parts: pending });
+    pending = [];
+  };
+  for (const node of d.parts) {
+    if (node.type === "code" && node.lang === "mermaid") {
+      flushText();
+      pages.push({ section, parts: [...pending.filter(isNotes), node] });
+      pending = [];
+    } else if (isNotes(node) && pending.length === 0 && pages.length) {
+      pages[pages.length - 1].parts.push(node);
+    } else {
+      pending.push(node);
+    }
+  }
+  flushText();
+  // 标题和讲稿没有正文时不制造空页，但也不丢弃末尾讲稿。
+  if (pending.length && pages.length) pages[pages.length - 1].parts.push(...pending.filter(isNotes));
+  return pages;
 }

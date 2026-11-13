@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { MermaidViewer } from "./mermaid-viewer";
 
 /**
  * Mermaid 图（时序图、类图、状态图、甘特图……）。
@@ -110,13 +111,18 @@ export function MermaidDiagram({ code, review = false }: { code: string; review?
   const ref = useRef<HTMLDivElement>(null);
   const id = `mermaid-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const [near, setNear] = useState(false);
-  const [svg, setSvg] = useState<string | null>(null);
+  const [diagram, setDiagram] = useState<{ svg: string; width: number; height: number; presentation: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const theme = useThemeVersion();
 
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    // 打印需要所有页的图，即使它们尚未滚动到视野内。
+    if (el.closest(".galley-present[data-print]")) {
+      const frame = requestAnimationFrame(() => setNear(true));
+      return () => cancelAnimationFrame(frame);
+    }
     const observer = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && setNear(true), { rootMargin: "400px 0px" });
     observer.observe(el);
     return () => observer.disconnect();
@@ -130,7 +136,12 @@ export function MermaidDiagram({ code, review = false }: { code: string; review?
         mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "base", themeVariables: themeVariables(), flowchart: { curve: "basis" } });
         const result = await mermaid.render(`${id}-${theme}`, code);
         if (!cancelled) {
-          setSvg(result.svg);
+          const element = new DOMParser().parseFromString(result.svg, "image/svg+xml").documentElement;
+          const [, , width, height] = (element.getAttribute("viewBox") ?? "").trim().split(/[\s,]+/).map(Number);
+          if (!(width > 0 && height > 0 && Number.isFinite(width) && Number.isFinite(height))) {
+            throw new Error("图表缺少有效尺寸。");
+          }
+          setDiagram({ svg: result.svg, width, height, presentation: !!ref.current?.closest(".galley-slide") });
           setError(null);
         }
       })
@@ -143,9 +154,9 @@ export function MermaidDiagram({ code, review = false }: { code: string; review?
   }, [near, code, id, theme]);
 
   return (
-    <figure ref={ref} className="galley-mermaid" data-ready={svg && !error ? true : undefined}>
-      {svg && !error ? (
-        <div className="galley-mermaid-svg" dangerouslySetInnerHTML={{ __html: svg }} />
+    <figure ref={ref} className="galley-mermaid" data-ready={diagram && !error ? true : undefined} data-error={error ? true : undefined}>
+      {diagram && !error ? (
+        <MermaidViewer diagram={diagram} presentation={diagram.presentation} />
       ) : error ? (
         <>
           {review && <p className="galley-trace-error">Mermaid 图画不出来：{error}</p>}
