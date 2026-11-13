@@ -1,0 +1,21 @@
+name: Idea / 提个想法
+description: Something Galley could do. Galley 可以做的事。
+labels: ["idea"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check the "out of scope" list in `docs/requirements.md` first — plugin systems, theme
+        marketplaces, multi-user accounts and drag-and-drop editing are deliberately not planned.
+        先看一眼 `docs/requirements.md` 里的「明确不做」：插件系统、主题市场、多用户、拖拽编辑是刻意不做的。
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is the problem? / 要解决什么问题？
+      description: Describe the situation you ran into, not the solution you have in mind. 先说你遇到的情况，而不是你想到的做法。
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What could it do? / 你觉得该怎么做？

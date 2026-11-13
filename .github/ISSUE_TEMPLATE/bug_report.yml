@@ -1,0 +1,40 @@
+name: Bug report / 报告缺陷
+description: Something does not work the way it should. 有什么东西不对劲。
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: English or Chinese, whichever you prefer. 中文英文都可以。
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened? / 发生了什么？
+      description: What you did, what happened, and what you expected instead. 你做了什么、发生了什么、你以为会发生什么。
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / 版本
+      description: The image tag or the commit you are running. 正在跑的镜像标签或提交号。
+      placeholder: ghcr.io/codexiaoke/galley:latest
+    validations:
+      required: true
+  - type: dropdown
+    id: how
+    attributes:
+      label: How is it running? / 怎么部署的？
+      options:
+        - Docker (deploy.sh)
+        - Docker (release.sh)
+        - docker-compose by hand / 手动 docker-compose
+        - Local dev (pnpm dev) / 本地开发
+        - Other / 其他
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / 日志
+      description: Anything related from `./deploy.sh logs` or the browser console. 来自 `./deploy.sh logs` 或浏览器控制台的相关内容。
+      render: shell

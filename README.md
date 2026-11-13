@@ -1,96 +1,122 @@
-<p align="center"><img src="docs/assets/galley-icon.svg" width="96" height="96" alt=""></p>
+<p align="center">
+  <img src="docs/assets/galley-icon.svg" width="88" height="88" alt="">
+</p>
 
-# Galley
+<h1 align="center">Galley</h1>
 
-一个由 Agent 运营、由站长把关的个人博客系统。
+<p align="center">A self-hosted blog that agents run and you approve.</p>
 
-Galley 原意是印刷前交给编辑审阅的校样。在这里，Agent 负责选题、写稿和维护内容，站长负责审阅和批准。
+<p align="center">
+  <a href="https://github.com/codexiaoke/galley/actions/workflows/image.yml"><img src="https://github.com/codexiaoke/galley/actions/workflows/image.yml/badge.svg" alt="Build"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT"></a>
+  <a href="https://github.com/codexiaoke/galley/pkgs/container/galley"><img src="https://img.shields.io/badge/ghcr.io-galley-0b7285.svg" alt="Container image"></a>
+</p>
 
-## 它和别的博客系统有什么不同
+<p align="center">
+  <b>English</b> · <a href="README.zh-CN.md">简体中文</a>
+</p>
 
-- **内容是知识库，文章是组装结果。** 事实、概念、代码、数据、站长的观点和经历存成一个个知识块，文章用自己的话行文，并标出每段话依据的知识块。
-- **知识块变了，文章跟着变。** 更新一个知识块时，程序找出所有引用它的位置，Agent 修订，站长在一张卡片里一次看完。
-- **发布由程序把关。** Agent 通过 MCP 连接，接口里没有发布能力。内容只有在站长批准后才上线。
-- **程序本身不调用任何大模型。** 所有智能来自接入的 Agent，部署者不需要配置模型密钥。
-- **不绑定 Agent。** 使用标准 MCP，并通过 MCP 下发技能，Agent 连上来就知道该怎么运营。
+---
 
-完整的需求和设计见 [需求文档](docs/requirements.md) 和 [知识块、引用与变更集](docs/design-knowledge-blocks.md)。
+A *galley* is the proof a printer hands an editor before anything goes to press. That is the whole idea
+here: an agent picks topics, writes drafts and maintains the knowledge behind them, and nothing reaches
+a reader until you have read it and said yes.
 
-## 当前状态
+Galley is one Docker container and one data directory. It calls no language model of its own — every bit
+of intelligence comes from whichever agent you connect over [MCP](https://modelcontextprotocol.io), so
+there are no model keys to configure and no vendor to lock into.
 
-项目处于骨架阶段，核心流程已经跑通：
+<p align="center">
+  <img src="docs/assets/screenshot-article.jpg" width="800" alt="An article with its table of contents">
+</p>
 
-| 部分 | 状态 |
-|---|---|
-| 知识块、文档、引用、变更集的数据结构 | 已实现 |
-| 正文标记的解析和校验 | 已实现 |
-| 变更集的提交、批准、打回，以及发布把关 | 已实现 |
-| 引用的版本锁定、过期判定、不改变含义的修改 | 已实现 |
-| MCP 端点和 28 个工具，访问密钥认证，调用记录；可以按 Agent 关掉部分工具 | 已实现 |
-| 三份默认技能（总览、写作、素材与选题），通过 MCP 工具下发；后台可以修改、新建，留修改记录 | 已实现 |
-| Agent 可以对技能提修改建议，由站长决定是否采纳 | 已实现 |
-| 前台：首页、分类页、文章页、依据的悬浮卡片，书卷式风格 | 已实现 |
-| 分类：后台创建，Agent 写文章时选择 | 已实现 |
-| 后台：左侧菜单的管理界面，看板、审阅、文章、知识块、分类、MCP 管理，表格加弹框 | 已实现 |
-| 素材箱：站长或 Agent 记素材，Agent 整理成知识块和候选选题 | 已实现 |
-| 选题池：Agent 提候选，站长采纳后才能写，每轮写一篇 | 已实现 |
-| 站长在后台直接修改文章和知识块：立即生效，留下版本记录 | 已实现 |
-| 审阅：选中文字写批注、在待审稿件里直接改稿、对比上一版的改动 | 已实现 |
-| 站点设置：后台修改网站名、介绍、作者、网站地址、页脚文字和链接（版权、备案号） | 已实现 |
-| 媒体库：上传图片，文章里只能引用媒体库里的图片 | 已实现 |
-| RSS 订阅源、站点地图、robots.txt；不存在的页面返回 404 状态码 | 已实现 |
-| 备份与恢复（数据库加图片的完整快照）、每天自动备份、导出 Markdown | 已实现 |
-| Docker 部署 | 已实现 |
-| 留言给站长：前台表单，只有站长能看，Agent 读不到 | 已实现 |
-| 站内搜索、关于页、页脚入口 | 已实现 |
-| 阅读设置：读者自己选字号和底色 | 已实现 |
-| 邮件通知：有改动待审、有新留言时提醒站长，几分钟内的合成一封；SMTP 可以在后台填写 | 已实现 |
-| 站长在后台自己写文章和关于页 | 已实现 |
-| 运营分析：访客趋势、热门页面、来源、各分类和标签的阅读、每周产出、一次通过率 | 已实现 |
-| 标签：跟文章一起审阅，标签页，后台改名、合并、删除 | 已实现 |
-| 公开的运营日志：每一次上线做了什么、为什么 | 已实现 |
-| Codex 插件：后台下载预填本站地址的插件，仓库里有一份通用的 | 已实现 |
-| 导出技能文件夹 | 已实现 |
-| 组件：提示框、图表（柱状、折线、环形，带动画）、关键数字、时间线、引文、文章卡片、分步讲解、流程图、标签页、前后对比、折叠段落，以及 Markdown 表格 | 已实现 |
-| 正文显示：代码高亮（文件名、标出重点行、复制）、文章目录、小节链接、图注和图片放大、注释、LaTeX 公式（服务端排版）、Mermaid 图（时序图、类图、状态图等，跟随纸色和深色） | 已实现 |
-| 算法动画：27 种内置算法（排序、查找、迷宫、图、树、动态规划），可播放、单步、拖动进度；读者可以切换几组输入；几种算法并排比赛，实时显示比较和交换次数 | 已实现 |
-| 代码一步一步演变（像 Keynote 的神奇移动）：新行滑入、删掉的行淡出、改动的行高亮 | 已实现 |
-| 演示模式：文章一键变成全屏幻灯片，方向键一步一步讲，有讲稿；在浏览器里直接录成 MP4（横屏 / 竖屏、字幕、麦克风配音）；存成 PDF（每页一张幻灯片） | 已实现 |
-| 术语悬停（概念块自动成为术语表）、站点知识图谱页、文章的公开修改记录 | 已实现 |
-| 三套内置主题（书卷 / 素白 / 工程），在后台切换，配色字体版式一起换，各带深色版 | 已实现 |
-| Agent 能读访问数据（`get_analytics`）：哪些文章有人读、哪些没人看、读者从哪来，用来定选题 | 已实现 |
-| 系列文章（系列目录、上一篇和下一篇）、分享卡片图（服务端用中文字体画）、搜索引擎用的结构化数据 | 已实现 |
-| 小测验（选择题，点选后标出对错、显示解析）、可以运行的代码块（读者浏览器里的 QuickJS 沙箱，可以改了再跑） | 已实现 |
-| 代码驱动的动画：文章里写一段 JavaScript，在服务端的沙箱（QuickJS）里运行，动画按代码实际运行的过程生成，改了代码动画跟着变 | 已实现 |
-| 官方技能扩展、文章列表和专题入口组件 | 未开始 |
+## Why it is built this way
 
-## 本地运行
+- **Articles are assembled from knowledge, not typed once and forgotten.** Facts, concepts, code, data,
+  and your own opinions and experiences live as *knowledge blocks*. An article is written in its own
+  words and marks which passage rests on which block.
+- **Change a block and every article that leans on it gets fixed.** Updating a block finds every passage
+  citing it, asks the agent to rewrite those passages, and collects the result into one card for you.
+- **Publishing is enforced by the program, not by the agent's good behaviour.** The MCP surface has no
+  publish, unpublish, or permission-changing tool. Approval is the only way in.
+- **No model keys, no lock-in.** Skills are served over MCP, so an agent that connects learns how to
+  operate the site without any local setup.
+- **Your data stays a file.** SQLite plus an images folder. Back it up by downloading one archive.
 
-需要 Node.js 22 和 pnpm。
+## How it works
 
-```bash
-pnpm install
-```
+1. You drop a thought, a link or a screenshot into the **inbox**. The agent turns it into knowledge
+   blocks and proposes topics.
+2. You accept a topic. The agent claims it, writes the article, cites blocks, and opens a **change set**.
+3. You review: a rendered preview, a word-level diff, inline comments on any sentence. Then **approve**
+   or **send it back**.
+4. Approved work goes live. Later, when a block changes, every article resting on it comes back to you
+   as a revision task.
 
-```bash
-cp .env.example .env.local
-```
+<p align="center">
+  <img src="docs/assets/screenshot-review.jpg" width="800" alt="Reviewing a change set in the admin">
+</p>
 
-在 `.env.local` 里设置 `GALLEY_ADMIN_PASSWORD`（至少 8 位），然后启动：
+## What you get
 
-```bash
-pnpm dev
-```
+**Writing and knowledge**
 
-- 前台：http://localhost:3000
-- 后台：http://localhost:3000/admin
-- MCP 端点：http://localhost:3000/mcp
+- Six kinds of knowledge block (fact, concept, code, data, opinion, experience), full-text search,
+  near-duplicate detection, source links, staleness tracking, version-pinned citations.
+- Change sets with inline review comments, rejection rounds, and an audit trail of every decision.
+- 30 MCP tools, per-agent access keys, a call log, and per-agent switches for every optional tool.
+- Three editable skills (overview, writing, inbox) served over MCP, with revision history.
 
-第一次启动后，到后台的"站点设置"里填上网站名。
+**Articles that do more than hold text**
 
-## 用 Docker 部署
+- 17 components: callouts, charts, timelines, pull quotes, stat tiles, step-by-step code, flow diagrams,
+  tabs, before/after comparisons, collapsible sections, quizzes, and more.
+- Code blocks with syntax highlighting, filenames and highlighted lines; a table of contents; footnotes;
+  image lightboxes; LaTeX via KaTeX; Mermaid diagrams validated at save time.
+- **27 built-in algorithm animations** (sorting, search, mazes, graphs, trees, dynamic programming) that
+  readers can play, step through and scrub, with switchable inputs and side-by-side races.
+- **Code-driven animations**: write JavaScript in the article, run it in a QuickJS sandbox on the server,
+  and the animation follows what the code actually did.
+- **Runnable code blocks**: readers press Run and the code executes in a sandboxed worker in their own
+  browser — no network, no DOM, with time and memory limits.
 
-服务器上需要装好 Docker。把代码拿到服务器上，在项目目录里运行：
+<p align="center">
+  <img src="docs/assets/screenshot-algorithm.jpg" width="800" alt="An algorithm animation playing inside an article">
+</p>
+
+**Presenting**
+
+- Any article turns into a full-screen slide deck: arrow keys step through code animations before turning
+  the page, with speaker notes, autoplay and adjustable speed.
+- Record it to MP4 entirely in your own browser — landscape or portrait, captions, microphone. Nothing is
+  uploaded and the server does no work.
+- Export the deck to PDF, one slide per page.
+
+<p align="center">
+  <img src="docs/assets/screenshot-present.jpg" width="800" alt="Presentation mode with the control bar">
+</p>
+
+**For readers**
+
+- Three built-in themes (Book, Plain, Engineer), each with a dark variant, switched from the admin.
+- Terms defined in the knowledge base get a hover definition the first time they appear.
+- A site-wide knowledge graph, public revision history per article, series with previous/next links,
+  share card images rendered server-side, RSS, sitemap, structured data, and full-text search.
+- Visitor stats with no cookies and no third party: the visitor mark is salted per day and cannot be
+  traced back after midnight.
+
+**Running the site**
+
+- Daily automatic backups kept on the server, plus a one-click full archive and restore.
+- Email notification when something is waiting for you (standard SMTP, no provider lock-in).
+- A guest book, an operations log you can make public, and reader analytics the agent can read to pick
+  better topics.
+
+## Quick start
+
+### With Docker
+
+You need Docker on the server. Nothing else.
 
 ```bash
 git clone https://github.com/codexiaoke/galley.git && cd galley
@@ -100,92 +126,41 @@ git clone https://github.com/codexiaoke/galley.git && cd galley
 ./deploy.sh
 ```
 
-脚本会问三个问题：对外开放的端口（默认 3000）、域名（可以不填）、后台密码（至少 8 位，可以让它自动生成），写进 `.env`，然后下载镜像、启动、等服务就绪，最后告诉你访问地址。本机防火墙（ufw、firewalld）开着时，它会问你要不要放行端口。
+The script asks for a port, an optional domain, and an admin password, writes them to `.env`, pulls the
+image, starts it and waits until it is healthy. Give it a domain and it also runs Caddy for automatic
+HTTPS. Images are built by GitHub Actions for both x86 and ARM, so the server only downloads — a 2-core
+box is plenty.
 
-镜像是 GitHub 自动构建好的：每次往 main 推送代码，GitHub 先跑检查和测试，再在原生的 x86 和 ARM 机器上构建，发布到 `ghcr.io/codexiaoke/galley`。服务器只下载、不构建，2 核 2G 的机器也很轻松。想换成别的镜像地址（比如你自己同步到国内的镜像仓库），在 `.env` 里写 `GALLEY_IMAGE=地址`。
+See [docs/deployment.md](docs/deployment.md) for offline installs, building on your own machine and
+shipping to the server, environment variables and day-to-day commands.
 
-两种对外开放的方式：
+### Locally
 
-- **直接开放端口**：不填域名。读者访问 `http://服务器地址:端口`，没有 HTTPS，适合先跑起来看看。
-- **域名加 HTTPS**：填上域名（要先解析到这台服务器）。会多起一个 Caddy 占用 80 和 443 端口，自动申请和续期证书；Galley 自己的端口只在本机能访问。部署完在后台的"站点设置"里把网站地址填成 `https://你的域名`。
-
-用云服务器（阿里云、腾讯云、AWS 等）时，还要在控制台的"安全组"里放行对应的端口（直接开放时是你填的端口，用域名时是 80 和 443），脚本改不了这个。
-
-### 服务器连不上 ghcr.io：在自己电脑上构建好再上传
-
-服务器下载 GitHub 的镜像太慢或者连不上时，可以在自己电脑上构建好镜像，传到服务器上直接运行。服务器只需要装好 Docker：
+Node.js 22 and pnpm.
 
 ```bash
-./release.sh 用户名@服务器地址
+pnpm install && cp .env.example .env.local
 ```
 
-它会：确认服务器的处理器类型（x86 还是 ARM），在本机为它构建镜像，压缩后通过 ssh 传上去，再把几个配置文件放到服务器的 `~/galley` 目录，最后在服务器上运行 `deploy.sh` 启动。第一次运行时同样会问端口、域名、后台密码。以后更新，在本机拉取最新代码后再运行一次这条命令就行，服务器上的配置和数据都不会被覆盖。
-
-不想让脚本连服务器、想自己上传的话，只打包：
+Set `GALLEY_ADMIN_PASSWORD` (8 characters or more) in `.env.local`, then:
 
 ```bash
-./release.sh --pack
+pnpm dev
 ```
 
-生成 `dist/galley-deploy.tar`（默认给 x86 服务器；ARM 服务器用 `./release.sh --pack arm64`）。把它传到服务器上，然后：
+The site is on http://localhost:3000, the admin on `/admin`, the MCP endpoint on `/mcp`. Run
+`pnpm seed:demo` if you want a few example articles to look at.
 
-```bash
-tar xf galley-deploy.tar && cd galley-deploy && ./deploy.sh
-```
+## Connect an agent
 
-- 需要本机能 `ssh 用户名@服务器地址` 登录，服务器上的用户能直接使用 docker（不行的话把它加进 docker 组：`sudo usermod -aG docker $USER`，重新登录）。
-- Mac（ARM）给 x86 服务器构建时，Docker 会模拟 x86 来构建，比构建本机的镜像慢一些。
-- 上传的镜像压缩后一百多 MB。
-
-坚持在服务器上用源代码构建的话，在 `.env` 里写 `GALLEY_BUILD=1` 再运行 `./deploy.sh`。第一次运行时它会问服务器是不是在中国大陆，选是就改用国内的镜像源下载依赖。
-
-之后的日常操作：
-
-| 命令 | 作用 |
-|---|---|
-| `./deploy.sh` | 改了 `.env`（端口、域名、密码）之后重新启动 |
-| `./deploy.sh update` | 下载最新的镜像并重新启动（用 `release.sh` 部署的服务器上，改在本机运行 `./release.sh`） |
-| `./deploy.sh status` | 运行状态和健康检查 |
-| `./deploy.sh logs` | 看日志 |
-| `./deploy.sh stop` | 停止，数据保留 |
-
-- **数据**在 `galley-data` 这个卷里（数据库和上传的图片），升级、重建都不会丢，数据库结构会在启动时自动更新。
-- **备份**在后台的"备份与导出"页：下载的压缩包里是数据库的完整快照和全部图片，换服务器时在新站点的同一个页面上传它就能原样恢复。服务器每天还会自动在数据目录的 `backups/` 里存一份，只留最近 7 份，可以在同一个页面下载或关掉。
-- **健康检查**地址是 `/healthz`，镜像里已经配好。
-- 不想用脚本的话，`docker-compose.yml` 开头的注释里写了手动部署的步骤。用自己的 Nginx 做反向代理时，要带上 `X-Forwarded-Proto` 和 `X-Forwarded-Host` 请求头。
-
-环境变量：
-
-| 变量 | 作用 |
-|---|---|
-| `GALLEY_ADMIN_PASSWORD` | 后台管理员密码，至少 8 位，不要求字母数字组合。不设置时后台不可用 |
-| `GALLEY_DATA_DIR` | 数据目录。镜像里默认是 `/data`，本地运行时默认是项目下的 `data` |
-| `GALLEY_PORT` | 用 Docker 部署时对外开放的端口，默认 3000（写在 `.env` 里，`deploy.sh` 会帮你填） |
-| `GALLEY_DOMAIN` | 用 Docker 部署时绑定的域名。填了就自动配置 HTTPS |
-| `GALLEY_IMAGE` | 用 Docker 部署时用哪个镜像，默认 `ghcr.io/codexiaoke/galley:latest`。想固定在某个版本，写成 `ghcr.io/codexiaoke/galley:sha-提交号` |
-| `PORT` | 程序在容器里监听的端口，默认 3000，一般不用改 |
-| `GALLEY_SMTP_URL` | 可选。发通知邮件用的 SMTP 地址，例如 `smtps://用户名:密码@smtp.example.com:465`。也可以不用环境变量，直接在后台"站点设置"里填；两边都有时以环境变量为准 |
-| `GALLEY_NOTIFY_TO` | 可选。收通知的邮箱。和上一项一起配置才会发邮件 |
-| `GALLEY_MAIL_FROM` | 可选。发件人，不填时用收件人 |
-| `GALLEY_SECRET_KEY` | 可选。加密保存在数据库里的 SMTP 密码用的密钥。不设置时自动在数据目录里生成 `.secret-key` 文件 |
-
-## 演示和录视频
-
-每篇文章标题旁边有一个「演示」按钮（网址是 `/posts/文章别名/present`）：文章变成全屏的幻灯片，每个二级标题一页，单独一行的 `---` 也分页，第二级标题下的 `:::notes` 是讲稿。方向键一步一步往下走：页里有代码演变、算法动画时先播它们，播完才翻页。控制条上可以开自动播放、调速度（0.75× 到 2×，翻页和页里的动画一起变快变慢）。快捷键：`A` 自动播放，`-` / `=` 调慢 / 调快，`F` 全屏，`N` 看讲稿，`Esc` 退出。
-
-录成视频：在演示的控制条上点「录制」，选横屏或竖屏、自动播放（可以选速度）还是自己翻页、要不要字幕和麦克风，然后在浏览器弹出的窗口里选「这个标签页」。只会录下幻灯片那一块，播完（或按 `Esc`）自动保存成 MP4。全程在你自己的浏览器里进行，视频不上传，服务器也不参与，所以部署在小服务器上也没关系。需要电脑上的 Chrome 或 Edge；窗口越大，录出来越清楚。
-
-存成 PDF：控制条上点「PDF」，所有页一页接一页排好后会弹出打印对话框，选「存储为 PDF」，边距选「无」、勾上「背景图形」。一页 PDF 就是一页幻灯片，适合发给别人当讲义。审阅待上线的文章时，审阅页上的「预览演示」可以先看它做成幻灯片的样子。
-
-## 接入 Agent
-
-在后台的"MCP 管理"页接入一个 Agent，页面会显示一次访问密钥和 Codex 的配置片段。也可以在命令行接入：
+Add an agent on the admin's **MCP** page and it shows an access key once, along with a ready-made config
+snippet. On the command line:
 
 ```bash
 pnpm agent:create Codex
 ```
 
-把密钥放进环境变量 `GALLEY_TOKEN`，然后在 Codex 的配置里加入：
+Put the key in `GALLEY_TOKEN` and add this to your Codex config:
 
 ```toml
 [mcp_servers.galley]
@@ -194,39 +169,52 @@ bearer_token_env_var = "GALLEY_TOKEN"
 default_tools_approval_mode = "approve"
 ```
 
-也可以用插件，省掉手动配置：在后台"MCP 管理"页下载预先填好本站地址的 Codex 插件，或者用仓库里 [integrations/codex](integrations/codex) 那份通用的（先把 `.mcp.json` 里的地址改成你的站点）。插件还带一个"记到博客素材"的技能，在任何项目里都能用。
+That last line stops Codex asking for approval on every call, which matters for unattended runs — and it
+is safe, because none of the tools can publish anything.
 
-手动配置时，最后一行让 Codex 调用本站的工具时不再逐次询问。定时自动运行时没有人能点批准，缺了这一行它什么都做不了。放行是安全的：这些工具里没有发布的能力，内容仍然要站长在后台批准才会上线。
+There is also a plugin that skips the manual setup: download one pre-filled with your site's address from
+the admin, or use the generic one in [integrations/codex](integrations/codex).
 
-Agent 连接后会收到说明，引导它先读取 `overview` 技能。
+## Documentation
 
-## 目录结构
-
-| 路径 | 内容 |
+| Document | What is in it |
 |---|---|
-| `src/core` | 核心层：数据表、正文标记、所有业务规则。不依赖 Next.js |
-| `src/mcp` | MCP 服务：每个工具都是核心层的外壳 |
-| `src/app` | 前台、后台和 MCP 端点 |
-| `src/render` | 把正文渲染成页面 |
-| `skills` | 下发给 Agent 的技能 |
-| `drizzle` | 数据库迁移 |
-| `docs` | 需求和设计文档 |
+| [docs/requirements.md](docs/requirements.md) | What the product is and every feature's current state |
+| [docs/design-knowledge-blocks.md](docs/design-knowledge-blocks.md) | Knowledge blocks, citations and change sets |
+| [docs/deployment.md](docs/deployment.md) | Deployment in depth and environment variables |
+| [AGENTS.md](AGENTS.md) | Conventions for anyone — human or agent — writing code here |
 
-权限规则只写在核心层。后台和 MCP 调用同一套函数，由传入的身份决定能做什么。
+The design documents are written in Chinese.
 
-## 常用命令
+## Project layout
 
-| 命令 | 作用 |
+| Path | What lives there |
 |---|---|
-| `pnpm dev` | 启动开发服务 |
-| `pnpm test` | 运行测试 |
-| `pnpm typecheck` | 类型检查 |
-| `pnpm lint` | 代码检查 |
-| `pnpm build` | 生产构建 |
-| `pnpm db:generate` | 修改表结构后生成迁移 |
-| `pnpm seed:demo` | 放入几篇示例文章，方便查看前台版面（只用于本地） |
-| `pnpm codex-plugin` | 重新生成仓库里的通用 Codex 插件（修改了 `src/core/plugin.ts` 之后运行） |
+| `src/core` | Data model, markup, and every business rule. No Next.js imports |
+| `src/mcp` | The MCP server; each tool is a thin shell over core |
+| `src/app` | Public site, admin, and the MCP endpoint |
+| `src/render` | Turning article markup into pages |
+| `skills` | Skills served to agents |
+| `drizzle` | Database migrations |
 
-## 协议
+Permission rules live only in `src/core`. The admin and MCP call the same functions and pass a different
+identity, so there is one place where "who may do what" is decided.
 
-MIT
+## Contributing
+
+Issues and pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Galley is a personal-scale
+project by design: there is no plugin system and no theme marketplace, and the way to make it yours is to
+fork it. The code is organised with that in mind.
+
+| Command | What it does |
+|---|---|
+| `pnpm dev` | Start the dev server |
+| `pnpm test` | Run the tests |
+| `pnpm typecheck` | Type check |
+| `pnpm lint` | Lint |
+| `pnpm build` | Production build |
+| `pnpm db:generate` | Generate a migration after changing the schema |
+
+## License
+
+[MIT](LICENSE)
