@@ -3543,6 +3543,18 @@ body {
 .galley-present[data-orientation="portrait"] .galley-slide-body {
   font-size: 34px !important;
 }
+.galley-slide[data-overflow] {
+  justify-content: flex-start;
+}
+/* 小节一页时，上面用小字标出它属于哪一部分 */
+.galley-slide-section {
+  margin-bottom: 0.5em;
+  font-family: var(--font-ui);
+  font-size: 0.62em;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+.galley-slide-body .galley-prose > h3:first-child,
 .galley-slide-body .galley-prose > h2:first-child {
   margin: 0 0 0.8em;
   font-size: 1.75em;
@@ -3885,4 +3897,42 @@ body {
 }
 .galley-present[data-recording] .galley-present-recbar {
   cursor: default;
+}
+
+/* 幻灯片里的分步讲解：不靠滚动，所有步骤排在一起，当前这步高亮 */
+.galley-slide .galley-steps {
+  gap: 1.4rem;
+}
+.galley-slide .galley-steps-code {
+  position: static;
+}
+.galley-slide .galley-steps-code .galley-code-pre {
+  max-height: none;
+}
+.galley-slide .galley-steps-list {
+  padding: 0 !important;
+}
+.galley-slide .galley-steps-list > li {
+  min-height: 0 !important;
+  padding: 0.45em 0 0.45em 2.4em !important;
+  font-size: 0.8em !important;
+}
+/* 幻灯片里的图片不能太高，居中放 */
+.galley-slide .galley-image img {
+  width: auto;
+  max-height: 560px;
+}
+.galley-slide .galley-compare-figure {
+  max-width: 560px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.galley-present[data-orientation="portrait"] .galley-slide .galley-image img {
+  max-height: 900px;
+}
+.galley-present[data-orientation="portrait"] .galley-slide .galley-compare-figure {
+  max-width: 100%;
+}
+.galley-slide .galley-steps {
+  margin-left: 0;
 }

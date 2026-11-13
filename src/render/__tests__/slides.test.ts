@@ -4,11 +4,20 @@ import { splitSlides } from "../slides";
 
 describe("演示和代码演变", () => {
   it("每个二级标题一页，--- 也分页，讲稿从页面上拿出来", () => {
-    const slides = splitSlides("开场白。\n\n## 第一页\n\n内容一\n\n:::notes\n讲稿一\n:::\n\n---\n\n分开的一页\n\n## 第三页\n\n### 小标题不分页\n\n内容三");
+    const slides = splitSlides("开场白。\n\n## 第一页\n\n内容一\n\n:::notes\n讲稿一\n:::\n\n---\n\n分开的一页\n\n## 第三页\n\n内容三");
     expect(slides.map((s) => s.title)).toEqual([undefined, "第一页", undefined, "第三页"]);
     expect(slides[1].notes).toBe("讲稿一");
     expect(slides[1].source).not.toContain("notes");
-    expect(slides[3].source).toContain("### 小标题不分页");
+  });
+
+  it("三级标题各成一页，标出所属的二级标题；二级标题下面直接是小节时不留空页", () => {
+    const slides = splitSlides("## 图表\n\n### 折线图\n\n一\n\n### 环形图\n\n二\n\n## 代码\n\n说明\n\n### 例子\n\n三");
+    expect(slides.map((s) => [s.title, s.section])).toEqual([
+      ["折线图", "图表"],
+      ["环形图", "图表"],
+      ["代码", undefined],
+      ["例子", "代码"],
+    ]);
   });
 
   it("没变的行沿用上一步的身份，改动的行算新行并标出来", () => {

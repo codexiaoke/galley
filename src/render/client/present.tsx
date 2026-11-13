@@ -20,7 +20,7 @@ import { download, prepareRecording, recordingSupport, type Recording, type Reco
  * 可以自动播放，也可以自己翻页、同时用麦克风配音。录完直接下载，不上传。
  */
 
-export type PresentSlide = { title?: string; notes: string; text: number; content: ReactNode };
+export type PresentSlide = { title?: string; section?: string; notes: string; text: number; content: ReactNode };
 export type Cover = { title: string; summary?: string; site: string; date?: string; url?: string };
 type Orientation = "landscape" | "portrait";
 
@@ -103,9 +103,12 @@ export function Presentation({
       const style = getComputedStyle(slide);
       const available = slide.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
       const natural = el.offsetHeight;
-      const f = natural > available ? Math.max(0.45, available / natural) : 1;
+      const f = natural > available ? Math.max(0.5, available / natural) : 1;
       el.style.transform = f < 1 ? `scale(${f})` : "";
       el.style.marginBottom = f < 1 ? `${-natural * (1 - f)}px` : "";
+      // 缩到最小还放不下时从顶部开始排，至少标题和开头不会被裁掉
+      if (natural * f > available + 1) slide.dataset.overflow = "true";
+      else delete slide.dataset.overflow;
     };
     fit();
     const ro = new ResizeObserver(fit);
@@ -329,7 +332,10 @@ export function Presentation({
           </section>
           {slides.map((s, i) => (
             <section key={i} ref={(el) => void (slideRefs.current[i + 1] = el)} className="galley-slide" data-current={page === i + 1 || undefined} hidden={page !== i + 1}>
-              <div className="galley-slide-body galley-prose">{s.content}</div>
+              <div className="galley-slide-body galley-prose">
+                {s.section && <p className="galley-slide-section">{s.section}</p>}
+                {s.content}
+              </div>
             </section>
           ))}
           <section ref={(el) => void (slideRefs.current[total - 1] = el)} className="galley-slide galley-slide-cover" data-current={page === total - 1 || undefined} hidden={page !== total - 1}>

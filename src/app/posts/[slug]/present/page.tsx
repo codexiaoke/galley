@@ -58,6 +58,7 @@ async function Present({ params, searchParams }: { params: Promise<{ slug: strin
         }}
         slides={slides.map((s) => ({
           title: s.title,
+          section: s.section,
           notes: s.notes,
           text: plainText(s.source).replace(/\s+/g, "").length,
           content: <Markdown body={s.source} blocks={doc.blocks} posts={doc.posts} traces={traces} />,
