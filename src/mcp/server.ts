@@ -56,7 +56,7 @@ export const registeredTools = (server: McpServer): string[] => REGISTERED.get(s
 const INSTRUCTIONS = [
   "这是 Galley 博客的运营接口。你负责准备内容，站长负责审阅和批准。能不能直接上线由站长决定：工具列表里有 publish_change_set 才可以，没有就用 submit_change_set 提交等审阅。",
   "开始工作前，先调用 get_skill 读取 overview 技能，再调用 get_next_tasks 查看待办。",
-  "写文章或整理知识块之前，先读取 writing 技能。",
+  "技能按任务分开：写文章读 writing，动正文读 markup，建或改知识块读 knowledge，处理素材读 materials。用到哪个读哪个。",
 ].join("\n");
 
 const sourceShape = z.object({
@@ -298,7 +298,7 @@ export function createMcpServer(
       type: z.enum(BLOCK_TYPES),
       title: z.string().describe("一句话标签"),
       body: z.string().describe("知识块正文，简短、独立可读"),
-      data: z.record(z.string(), z.unknown()).optional().describe("类型专有字段，见 writing 技能"),
+      data: z.record(z.string(), z.unknown()).optional().describe("类型专有字段，见 knowledge 技能"),
       sources: z.array(sourceShape).optional().describe("来源。fact 和 data 类型至少需要一个"),
       visibility: z.enum(VISIBILITIES).optional().describe("默认 public。private 的知识块不能被公开内容引用"),
       materialId: z.string().optional().describe("这个知识块是从哪条素材整理出来的。来自私密素材的知识块会自动设为私密"),
@@ -461,7 +461,7 @@ export function createMcpServer(
         .string()
         .optional()
         .describe("系列名。几篇文章连着讲一件事时用同一个系列名，页面上会按发布时间排成第 1、2、3 篇，并显示上下篇。已有的系列见 list_documents。修改文章时省略表示不变，传空字符串表示移出系列"),
-      body: z.string().describe("正文，Markdown 加引用标记，语法见 writing 技能"),
+      body: z.string().describe("正文，Markdown 加引用标记，语法见 markup 技能"),
     },
     async (args) => {
       // 正文里的演示代码先在沙箱里跑一遍、Mermaid 图先检查一遍，有错时保存会报出来

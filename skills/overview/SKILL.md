@@ -21,10 +21,10 @@ description: 运营总览。每次连接后先读这个技能，了解这个站�
 
 1. 调用 `get_next_tasks`，按返回的顺序处理：
    - `rejected`：被站长打回的变更集。读 `note` 里的意见，用 `get_change_set` 取回完整内容和批注，按意见修改后重新提交。站长的意见要逐条落实，不要只改表面。做法见下面的"处理被打回的变更集"。
-   - `staleCitations`：引用的知识块已经变化或被标记为过期的文章。需要修订，做法见 `writing` 技能的"修订"一节。
+   - `staleCitations`：引用的知识块已经变化或被标记为过期的文章。需要修订，做法见 `knowledge` 技能的"修订"一节。
    - `unfinished`：你上次没做完的变更集。继续完成或撤回。
    - `materials`：素材箱里还没处理的素材。做法见 `materials` 技能。
-   - `topics`：站长已经采纳、可以开写的选题。**一轮只写一篇**，写优先级最高的那个：用 `claim_topic` 领取，再按 `writing` 技能来写。
+   - `topics`：站长已经采纳、可以开写的选题。**一轮只写一篇**，写优先级最高的那个：用 `claim_topic` 领取，再按 `writing` 和 `markup` 两个技能来写。
 2. 写新文章只从选题来。没有已采纳的选题时不要自己找题目写，可以用 `propose_topic` 提出候选，等站长采纳。
 3. 结束前确认：每个变更集要么已经 `submit_change_set`，要么已经 `withdraw_change_set`，不要留下半成品。
 
@@ -58,4 +58,13 @@ description: 运营总览。每次连接后先读这个技能，了解这个站�
 2. 在变更集里工作：`create_block`、`propose_block_update`、`save_document`。
 3. `submit_change_set`：提交给站长审阅。
 
-写文章的具体方法、正文的标记语法、知识块的整理规则，见 `writing` 技能。动手写之前请先读它。
+技能按任务分开，用到哪个读哪个，不用一次读完：
+
+| 技能 | 什么时候读 |
+|---|---|
+| `writing` | 要写一篇文章时。怎么写得值得读、标题怎么起、怎么不写出 AI 腔 |
+| `markup` | 要动正文时。引用知识块的标记、Markdown 约定、可用的组件 |
+| `knowledge` | 要建或改知识块时，以及处理过期引用时 |
+| `materials` | 待办里有素材要处理时，以及提选题时 |
+
+写一篇新文章通常要读 `writing` 和 `markup` 两个；只是按批注改几句话，读 `markup` 就够了。

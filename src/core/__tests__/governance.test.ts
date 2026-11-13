@@ -43,7 +43,7 @@ beforeEach(() => {
 describe("技能", () => {
   it("没改过时用程序自带的默认技能", () => {
     const names = listSkills(db).map((s) => s.name);
-    expect(names).toEqual(expect.arrayContaining(["overview", "writing", "materials"]));
+    expect(names).toEqual(expect.arrayContaining(["overview", "writing", "markup", "knowledge", "materials"]));
     expect(listSkills(db).every((s) => s.source === "default")).toBe(true);
     expect(getSkill(db, "overview")!.content).toContain("get_next_tasks");
     expect(getSkill(db, "../../etc/passwd")).toBeUndefined();
@@ -84,8 +84,8 @@ describe("技能", () => {
   });
 
   it("技能里由程序生成的部分，站长改过之后仍然会填上", () => {
-    saveSkill(db, OWNER, { name: "writing", description: "写作要求", body: "可用的组件：\n\n{{components}}" });
-    const skill = getSkill(db, "writing")!;
+    saveSkill(db, OWNER, { name: "markup", description: "正文写法", body: "可用的组件：\n\n{{components}}" });
+    const skill = getSkill(db, "markup")!;
     expect(skill.body).toContain("{{components}}");
     expect(skill.content).toContain("callout");
     expect(skill.content).not.toContain("{{components}}");

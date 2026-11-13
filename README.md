@@ -84,7 +84,8 @@ part is optional; day to day, talking to your agent is the whole workflow.
 - 31 MCP tools, per-agent access keys, a call log, and per-agent switches for every optional tool.
 - Agents can upload their own images, within limits: bytes only (never a URL to fetch), format checked by
   content, and a cap on how many unused images one agent may leave behind.
-- Three editable skills (overview, writing, inbox) served over MCP, with revision history.
+- Five editable skills served over MCP — overview, writing, markup, knowledge blocks, inbox — each
+  read only when the task calls for it, with revision history on every edit.
 
 **Articles that do more than hold text**
 
