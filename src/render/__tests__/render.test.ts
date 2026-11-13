@@ -76,3 +76,23 @@ describe("正文渲染", () => {
   });
 });
 
+
+describe("术语", () => {
+  const terms = [{ id: "t1", term: "本体（Ontology）", aliases: [], definition: "对一个领域的明确描述。" }];
+  const withTerms = (body: string) => renderToStaticMarkup(createElement(Markdown, { body, blocks: {}, terms }));
+
+  it("正文里第一次出现时标出，后面不再标", () => {
+    const html = withTerms("先说本体。再说一次本体。");
+    expect(html.match(/galley-term"/g) ?? []).toHaveLength(1);
+    expect(html).toContain(">本体</span>");
+  });
+
+  it("标题、链接、代码里不标", () => {
+    const html = withTerms("## 本体\n\n[本体](https://example.com) 和 `本体`");
+    expect(html).not.toContain("galley-term");
+  });
+
+  it("没有给术语时原样输出", () => {
+    expect(render("本体")).not.toContain("galley-term");
+  });
+});

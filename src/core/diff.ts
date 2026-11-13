@@ -136,3 +136,40 @@ export function diffText(before: string, after: string): TextDiff {
   }
   return { lines, added, removed, changed: lines.some((line) => line.kind !== "same") };
 }
+
+/** 收起之后的对比：改动附近的段落，以及中间"这里有几段没有变化"的空档。 */
+export type FoldedLine = { kind: "line"; line: DiffLine; index: number } | { kind: "gap"; count: number; index: number };
+
+/**
+ * 把离改动远的、没变的段落收起来，只留改动前后各 context 行。
+ * 段落之间隔着空行，两行大致是一段。空行本身不计入收起的段数。
+ */
+export function foldDiff(lines: DiffLine[], context = 2): FoldedLine[] {
+  const near = lines.map(() => false);
+  lines.forEach((line, i) => {
+    if (line.kind === "same") return;
+    for (let k = Math.max(0, i - context); k <= Math.min(lines.length - 1, i + context); k++) near[k] = true;
+  });
+  const out: FoldedLine[] = [];
+  let hidden = 0;
+  const flush = (index: number) => {
+    if (hidden > 0) out.push({ kind: "gap", count: hidden, index });
+    hidden = 0;
+  };
+  lines.forEach((line, i) => {
+    if (near[i]) {
+      flush(i);
+      out.push({ kind: "line", line, index: i });
+    } else if (line.kind === "same" && line.text.trim()) {
+      hidden++;
+    }
+  });
+  flush(lines.length);
+  return out;
+}
+
+/** 一句话概括改动的规模，例如"增加 120 字，删去 30 字"。没有改动时返回 undefined。 */
+export function describeDiff({ added, removed, changed }: Pick<TextDiff, "added" | "removed" | "changed">): string | undefined {
+  if (!changed) return undefined;
+  return [added > 0 && `增加 ${added} 字`, removed > 0 && `删去 ${removed} 字`].filter(Boolean).join("，") || "只调整了空行";
+}

@@ -5,7 +5,7 @@ import { Markdown } from "@/render/Markdown";
 import { Toc } from "@/render/client/toc";
 import { extractToc } from "@/render/toc";
 import { runTraces } from "@/core/algo/trace";
-import { loadPublishedDocument } from "../../data";
+import { loadPublishedDocument, loadTerms } from "../../data";
 import { tagPath } from "@/core/tags";
 import { ReaderSettings } from "../../reader-settings";
 import { loadSite } from "../../site";
@@ -34,7 +34,7 @@ export default function PostPage({ params }: PageProps<"/posts/[slug]">) {
 
 async function Post({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const [doc, site] = await Promise.all([loadPublishedDocument(slug), loadSite()]);
+  const [doc, site, terms] = await Promise.all([loadPublishedDocument(slug), loadSite(), loadTerms()]);
   // 页面（比如"关于"）有自己的网址，不在文章的网址下显示。
   if (!doc || doc.kind !== "article") notFound();
 
@@ -59,7 +59,15 @@ async function Post({ params }: { params: Promise<{ slug: string }> }) {
           </ViewTransition>
           <p className="galley-meta galley-rise" style={{ "--i": 1 } as CSSProperties}>
             <time>{published}</time>
-            {doc.revNo > 1 && revised !== published && <span>　更新于 {revised}</span>}
+            {/* 改过的文章可以看每一次改了什么（见 history/page.tsx） */}
+            {doc.revNo > 1 && (
+              <>
+                <span aria-hidden="true">　</span>
+                <Link href={`/posts/${doc.slug}/history`} className="galley-meta-history" prefetch={false}>
+                  {revised !== published ? `更新于 ${revised}` : "修改记录"}
+                </Link>
+              </>
+            )}
             {doc.category && (
               <>
                 <span aria-hidden="true">　·　</span>
@@ -72,7 +80,7 @@ async function Post({ params }: { params: Promise<{ slug: string }> }) {
         </header>
         {toc.length >= 3 && <Toc items={toc} />}
         <div className="galley-rise" style={{ "--i": 2 } as CSSProperties}>
-          <Markdown body={doc.body} blocks={doc.blocks} posts={doc.posts} traces={traces} />
+          <Markdown body={doc.body} blocks={doc.blocks} posts={doc.posts} traces={traces} terms={terms} />
         </div>
         {doc.tags.length > 0 && (
           <p className="galley-tags">

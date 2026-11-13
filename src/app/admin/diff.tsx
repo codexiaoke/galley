@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { diffText, type DiffLine } from "@/core/diff";
+import { describeDiff, diffText, foldDiff, type DiffLine } from "@/core/diff";
 
 /**
  * 两版正文的对比。删掉的文字是红底加删除线，新增的是绿底；
@@ -38,42 +38,20 @@ function Line({ line }: { line: DiffLine }) {
 export function DiffView({ before, after }: { before: string; after: string }) {
   const { lines, changed } = diffText(before, after);
   if (!changed) return <p className="text-a-muted">内容没有变化。</p>;
-
-  // 每一行离最近的改动有多远，决定它显示还是收起。
-  const near = lines.map(() => false);
-  lines.forEach((line, i) => {
-    if (line.kind === "same") return;
-    for (let k = Math.max(0, i - CONTEXT); k <= Math.min(lines.length - 1, i + CONTEXT); k++) near[k] = true;
-  });
-
-  const out: React.ReactNode[] = [];
-  let hidden = 0;
-  const flush = (key: number) => {
-    if (hidden > 0) {
-      out.push(
-        <p key={`gap-${key}`} className="my-1 select-none text-xs text-a-muted/70">
-          ⋯ 这里有 {hidden} 段没有变化
-        </p>,
-      );
-    }
-    hidden = 0;
-  };
-  lines.forEach((line, i) => {
-    if (near[i]) {
-      flush(i);
-      out.push(<Line key={i} line={line} />);
-    } else if (line.kind === "same" && line.text.trim()) {
-      hidden++;
-    }
-  });
-  flush(lines.length);
-
-  return <div className="space-y-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed">{out}</div>;
+  return (
+    <div className="space-y-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed">
+      {foldDiff(lines, CONTEXT).map((item) =>
+        item.kind === "gap" ? (
+          <p key={`gap-${item.index}`} className="my-1 select-none text-xs text-a-muted/70">
+            ⋯ 这里有 {item.count} 段没有变化
+          </p>
+        ) : (
+          <Line key={item.index} line={item.line} />
+        ),
+      )}
+    </div>
+  );
 }
 
 /** 一句话概括改动的规模，例如"增加 120 字，删去 30 字"。 */
-export function diffSummary(before: string, after: string): string | undefined {
-  const { added, removed, changed } = diffText(before, after);
-  if (!changed) return undefined;
-  return [added > 0 && `增加 ${added} 字`, removed > 0 && `删去 ${removed} 字`].filter(Boolean).join("，") || "只调整了空行";
-}
+export const diffSummary = (before: string, after: string) => describeDiff(diffText(before, after));
