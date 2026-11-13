@@ -41,4 +41,19 @@ describe("正文渲染", () => {
   it("注释用中文标题", () => {
     expect(render("正文[^1]\n\n[^1]: 注释内容")).toContain("注释");
   });
+
+  it("公式在服务端排好版；标题里有公式时目录的链接也对得上", () => {
+    const html = render("复杂度是 $O(n \\log n)$。\n\n$$\n\\sum_{i=1}^n i = \\frac{n(n+1)}{2}\n$$\n\n## 为什么是 $n^2$\n");
+    expect(html).toContain('class="katex"');
+    expect(html).toContain("katex-display");
+    const toc = extractToc("## 为什么是 $n^2$\n");
+    expect(html).toContain(`id="${toc[0].id}"`);
+  });
+
+  it("mermaid 代码块交给图表组件，不当成普通代码显示", () => {
+    const html = render("```mermaid\nflowchart LR\n  A --> B\n```");
+    expect(html).toContain("galley-mermaid");
+    expect(html).not.toContain("galley-code-bar");
+  });
 });
+

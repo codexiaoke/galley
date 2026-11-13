@@ -3271,3 +3271,41 @@ body {
   font-variant-numeric: tabular-nums;
   color: var(--ink);
 }
+
+/* ---- 公式和 Mermaid 图 ---------------------------------------------------- */
+
+.galley-prose .katex {
+  font-size: 1.05em;
+}
+.galley-prose .katex-display {
+  margin: 1.6em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.2em 0;
+}
+.galley-mermaid {
+  margin: 2em 0;
+  text-align: center;
+}
+.galley-mermaid-svg svg {
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+.galley-mermaid[data-ready] .galley-mermaid-svg {
+  animation: galley-tab-in 0.5s var(--ease-out);
+}
+.galley-mermaid-placeholder {
+  height: 12rem;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--paper-sunken) 50%, transparent);
+}
+.galley-mermaid-source {
+  overflow-x: auto;
+  border-radius: 8px;
+  background: var(--code-bg);
+  padding: 1em 1.2em;
+  font-family: var(--font-geist-mono), "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.8em;
+  text-align: left;
+}

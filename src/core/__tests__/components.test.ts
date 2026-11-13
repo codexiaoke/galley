@@ -113,5 +113,17 @@ describe("组件", () => {
     expect(parseMarkup(':::fold{title="完整配置"}\n内容\n:::').issues).toEqual([]);
     expect(parseMarkup(":::fold\n内容\n:::").issues[0].message).toMatch(/fold 的参数不合法/);
   });
+
+  it("公式写错时保存就报错，并说明怎么写美元符号", () => {
+    expect(parseMarkup("复杂度 $O(n^2)$，还有 $$\\frac{1}{2}$$").issues).toEqual([]);
+    const issue = parseMarkup("写错了 $\\frac{1}{2$ 这里").issues[0];
+    expect(issue.message).toMatch(/公式写错了/);
+    expect(issue.message).toMatch(/美元符号/);
+  });
+
+  it("Mermaid 图第一行要是图表类型", () => {
+    expect(parseMarkup("```mermaid\nsequenceDiagram\n  A->>B: 你好\n```").issues).toEqual([]);
+    expect(parseMarkup("```mermaid\nA --> B\n```").issues[0].message).toMatch(/第一行要写图表类型/);
+  });
 });
 

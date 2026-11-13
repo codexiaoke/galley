@@ -6,6 +6,8 @@ import { Fragment, jsx, jsxs } from "react/jsx-runtime";
 import Link from "next/link";
 import remarkDirective from "remark-directive";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
 import { unified } from "unified";
@@ -26,6 +28,7 @@ import { CopyButton } from "./client/copy";
 import { Compare } from "./client/compare";
 import { FlowView } from "./client/flow";
 import { ZoomImage } from "./client/image";
+import { MermaidDiagram } from "./client/mermaid";
 import { CountUp } from "./client/stat";
 import { StepsController } from "./client/steps";
 import { Tabs } from "./client/tabs";
@@ -133,6 +136,10 @@ function remarkGalley(options: { source: string }) {
         return;
       }
 
+      if (node.type === "code" && node.lang === "mermaid") {
+        replace(element("galley-mermaid", { code: node.value ?? "" }));
+        return;
+      }
       if (node.type === "code") {
         replace(element("galley-code", { code: node.value ?? "", lang: node.lang ?? "", meta: node.meta ?? "" }));
         return;
@@ -537,6 +544,7 @@ export function Markdown({
   const processor = unified()
     .use(remarkParse)
     .use(remarkGfm)
+    .use(remarkMath)
     .use(remarkDirective)
     .use(remarkGalley, { source: body })
     .use(remarkRehype, {
@@ -544,7 +552,9 @@ export function Markdown({
       footnoteLabelProperties: { className: ["galley-footnotes-label"] },
       footnoteBackLabel: "回到正文",
       footnoteBackContent: "↩",
-    });
+    })
+    // 公式在这里就排好版（服务端渲染，读者的浏览器不用再算），写错的公式保存时已经挡住了
+    .use(rehypeKatex, { strict: "ignore", output: "htmlAndMathml" });
   const tree = processor.runSync(processor.parse(body));
   const components = {
     "galley-cite": (props: ElementProps) => <Cite ctx={ctx} props={props} />,
@@ -561,6 +571,7 @@ export function Markdown({
     "galley-algo": (props: ElementProps) => <Algo ctx={ctx} props={props} />,
     "galley-trace": (props: ElementProps) => <Trace ctx={ctx} props={props} />,
     "galley-race": (props: ElementProps) => <Race ctx={ctx} props={props} />,
+    "galley-mermaid": (props: ElementProps) => <MermaidDiagram code={attrsOf(props).code} review={ctx.review} />,
     "galley-code": (props: ElementProps) => {
       const { code, lang, meta } = attrsOf(props);
       return <CodeBlock code={code} lang={lang} meta={meta} />;

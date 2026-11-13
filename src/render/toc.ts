@@ -1,6 +1,7 @@
 import { toString } from "mdast-util-to-string";
 import remarkDirective from "remark-directive";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 import { visit } from "unist-util-visit";
@@ -30,7 +31,7 @@ export type TocItem = { id: string; text: string; depth: 2 | 3 };
 
 /** 文章目录：二级和三级标题。 */
 export function extractToc(body: string): TocItem[] {
-  const tree = unified().use(remarkParse).use(remarkGfm).use(remarkDirective).parse(body);
+  const tree = unified().use(remarkParse).use(remarkGfm).use(remarkMath).use(remarkDirective).parse(body);
   const slug = headingSlugger();
   const items: TocItem[] = [];
   visit(tree, "heading", (node) => {

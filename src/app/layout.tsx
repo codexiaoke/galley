@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist_Mono } from "next/font/google";
 import { connection } from "next/server";
 import { Suspense } from "react";
+import "katex/dist/katex.min.css";
 import "./globals.css";
 import { loadSite } from "./site";
 

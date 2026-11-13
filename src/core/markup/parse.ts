@@ -1,6 +1,8 @@
 import type { Root } from "mdast";
 import remarkDirective from "remark-directive";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import katex from "katex";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 import { visit } from "unist-util-visit";
@@ -57,8 +59,14 @@ export function isBareText(d: { type: string; attributes?: object | null; childr
   return d.type === "textDirective" && Object.keys(d.attributes ?? {}).length === 0 && d.children.length === 0;
 }
 
-/** 表格、删除线这些 GitHub 风格的写法也支持，和页面上渲染时用的是同一套。 */
-export const markdownProcessor = () => unified().use(remarkParse).use(remarkGfm).use(remarkDirective);
+/** 表格、删除线这些 GitHub 风格的写法，以及 $公式$，都支持，和页面上渲染时用的是同一套。 */
+export const markdownProcessor = () => unified().use(remarkParse).use(remarkGfm).use(remarkMath).use(remarkDirective);
+
+/** Mermaid 图第一行的图表类型。保存时只检查这一点：完整的语法要在浏览器里画的时候才知道。 */
+export const MERMAID_TYPES = [
+  "graph", "flowchart", "sequenceDiagram", "classDiagram", "stateDiagram", "stateDiagram-v2", "erDiagram", "gantt", "pie",
+  "journey", "gitGraph", "mindmap", "timeline", "quadrantChart", "xychart-beta", "block-beta", "sankey-beta", "requirementDiagram", "C4Context",
+];
 
 export function parseToTree(body: string): Root {
   return markdownProcessor().parse(body) as Root;
@@ -163,6 +171,21 @@ export function parseMarkup(body: string): ParsedMarkup {
   // 注意：访问函数不能有返回值，unist-util-visit 会把返回的数字当作"跳到第几个子节点"。
   visit(parseToTree(body), (node, _index, parent) => {
     if (isDirective(node)) handle(node as unknown as DirectiveNode, parent as unknown as DirectiveNode | undefined);
+    if (node.type === "math" || node.type === "inlineMath") {
+      // 公式在保存时就渲染一遍，写错的地方直接告诉作者，不要等到页面上显示成红字。
+      try {
+        katex.renderToString(node.value, { displayMode: node.type === "math", throwOnError: true, strict: "ignore" });
+      } catch (e) {
+        const reason = e instanceof Error ? e.message.replace(/^KaTeX parse error:\s*/, "") : String(e);
+        error(`公式写错了：${reason}。公式是「${node.value}」。正文里要写美元符号本身时，写成反斜杠加美元符号。`, node.position?.start.line);
+      }
+    }
+    if (node.type === "code" && node.lang === "mermaid") {
+      const first = node.value.trim().split(/\s+/)[0] ?? "";
+      if (!MERMAID_TYPES.includes(first)) {
+        error(`Mermaid 图的第一行要写图表类型，比如 flowchart LR、sequenceDiagram、classDiagram。现在是「${first}」。`, node.position?.start.line);
+      }
+    }
     if (node.type === "image") {
       // 图片只能用媒体库里的：外部图片会失效，也会让读者的浏览器去访问别的网站。
       const line = node.position?.start.line;
