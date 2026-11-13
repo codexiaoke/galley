@@ -191,6 +191,12 @@ up() {
   # 用域名时，Galley 的端口只让本机（也就是 Caddy）访问，读者统一从 80/443 进来。
   if [ -n "$domain" ]; then env_set GALLEY_BIND 127.0.0.1; else env_set GALLEY_BIND 0.0.0.0; fi
 
+  # 部署包里带着镜像文件：先导入，导入完改个名，下次运行不再重复导入。
+  if [ -f galley-image.tar.gz ]; then
+    say "导入镜像（一两分钟）"
+    docker load -i galley-image.tar.gz
+    mv -f galley-image.tar.gz galley-image.loaded.tar.gz
+  fi
   if prebuilt; then
     env_set GALLEY_PREBUILT 1
     docker image inspect galley:latest >/dev/null 2>&1 || fail "服务器上还没有 galley 镜像。请在自己电脑上运行 ./release.sh 用户名@服务器地址，它会构建好镜像传上来。"
@@ -238,7 +244,7 @@ case "${1:-up}" in
   up) up ;;
   update)
     if prebuilt; then
-      fail "这台服务器用的是本地构建好传上来的镜像。要更新，请在自己电脑上拉取最新代码，再运行 ./release.sh 用户名@服务器地址。"
+      fail "这台服务器用的是本地构建好传上来的镜像。要更新，请在自己电脑上拉取最新代码，重新运行 ./release.sh（直接上传或者 --pack 打包）。"
     fi
     if [ -d .git ]; then
       say "拉取最新代码"

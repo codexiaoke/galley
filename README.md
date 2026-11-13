@@ -109,6 +109,18 @@ git clone https://github.com/codexiaoke/galley.git && cd galley
 
 它会：确认服务器的处理器类型（x86 还是 ARM），在本机为它构建镜像，压缩后通过 ssh 传上去，再把几个配置文件放到服务器的 `~/galley` 目录，最后在服务器上运行 `deploy.sh` 启动。第一次运行时同样会问端口、域名、后台密码。以后更新，在本机拉取最新代码后再运行一次这条命令就行，服务器上的配置和数据都不会被覆盖。
 
+不想让脚本连服务器、想自己上传的话，只打包：
+
+```bash
+./release.sh --pack
+```
+
+生成 `dist/galley-deploy.tar`（默认给 x86 服务器；ARM 服务器用 `./release.sh --pack arm64`）。把它传到服务器上，然后：
+
+```bash
+tar xf galley-deploy.tar && cd galley-deploy && ./deploy.sh
+```
+
 - 需要本机能 `ssh 用户名@服务器地址` 登录，服务器上的用户能直接使用 docker（不行的话把它加进 docker 组：`sudo usermod -aG docker $USER`，重新登录）。
 - Mac（ARM）给 x86 服务器构建时，Docker 会模拟 x86 来构建，比构建本机的镜像慢一些。
 - 上传的镜像压缩后一百多 MB。

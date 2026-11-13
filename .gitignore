@@ -46,3 +46,6 @@ next-env.d.ts
 
 # 本机的开发工具配置
 /.claude/
+
+# release.sh --pack 打出的部署包
+/dist
