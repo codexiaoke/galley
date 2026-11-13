@@ -3517,6 +3517,7 @@ body {
 .galley-slide {
   position: absolute;
   inset: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -3532,15 +3533,15 @@ body {
     transform: translateY(14px);
   }
 }
+/* 内容放不下时，整页内容（文字、播放器、按钮）一起等比缩小，见 present.tsx */
 .galley-slide-body {
-  --fit: 1;
-  max-height: 100%;
-  overflow: hidden;
-  font-size: calc(30px * var(--fit)) !important;
+  flex: 0 0 auto;
+  font-size: 30px !important;
   line-height: 1.75;
+  transform-origin: top center;
 }
 .galley-present[data-orientation="portrait"] .galley-slide-body {
-  font-size: calc(34px * var(--fit)) !important;
+  font-size: 34px !important;
 }
 .galley-slide-body .galley-prose > h2:first-child {
   margin: 0 0 0.8em;

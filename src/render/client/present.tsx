@@ -91,13 +91,26 @@ export function Presentation({
     return () => window.removeEventListener("resize", fit);
   }, [size.w, size.h, recording_]);
 
-  // 内容放不下时整页缩小
+  // 内容放不下时整页缩小：文字、播放器、按钮一起等比缩小（只缩字的话播放器还是会超出去）。
+  // 用 transform 缩放不影响元素自己的高度，所以可以一直拿它和可用的高度比；
+  // 再用负的下边距把缩小后多出来的空白收回去，页面里的垂直居中才是对的。
+  // 内容的高度会变（比如 Mermaid 图加载完、动画换了一页），所以一直盯着它重新算。
   useLayoutEffect(() => {
-    const el = slideRefs.current[page]?.querySelector<HTMLElement>(".galley-slide-body");
-    if (!el) return;
-    el.style.setProperty("--fit", "1");
-    const ratio = el.clientHeight / el.scrollHeight;
-    if (ratio < 1) el.style.setProperty("--fit", String(Math.max(0.55, ratio * 0.98)));
+    const slide = slideRefs.current[page];
+    const el = slide?.querySelector<HTMLElement>(".galley-slide-body");
+    if (!slide || !el) return;
+    const fit = () => {
+      const style = getComputedStyle(slide);
+      const available = slide.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+      const natural = el.offsetHeight;
+      const f = natural > available ? Math.max(0.45, available / natural) : 1;
+      el.style.transform = f < 1 ? `scale(${f})` : "";
+      el.style.marginBottom = f < 1 ? `${-natural * (1 - f)}px` : "";
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, [page, run, orientation]);
 
   /** 让当前页里的动画走一步；返回它接没接，以及建议等多久再走下一步 */
