@@ -4,6 +4,7 @@ import { GRID } from "./grid";
 import { SEARCH } from "./search";
 import { SORTING } from "./sorting";
 import { TREE } from "./tree";
+import { parsePresets, variantsOf } from "./presets";
 import { MAX_FRAMES, type AlgoDef, type AlgoInput, type Frame } from "./types";
 
 export type { AlgoDef, AlgoInput, Frame } from "./types";
@@ -45,4 +46,36 @@ export function describeAlgorithms() {
     input: a.inputHelp,
     example: `::algo{type=${a.name} input="${a.example.input}"${a.example.target ? ` target=${a.example.target}` : ""}${a.example.start ? ` start=${a.example.start}` : ""}}`,
   }));
+}
+
+export type AlgoParams = { input?: string; presets?: string; target?: string; start?: string };
+
+/**
+ * 检查一个或几个算法在每组输入下能不能运行（algo 组件和 race 组件共用）。
+ * 有 presets 时检查每一组，错误信息里带上是哪一组。
+ */
+export function checkAlgorithmParams(names: string[], p: AlgoParams): string[] {
+  const { errors } = parsePresets(p.presets);
+  if (errors.length) return errors;
+  if (!p.presets && !p.input) return ["需要 input（或者用 presets 给几组输入让读者切换）。"];
+  const out: string[] = [];
+  for (const v of variantsOf(p.input, p.presets)) {
+    for (const name of names) {
+      for (const e of checkAlgorithm(name, { input: v.input, target: p.target, start: p.start })) out.push(v.name ? `「${v.name}」这组输入：${e}` : e);
+    }
+  }
+  return out;
+}
+
+/** 每组输入各生成一份动画。 */
+export function runAlgorithmVariants(name: string, p: AlgoParams): { def?: AlgoDef; variants: { name: string; frames: Frame[] }[]; error?: string } {
+  const variants: { name: string; frames: Frame[] }[] = [];
+  let def: AlgoDef | undefined;
+  for (const v of variantsOf(p.input, p.presets)) {
+    const run = runAlgorithm(name, { input: v.input, target: p.target, start: p.start });
+    def = run.def;
+    if ("error" in run) return { def, variants, error: v.name ? `「${v.name}」：${run.error}` : run.error };
+    variants.push({ name: v.name, frames: run.frames });
+  }
+  return { def, variants };
 }

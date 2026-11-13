@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ALGORITHMS, checkAlgorithm, describeAlgorithms, runAlgorithm } from "../algo";
+import { ALGORITHMS, checkAlgorithm, describeAlgorithms, runAlgorithm, runAlgorithmVariants } from "../algo";
 import type { ArrayView, Frame } from "../algo/types";
 import { parseMarkup } from "../markup/parse";
 
@@ -63,4 +63,24 @@ describe("算法动画", () => {
   it("给 Agent 的清单里每个例子都能直接用", () => {
     for (const a of describeAlgorithms()) expect(parseMarkup(a.example).issues).toEqual([]);
   });
+
+  it("presets：几组输入，每组都检查；写错格式时说清楚", () => {
+    expect(parseMarkup('::algo{type=quick-sort presets="随机=5,2,9,1|已经有序=1,2,5,9"}').issues).toEqual([]);
+    expect(parseMarkup('::algo{type=quick-sort presets="随机=5,2,9,1|坏的=1,x"}').issues[0].message).toMatch(/「坏的」这组输入/);
+    expect(parseMarkup('::algo{type=quick-sort presets="只有一组=5,2,9"}').issues[0].message).toMatch(/至少要有两组/);
+    expect(parseMarkup('::algo{type=quick-sort presets="随机5,2,9|有序=1,2"}').issues[0].message).toMatch(/名字=输入/);
+    expect(parseMarkup("::algo{type=quick-sort}").issues[0].message).toMatch(/需要 input/);
+    const run = runAlgorithmVariants("bubble-sort", { presets: "乱序=3,1,2|有序=1,2,3" });
+    expect(run.variants.map((v) => v.name)).toEqual(["乱序", "有序"]);
+    // 已经有序时冒泡第一轮就结束，帧数少得多
+    expect(run.variants[1].frames.length).toBeLessThan(run.variants[0].frames.length);
+  });
+
+  it("race：两到三个同一类的算法，用同一组输入", () => {
+    expect(parseMarkup('::race{types="bubble-sort,quick-sort" input="5,2,9,1,7"}').issues).toEqual([]);
+    expect(parseMarkup('::race{types="bubble-sort" input="5,2,9"}').issues[0].message).toMatch(/两到三个/);
+    expect(parseMarkup('::race{types="bubble-sort,nope" input="5,2,9"}').issues[0].message).toMatch(/没有这些算法：nope/);
+    expect(parseMarkup('::race{types="bubble-sort,binary-search" input="1,2,3" target=2}').issues[0].message).toMatch(/同一类/);
+  });
 });
+

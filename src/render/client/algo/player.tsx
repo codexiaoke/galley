@@ -22,15 +22,18 @@ export function AlgoPlayer({
   title,
   code,
   legend,
-  frames,
+  variants,
 }: {
   label: string;
   title?: string;
   /** 代码，一行一项；可以是高亮过的内容 */
   code: ReactNode[];
   legend: { tone: Tone; label: string }[];
-  frames: Frame[];
+  /** 一组或几组输入各自的动画；几组时读者可以切换 */
+  variants: { name: string; frames: Frame[] }[];
 }) {
+  const [variant, setVariant] = useState(0);
+  const frames = variants[Math.min(variant, variants.length - 1)].frames;
   const ref = useRef<HTMLElement>(null);
   const inView = useInView(ref, { threshold: 0.45 });
   const visible = useVisible(ref);
@@ -103,10 +106,33 @@ export function AlgoPlayer({
       <header className="galley-algo-head">
         <span className="galley-algo-label">{label}</span>
         {title && <span className="galley-algo-title">{title}</span>}
+        {variants.length > 1 && (
+          <span className="galley-algo-presets" role="group" aria-label="换一组输入">
+            {variants.map((v, i) => (
+              <button
+                key={v.name}
+                type="button"
+                aria-pressed={i === variant}
+                onClick={() => {
+                  setVariant(i);
+                  setIndex(0);
+                  setPlaying(!prefersReducedMotion());
+                }}
+              >
+                {v.name}
+              </button>
+            ))}
+          </span>
+        )}
       </header>
 
       <div className="galley-algo-stage">
         <AlgoView view={frame.view} />
+        {frame.extra?.map((view, i) => (
+          <div key={i} className="galley-algo-extra">
+            <AlgoView view={view} />
+          </div>
+        ))}
       </div>
 
       <p className="galley-algo-note" aria-live="polite">

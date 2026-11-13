@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import type { ArrayView, GraphView, GridView, ListView, TableView, TreeView, View } from "@/core/algo/types";
+import type { ArrayView, GraphView, GridView, HeapView, ListView, TableView, TreeView, View } from "@/core/algo/types";
 
 /**
  * 算法动画的各种画面。每个画面只根据当前这一帧画出来；元素带着不变的 key，
@@ -23,7 +23,54 @@ export function AlgoView({ view }: { view: View }) {
       return <TableStage view={view} />;
     case "list":
       return <ListStage view={view} />;
+    case "heap":
+      return <HeapStage view={view} />;
   }
+}
+
+/* ---- 堆：把数组画成完全二叉树 ------------------------------------------------- */
+
+function HeapStage({ view }: { view: HeapView }) {
+  const n = view.items.length;
+  const depth = Math.max(1, Math.floor(Math.log2(n)) + 1);
+  const pos = (i: number) => {
+    const d = Math.floor(Math.log2(i + 1));
+    const k = i + 1 - 2 ** d;
+    return { x: ((k + 0.5) / 2 ** d) * 100, y: 6 + (d / Math.max(1, depth - 1)) * 40 };
+  };
+  const outside = (i: number) => !!view.range && (i < view.range[0] || i > view.range[1]);
+  // 元素按编号排，位置跟着它在数组里的下标走：交换时节点会沿着连线滑到新位置
+  const at = new Map(view.items.map((item, i) => [item.id, i]));
+  return (
+    <div className="galley-algo-tree galley-algo-heap">
+      <svg viewBox="-2 0 104 52" role="img" aria-label="堆">
+        {view.items.map((_, i) => {
+          if (i === 0) return null;
+          const p = pos(Math.floor((i - 1) / 2));
+          const c = pos(i);
+          return <line key={`e${i}`} className="galley-algo-tree-edge" data-out={outside(i) || undefined} x1={p.x} y1={p.y} x2={c.x} y2={c.y} />;
+        })}
+        {[...view.items].sort((a, b) => a.id - b.id).map((item) => {
+          const i = at.get(item.id)!;
+          const p = pos(i);
+          return (
+            <g
+              key={item.id}
+              className="galley-algo-node galley-algo-heap-node"
+              data-tone={view.tones[i] ?? undefined}
+              data-out={outside(i) || undefined}
+              style={{ transform: `translate(${p.x}px, ${p.y}px)` }}
+            >
+              <circle r={3.6} />
+              <text dy="0.35em" textAnchor="middle">
+                {item.value}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
 }
 
 /* ---- 数组 ---------------------------------------------------------------- */
@@ -175,10 +222,11 @@ function TreeStage({ view }: { view: TreeView }) {
           const b = byId.get(e.to)!;
           return <line key={`${e.from}-${e.to}`} className="galley-algo-tree-edge" data-tone={e.tone ?? undefined} x1={a.x} y1={y(a.y)} x2={b.x} y2={y(b.y)} />;
         })}
-        {view.nodes.map((n) => (
-          <g key={n.id} className="galley-algo-node galley-algo-tree-node" data-tone={n.tone ?? undefined}>
-            <circle cx={n.x} cy={y(n.y)} r={3.6} />
-            <text x={n.x} y={y(n.y)} dy="0.35em" textAnchor="middle">
+        {[...view.nodes].sort((a, b) => a.id - b.id).map((n) => (
+          // 节点用 transform 定位：加入新节点、整棵树重新排开时，旧节点会平滑地挪到新位置
+          <g key={n.id} className="galley-algo-node galley-algo-tree-node" data-tone={n.tone ?? undefined} style={{ transform: `translate(${n.x}px, ${y(n.y)}px)` }}>
+            <circle r={3.6} />
+            <text dy="0.35em" textAnchor="middle">
               {n.value}
             </text>
           </g>

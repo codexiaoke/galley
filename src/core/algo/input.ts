@@ -99,7 +99,7 @@ export function must<T>(r: Parsed<T>): T {
  * 数组类算法的录制器：维护当前的数组，每调用一次 snap 记一帧。
  * 元素带着不变的编号，交换以后编号跟着走，页面上就能画出元素移动的过程。
  */
-export function arrayRecorder(values: (number | string)[], style: ArrayView["style"]) {
+export function arrayRecorder(values: (number | string)[], style: ArrayView["style"], options: { heap?: boolean } = {}) {
   let items: ArrayItem[] = values.map((value, id) => ({ id, value }));
   const done = new Set<number>(); // 已经确定的下标
   const frames: Frame[] = [];
@@ -120,8 +120,7 @@ export function arrayRecorder(values: (number | string)[], style: ArrayView["sty
     const pointers = Object.entries(opts.pointers ?? {})
       .filter((e): e is [string, number] => typeof e[1] === "number" && e[1] >= 0 && e[1] < items.length)
       .map(([name, index]) => ({ name, index }));
-    frames.push({
-      view: {
+    const view: ArrayView = {
         kind: "array",
         style,
         items: items.map((x) => ({ ...x })),
@@ -129,7 +128,10 @@ export function arrayRecorder(values: (number | string)[], style: ArrayView["sty
         pointers,
         range: opts.range,
         aux: opts.aux && { ...opts.aux, items: opts.aux.items.map((x) => ({ ...x })) },
-      },
+      };
+    frames.push({
+      view,
+      extra: options.heap ? [{ kind: "heap", items: view.items, tones, range: opts.range }] : undefined,
       note,
       line,
       vars: opts.vars && Object.entries(opts.vars).map(([k, v]) => [k, String(v)]),

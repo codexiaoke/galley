@@ -1,3 +1,4 @@
+import { variantsOf } from "../algo/presets";
 import { TRACE_LANGS, traceCache, traceKey } from "../algo/trace-shared";
 import { FLOW_MAX_NODES, parseFlow, type FlowGraph } from "./flow";
 
@@ -76,16 +77,17 @@ export function readTabs(container: Node): { errors: string[] } {
 }
 
 /** 代码驱动的动画：里面放一个 ```js 代码块。 */
-export function readTrace(container: Node): { code?: string; input?: string; title?: string; errors: string[] } {
+export function readTrace(container: Node): { code?: string; input?: string; presets?: string; title?: string; errors: string[] } {
   const children = container.children ?? [];
   const codes = children.filter((n) => n.type === "code");
   const input = container.attributes?.input ?? undefined;
   const title = container.attributes?.title ?? undefined;
+  const presets = container.attributes?.presets ?? undefined;
   if (codes.length !== 1) return { input, title, errors: ["trace 里要放且只放一个 ```js 代码块，写演示用的 JavaScript。"] };
   const code = codes[0];
   if (!TRACE_LANGS.includes((code.lang ?? "").toLowerCase())) return { input, title, errors: ["trace 里的代码块要写成 ```js：演示代码只能用 JavaScript。"] };
   if (children.length !== 1) return { code: code.value, input, title, errors: ["trace 里除了代码块不要放别的内容，说明文字写在 trace 的前后。"] };
-  return { code: code.value ?? "", input, title, errors: [] };
+  return { code: code.value ?? "", input, presets, title, errors: [] };
 }
 
 /** 保存时对容器组件内部结构的检查，返回错误信息。 */
@@ -97,8 +99,12 @@ export function checkStructure(name: string, node: Node, source: string): string
     const t = readTrace(node);
     if (t.errors.length || t.code === undefined) return t.errors;
     // 代码的运行结果：保存前已经在沙箱里跑过（见 algo/trace.ts 的 runTraces），这里只取结果。
-    const result = traceCache.get(traceKey(t.code, t.input));
-    return result && !result.ok ? [`演示代码出错，${result.error}`] : [];
+    const errors: string[] = [];
+    for (const v of variantsOf(t.input, t.presets)) {
+      const result = traceCache.get(traceKey(t.code, v.input));
+      if (result && !result.ok) errors.push(`演示代码出错${v.name ? `（「${v.name}」这组输入）` : ""}，${result.error}`);
+    }
+    return errors;
   }
   return [];
 }

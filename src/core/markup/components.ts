@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { ALGORITHM_NAMES, checkAlgorithm, describeAlgorithms } from "../algo";
+import { ALGORITHM_NAMES, checkAlgorithmParams, describeAlgorithms, getAlgorithm } from "../algo";
+import { parsePresets } from "../algo/presets";
 import { TRACE_API_DOC } from "../algo/trace-doc";
 import type { BlockType } from "../db/schema";
 
@@ -32,6 +33,11 @@ export type ComponentDef = {
   /** 附加在说明后面的详细清单（Markdown），比如可用的算法 */
   details?: () => string;
 };
+
+type AlgoParamsShape = { input?: string; presets?: string; target?: string; start?: string };
+
+const PRESETS_HELP =
+  "presets 可以给几组输入让读者切换：presets=\"随机=38,27,43,3|已经有序=3,27,38,43|全部相同=5,5,5,5\"（组之间用 |，名字和输入之间用 =）。讲最好、最坏情况时特别有用。有 presets 时可以不写 input。";
 
 const mediaUrl = z.string().regex(/^\/media\/[a-z0-9]+\.[a-z0-9]+$/, "只能用媒体库里的图片，地址以 /media/ 开头");
 
@@ -142,16 +148,17 @@ export const COMPONENTS: ComponentDef[] = [
     name: "algo",
     form: "leaf",
     description:
-      "算法动画：给一个算法名和输入，页面上生成一个可以播放的演示，读者能播放、暂停、单步前进后退、调速度、拖进度条；每一步有一句说明，旁边的伪代码高亮正在执行的那一行，还显示变量的值。讲算法、讲数据结构时用，比一大段文字描述清楚得多。输入要小（排序 8 到 12 个数正合适），太大读者看不完。可用的算法和输入写法见下面的清单。",
+      "算法动画：给一个算法名和输入，页面上生成一个可以播放的演示，读者能播放、暂停、单步前进后退、调速度、拖进度条；每一步有一句说明，旁边的伪代码高亮正在执行的那一行，还显示变量的值。讲算法、讲数据结构时用，比一大段文字描述清楚得多。输入要小（排序 8 到 12 个数正合适），太大读者看不完。可用的算法和输入写法见下面的清单。" + PRESETS_HELP,
     example: '::algo{type=quick-sort input="38,27,43,3,9,82,10,55" title="快速排序是怎么分区的"}',
     params: z.object({
       type: z.enum(ALGORITHM_NAMES),
-      input: z.string().min(1),
+      input: z.string().optional(),
+      presets: z.string().optional(),
       target: z.string().optional(),
       start: z.string().optional(),
       title: z.string().optional(),
     }),
-    validate: (p) => checkAlgorithm(String(p.type), { input: String(p.input), target: p.target as string | undefined, start: p.start as string | undefined }),
+    validate: (p) => checkAlgorithmParams([String(p.type)], p as AlgoParamsShape),
     details: () =>
       [
         "| type | 算法 | input 怎么写 | 例子 |",
@@ -160,13 +167,38 @@ export const COMPONENTS: ComponentDef[] = [
       ].join("\n"),
   },
   {
+    name: "race",
+    form: "leaf",
+    description:
+      "算法比赛：两三种算法用同一组输入并排同时播放，每一边实时显示比较了几次、交换了几次、走了几步，先完成的停下等着。讲「为什么这个比那个快」时用，一眼就能看出差别。types 写两到三个算法名（逗号隔开），它们要能接受同样的输入，比如都是排序算法。" + PRESETS_HELP,
+    example: '::race{types="bubble-sort,insertion-sort,quick-sort" presets="随机=38,27,43,3,9,82,10,55|已经有序=3,9,10,27,38,43,55,82"}',
+    params: z.object({
+      types: z.string(),
+      input: z.string().optional(),
+      presets: z.string().optional(),
+      target: z.string().optional(),
+      start: z.string().optional(),
+      title: z.string().optional(),
+    }),
+    validate: (p) => {
+      const names = String(p.types).split(/[,，\s]+/).filter(Boolean);
+      if (names.length < 2 || names.length > 3) return ["race 的 types 要写两到三个算法名，用逗号隔开。"];
+      const unknown = names.filter((n) => !getAlgorithm(n));
+      if (unknown.length) return [`没有这些算法：${unknown.join("、")}。可用的见 algo 组件的清单。`];
+      const views = new Set(names.map((n) => getAlgorithm(n)!.group));
+      if (views.size > 1) return ["race 里的算法要是同一类的（比如都是排序），才能用同一组输入比较。"];
+      return checkAlgorithmParams(names, p as AlgoParamsShape);
+    },
+  },
+  {
     name: "trace",
     form: "container",
     description:
-      "代码驱动的算法动画：里面写一段真正的 JavaScript，在关键的地方调用 compare、swap 这些函数，页面上就按代码实际运行的过程生成一个可以播放的演示，伪代码区显示的就是这段代码，高亮正在执行的那一行。代码改了，动画跟着变。内置算法（algo）里没有的、或者想演示自己写法的时候用。代码在服务器的沙箱里运行，有错误时保存会失败并告诉你第几行。可以调用的函数见下面的说明。",
+      "代码驱动的算法动画：里面写一段真正的 JavaScript，在关键的地方调用 compare、swap 这些函数，页面上就按代码实际运行的过程生成一个可以播放的演示，伪代码区显示的就是这段代码，高亮正在执行的那一行。代码改了，动画跟着变。内置算法（algo）里没有的、或者想演示自己写法的时候用。代码在服务器的沙箱里运行，有错误时保存会失败并告诉你第几行。可以调用的函数见下面的说明。" + PRESETS_HELP,
     example:
       ':::trace{title="冒泡排序" input="5,1,4,2,8"}\n```js\nconst a = array(input)\nfor (let i = 0; i < a.length - 1; i++) {\n  for (let j = 0; j < a.length - 1 - i; j++) {\n    vars({ i, j })\n    if (compare(j, j + 1) > 0) swap(j, j + 1)\n  }\n  mark(a.length - 1 - i, "sorted")\n}\nmark(0, "sorted")\nstep("排好了")\n```\n:::',
-    params: z.object({ input: z.string().optional(), title: z.string().optional() }),
+    params: z.object({ input: z.string().optional(), presets: z.string().optional(), title: z.string().optional() }),
+    validate: (p) => parsePresets(p.presets as string | undefined).errors,
     details: () => TRACE_API_DOC,
   },
   {

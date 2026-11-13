@@ -3043,6 +3043,9 @@ body {
   font-weight: 600;
 }
 .galley-algo-tree-node {
+  transition: transform 0.45s var(--ease-out);
+}
+.galley-algo-tree-node circle {
   animation: galley-algo-pop 0.4s var(--ease-out);
   transform-box: fill-box;
   transform-origin: center;
@@ -3153,4 +3156,118 @@ body {
   font-family: var(--font-ui);
   font-size: 0.8rem;
   color: #b4532a;
+}
+
+/* 同时显示的第二个结构（比如堆排序里的树），和上面隔开一点 */
+.galley-algo-extra {
+  margin-top: 0.9rem;
+  padding-top: 0.8rem;
+  border-top: 1px dashed var(--rule);
+}
+.galley-algo-heap-node {
+  transition: transform 0.45s var(--ease-out);
+}
+.galley-algo-heap-node text {
+  font-size: 2.8px;
+}
+.galley-algo-heap-node[data-out],
+.galley-algo-tree-edge[data-out] {
+  opacity: 0.3;
+}
+.galley-algo-heap svg {
+  max-height: 15rem;
+}
+
+/* 读者切换输入：标题栏右边一排小按钮 */
+.galley-algo-presets {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+.galley-algo-presets button {
+  border-radius: 999px;
+  padding: 0.18rem 0.65rem;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  box-shadow: inset 0 0 0 1px var(--rule);
+  transition: background-color var(--dur-fast), color var(--dur-fast), box-shadow var(--dur-fast);
+}
+.galley-algo-presets button:hover {
+  color: var(--ink);
+}
+.galley-algo-presets button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--paper);
+  box-shadow: none;
+}
+.galley-algo-head {
+  flex-wrap: wrap;
+}
+
+/* 算法比赛：几条赛道并排，窄屏上下排 */
+.galley-race-lanes {
+  display: grid;
+  gap: 0.6rem;
+  padding: 1rem 1.1rem 0.6rem;
+}
+@media (min-width: 720px) {
+  .galley-race-lanes {
+    grid-template-columns: repeat(var(--lanes), minmax(0, 1fr));
+  }
+}
+.galley-race-lane {
+  min-width: 0;
+  border-radius: 8px;
+  padding: 0.6rem 0.6rem 0.4rem;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rule) 70%, transparent);
+  transition: box-shadow 0.3s;
+}
+.galley-race-lane[data-done] {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--chart-5) 55%, transparent);
+}
+.galley-race-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+}
+.galley-race-name {
+  font-weight: 600;
+  color: var(--ink);
+}
+.galley-race-done {
+  font-size: 0.68rem;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.galley-race-done[data-best] {
+  color: var(--chart-5);
+  font-weight: 600;
+}
+.galley-race-stage .galley-algo-cells {
+  height: 7rem;
+}
+.galley-race-stage .galley-algo-value {
+  font-size: 0.6rem;
+}
+.galley-race-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 0.4rem 0 0;
+  text-align: center;
+}
+.galley-race-stats dt {
+  font-size: 0.66rem;
+  color: var(--ink-faint);
+}
+.galley-race-stats dd {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
 }

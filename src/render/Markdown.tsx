@@ -17,8 +17,10 @@ import type { BlockView } from "@/core/services/blocks";
 import type { PostCard } from "@/core/services/documents";
 import { CiteHover } from "./CiteHover";
 import { highlightCode, languageName, parseCodeMeta } from "./highlight";
-import { runAlgorithm } from "@/core/algo";
+import { runAlgorithmVariants } from "@/core/algo";
+import { variantsOf } from "@/core/algo/presets";
 import { AlgoPlayer } from "./client/algo/player";
+import { RacePlayer } from "./client/algo/race";
 import { ChartView } from "./client/chart";
 import { CopyButton } from "./client/copy";
 import { Compare } from "./client/compare";
@@ -177,7 +179,8 @@ function remarkGalley(options: { source: string }) {
       if (d.name === "trace") {
         const t = readTrace(d as never);
         const code = t.code ?? "";
-        d.data = { hName: "galley-trace", hProperties: { attrs: JSON.stringify({ key: traceKey(code, t.input), code, title: t.title ?? "" }) }, hChildren: [] };
+        const keys = variantsOf(t.input, t.presets).map((v) => ({ name: v.name, key: traceKey(code, v.input) }));
+        d.data = { hName: "galley-trace", hProperties: { attrs: JSON.stringify({ keys, code, title: t.title ?? "" }) }, hChildren: [] };
         return;
       }
       if (d.name === "tabs") {
@@ -459,10 +462,23 @@ function Callout({ props }: { props: ElementProps }) {
 
 /** 算法动画：在这里按输入生成每一帧，播放交给 AlgoPlayer。 */
 function Algo({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
-  const { type, input, target, start, title } = attrsOf(props);
-  const run = runAlgorithm(type, { input, target, start });
-  if ("error" in run) return ctx.review ? <p className="galley-figcaption">算法动画出错：{run.error}</p> : null;
-  return <AlgoPlayer label={run.def.label} title={title} code={run.def.code} legend={run.def.legend} frames={run.frames} />;
+  const { type, input, presets, target, start, title } = attrsOf(props);
+  const run = runAlgorithmVariants(type, { input, presets, target, start });
+  if (run.error || !run.def) return ctx.review ? <p className="galley-trace-error">算法动画出错：{run.error}</p> : null;
+  return <AlgoPlayer label={run.def.label} title={title} code={run.def.code} legend={run.def.legend} variants={run.variants} />;
+}
+
+/** 算法比赛：每个算法、每组输入各生成一份动画，交给 RacePlayer 并排播放。 */
+function Race({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
+  const { types, input, presets, target, start, title } = attrsOf(props);
+  const names = (types ?? "").split(/[,，\s]+/).filter(Boolean);
+  const lanes = [];
+  for (const name of names) {
+    const run = runAlgorithmVariants(name, { input, presets, target, start });
+    if (run.error || !run.def) return ctx.review ? <p className="galley-trace-error">算法比较出错：{run.error}</p> : null;
+    lanes.push({ label: run.def.label, variants: run.variants });
+  }
+  return lanes.length >= 2 ? <RacePlayer title={title} lanes={lanes} /> : null;
 }
 
 /**
@@ -470,19 +486,23 @@ function Algo({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
  * 拿不到结果或者代码出错时，读者看到的是代码本身；审阅预览里显示错误。
  */
 function Trace({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
-  const { key, code, title } = attrsOf(props);
-  const result = ctx.traces[key] ?? traceCache.get(key);
-  if (result?.ok) {
+  const { keys, code, title } = attrsOf<{ keys: { name: string; key: string }[]; code: string; title: string }>(props);
+  const results = keys.map((k) => ({ name: k.name, result: ctx.traces[k.key] ?? traceCache.get(k.key) }));
+  const failed = results.find((r) => !r.result?.ok);
+  if (!failed) {
+    const variants = results.map((r) => ({ name: r.name, frames: (r.result as Extract<TraceResult, { ok: true }>).frames }));
+    const legend = (results[0].result as Extract<TraceResult, { ok: true }>).legend;
     // 代码区用和代码块一样的高亮，一行一项交给播放器
     const pre = highlightCode(code, "js");
     const codeEl = pre.children.find((c) => c.type === "element");
     const lines = codeEl && "children" in codeEl ? codeEl.children.filter((c) => c.type === "element") : [];
     const nodes = lines.map((line, i) => <Fragment key={i}>{toJsxRuntime({ type: "root", children: (line as unknown as { children: never[] }).children }, { Fragment, jsx, jsxs })}</Fragment>);
-    return <AlgoPlayer label={title || "代码演示"} code={nodes} legend={result.legend} frames={result.frames} />;
+    return <AlgoPlayer label={title || "代码演示"} code={nodes} legend={legend} variants={variants} />;
   }
+  const result = failed.result;
   return (
     <>
-      {ctx.review && <p className="galley-trace-error">{result ? `演示代码出错，${result.error}` : "演示代码还没有运行。"}</p>}
+      {ctx.review && <p className="galley-trace-error">{result && !result.ok ? `演示代码出错，${result.error}` : "演示代码还没有运行。"}</p>}
       <CodeBlock code={code} lang="js" />
     </>
   );
@@ -540,6 +560,7 @@ export function Markdown({
     "galley-fold": (props: ElementProps) => <Fold props={props} />,
     "galley-algo": (props: ElementProps) => <Algo ctx={ctx} props={props} />,
     "galley-trace": (props: ElementProps) => <Trace ctx={ctx} props={props} />,
+    "galley-race": (props: ElementProps) => <Race ctx={ctx} props={props} />,
     "galley-code": (props: ElementProps) => {
       const { code, lang, meta } = attrsOf(props);
       return <CodeBlock code={code} lang={lang} meta={meta} />;

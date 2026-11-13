@@ -5,6 +5,7 @@ import { readTrace } from "../markup/structure";
 import { visit } from "unist-util-visit";
 import { DEFAULT_TONE_LABELS, rememberTrace, traceCache, traceKey, type TraceResult } from "./trace-shared";
 import { TRACE_PRELUDE } from "./trace-prelude";
+import { variantsOf } from "./presets";
 import type { Frame, Tone } from "./types";
 
 /**
@@ -92,10 +93,18 @@ export async function runTrace(code: string, input?: string): Promise<TraceResul
 function legendFor(frames: Frame[], custom: Partial<Record<Tone, string>>) {
   const used = new Set<Tone>();
   const GRID: Record<string, Tone> = { v: "visited", f: "frontier", c: "active", p: "path" };
-  for (const { view } of frames) {
-    if (view.kind === "array") view.tones.forEach((t) => t && used.add(t));
-    if (view.kind === "table") Object.values(view.tones).forEach((t) => used.add(t));
-    if (view.kind === "grid") for (const ch of view.cells) if (GRID[ch]) used.add(GRID[ch]);
+  const add = (t: Tone | null | undefined) => t && used.add(t);
+  for (const frame of frames) {
+    for (const view of [frame.view, ...(frame.extra ?? [])]) {
+      if (view.kind === "array" || view.kind === "heap") view.tones.forEach(add);
+      if (view.kind === "table") Object.values(view.tones).forEach(add);
+      if (view.kind === "grid") for (const ch of view.cells) add(GRID[ch]);
+      if (view.kind === "graph") {
+        view.nodes.forEach((n) => add(n.tone));
+        view.edges.forEach((e) => add(e.tone));
+      }
+      if (view.kind === "tree") view.nodes.forEach((n) => add(n.tone));
+    }
   }
   const order = Object.keys(DEFAULT_TONE_LABELS) as Tone[];
   return order.filter((t) => used.has(t)).map((tone) => ({ tone, label: custom[tone] ?? DEFAULT_TONE_LABELS[tone] }));
@@ -107,7 +116,8 @@ export function tracesIn(body: string): { key: string; code: string; input?: str
   visit(parseToTree(body), (node) => {
     if (node.type !== "containerDirective" || (node as { name?: string }).name !== "trace") return;
     const t = readTrace(node as never);
-    if (t.code !== undefined) out.push({ key: traceKey(t.code, t.input), code: t.code, input: t.input });
+    if (t.code === undefined) return;
+    for (const v of variantsOf(t.input, t.presets)) out.push({ key: traceKey(t.code, v.input), code: t.code, input: v.input });
   });
   return out;
 }

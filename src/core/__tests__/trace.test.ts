@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseTraceInput, runTrace, runTraces } from "../algo/trace";
 import { traceCache, traceKey } from "../algo/trace-shared";
-import type { ArrayView, GridView, TableView } from "../algo/types";
+import type { ArrayView, GraphView, GridView, HeapView, TableView, TreeView } from "../algo/types";
 import { parseMarkup } from "../markup/parse";
 
 const BUBBLE = `const a = array(input)
@@ -97,4 +97,53 @@ g.path(1, 1, "到了")`);
     expect(parseMarkup(":::trace\n```python\nprint(1)\n```\n:::").issues[0].message).toMatch(/```js/);
     expect(parseMarkup(":::trace\n只有文字\n:::").issues[0].message).toMatch(/只放一个 ```js 代码块/);
   });
+
+  it("图：访问节点、标出边、节点旁边写距离", async () => {
+    const r = await ok(`const G = graph("A-B:4, A-C:1, C-B:2")
+G.label("A", 0)
+G.visit("A", "从 A 出发")
+for (const { node, weight } of G.neighbors("A")) G.focusEdge("A", node)
+G.markEdge("A", "C", "path")
+step("完")`);
+    const last = r.frames.at(-1)!.view as GraphView;
+    expect(last.nodes.map((n) => n.name)).toEqual(["A", "B", "C"]);
+    expect(last.nodes[0]).toMatchObject({ tone: "visited", label: "0" });
+    expect(last.edges[1].tone).toBe("path");
+    expect(r.frames[0].note).toBe("从 A 出发");
+    expect(await runTrace('const G = graph("A-B")\nG.visit("Z")')).toMatchObject({ ok: false, error: expect.stringMatching(/第 2 行：.*Z 不在图里/) });
+  });
+
+  it("二叉树：按层建树（空位写 null），加节点时整棵树重新排开", async () => {
+    const r = await ok(`const T = tree([5, 3, 8, null, 4])
+T.visit(T.root)
+const k = T.add(T.right(T.root), "left", 7, "插入 7")
+T.focus(k)`);
+    const v = r.frames.at(-1)!.view as TreeView;
+    expect(v.nodes.map((n) => n.value).sort()).toEqual([3, 4, 5, 7, 8]);
+    // 中序排列：横坐标从小到大正好是 3 4 5 7 8
+    expect([...v.nodes].sort((a, b) => a.x - b.x).map((n) => n.value)).toEqual([3, 4, 5, 7, 8]);
+  });
+
+  it("几种结构可以同时显示，并且一起变化", async () => {
+    const r = await ok(`const a = array([3, 1, 2], { heap: true })
+const t = table(1, 3)
+swap(0, 1)
+t.set(0, 0, a[0])`);
+    const first = r.frames[0];
+    expect(first.view.kind).toBe("array");
+    expect(first.extra?.map((v) => v.kind)).toEqual(["heap", "table"]);
+    expect((first.extra![0] as HeapView).tones.slice(0, 2)).toEqual(["swap", "swap"]);
+    // 第二帧由表格产生：数组上不再有临时的状态
+    expect((r.frames[1].view as ArrayView).tones).toEqual([null, null, null]);
+    expect(await runTrace("array([1])\narray([2])")).toMatchObject({ ok: false, error: expect.stringMatching(/每种结构只能建一个/) });
+  });
+
+  it("trace 的 presets：每组输入各跑一遍，某一组出错时报出是哪一组", async () => {
+    const code = "const a = array(input)\nif (a.length > 3) nope()\nstep('ok')";
+    const body = ":::trace{presets=\"短=1,2|长=1,2,3,4\"}\n```js\n" + code + "\n```\n:::";
+    await runTraces(body);
+    expect(traceCache.get(traceKey(code, "1,2"))?.ok).toBe(true);
+    expect(parseMarkup(body).issues[0].message).toMatch(/「长」这组输入.*第 2 行/);
+  });
 });
+

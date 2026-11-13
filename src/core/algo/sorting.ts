@@ -269,7 +269,7 @@ export const heapSort: AlgoDef = {
   ],
   check,
   run(input) {
-    const a = arrayRecorder(must(numbers(input)), "bars");
+    const a = arrayRecorder(must(numbers(input)), "bars", { heap: true });
     const n = a.items.length;
     const sift = (start: number, size: number) => {
       let i = start;
@@ -287,7 +287,7 @@ export const heapSort: AlgoDef = {
         i = c;
       }
     };
-    a.snap("开始。先把数组整理成大顶堆：每个节点都不小于它的孩子（第 i 个的孩子是 2i+1 和 2i+2）。", 0);
+    a.snap("开始。下面那棵树就是这个数组：第 i 个的孩子是第 2i+1 和 2i+2 个。先把它整理成大顶堆，每个节点都不小于它的孩子。", 0);
     for (let i = Math.floor(n / 2) - 1; i >= 0; i--) sift(i, n);
     a.snap(`建堆完成，堆顶 ${a.value(0)} 是最大的。`, 0);
     for (let end = n - 1; end > 0; end--) {

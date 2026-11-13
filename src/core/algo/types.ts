@@ -63,10 +63,15 @@ export type ListView = {
   tones: (Tone | null)[];
 };
 
-export type View = ArrayView | GridView | GraphView | TreeView | TableView | ListView;
+/** 把数组画成完全二叉树（堆）：第 i 个的孩子是 2i+1 和 2i+2。和数组共用元素和状态。 */
+export type HeapView = { kind: "heap"; items: ArrayItem[]; tones: (Tone | null)[]; range?: [number, number] };
+
+export type View = ArrayView | GridView | GraphView | TreeView | TableView | ListView | HeapView;
 
 export type Frame = {
   view: View;
+  /** 同时显示的其他结构（例如堆排序：数组下面再画一棵树），和 view 一起变化 */
+  extra?: View[];
   /** 这一步在做什么，一句话 */
   note: string;
   /** 伪代码里正在执行的行（从 0 开始） */
