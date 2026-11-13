@@ -1,4 +1,4 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import fs from "node:fs";
 import path from "node:path";
 import type { Actor } from "../actor";
@@ -143,7 +143,7 @@ export function resetSkill(db: Db, actor: Actor, name: string) {
 }
 
 export function skillHistory(db: Db, name: string) {
-  return db.select().from(skillRevisions).where(eq(skillRevisions.name, name)).orderBy(desc(skillRevisions.createdAt), desc(skillRevisions.id)).all();
+  return db.select().from(skillRevisions).where(eq(skillRevisions.name, name)).orderBy(desc(skillRevisions.createdAt), sql`${skillRevisions}.rowid desc`).all();
 }
 
 /**
@@ -197,7 +197,7 @@ export function listSkillSuggestions(db: Db, status: "open" | "done" | "dismisse
     .from(skillSuggestions)
     .leftJoin(agents, eq(skillSuggestions.agentId, agents.id))
     .where(eq(skillSuggestions.status, status))
-    .orderBy(desc(skillSuggestions.createdAt))
+    .orderBy(desc(skillSuggestions.createdAt), sql`${skillSuggestions}.rowid desc`)
     .all();
 }
 
