@@ -54,7 +54,6 @@ export function CodeStepsPlayer({
   const started = useRef(false);
   const last = steps.length - 1;
   const step = steps[index];
-  const maxLines = Math.max(...steps.map((s) => s.lines.length));
 
   const go = (i: number, keepPlaying = false) => {
     const next = Math.max(0, Math.min(last, i));
@@ -134,6 +133,7 @@ export function CodeStepsPlayer({
         }
       }}
     >
+      {/* 控制按钮放在标题栏里：不管代码有多长，按钮都在同一个位置 */}
       <header className="galley-codesteps-head">
         <span className="galley-codesteps-dots" aria-hidden="true">
           <i />
@@ -141,11 +141,50 @@ export function CodeStepsPlayer({
           <i />
         </span>
         <span className="galley-codesteps-file">{step.file ?? title ?? lang ?? ""}</span>
+        <span className="galley-codesteps-controls">
+          <button type="button" onClick={() => go(index - 1)} disabled={index === 0} aria-label="上一步" title="上一步（←）">
+            <Icon d="M11 3 5 8l6 5" stroke />
+          </button>
+          <button
+            type="button"
+            className="galley-codesteps-play"
+            onClick={() => {
+              if (index >= last) {
+                setFrom(index);
+                setIndex(0);
+                setPlaying(true);
+              } else setPlaying((p) => !p);
+            }}
+            aria-label={playing ? "暂停" : index >= last ? "重新播放" : "播放"}
+            title="播放 / 暂停（空格）"
+          >
+            {playing ? <Icon d="M5 3h2v10H5zM9 3h2v10H9z" /> : index >= last ? <Icon d="M3 8a5 5 0 1 0 1.5-3.5M3 2.5V5h2.5" stroke /> : <Icon d="M5 3l8 5-8 5z" />}
+          </button>
+          <button type="button" onClick={() => go(index + 1)} disabled={index >= last} aria-label="下一步" title="下一步（→）">
+            <Icon d="M5 3l6 5-6 5" stroke />
+          </button>
+          <button
+            type="button"
+            className="galley-codesteps-speed"
+            onClick={() => setSpeed((s) => SPEEDS[(SPEEDS.indexOf(s) + 1) % SPEEDS.length])}
+            aria-label={`速度 ${speed} 倍，点击切换`}
+            title="切换速度"
+          >
+            {speed}×
+          </button>
+        </span>
         <span className="galley-codesteps-count">
           {index + 1} / {steps.length}
         </span>
       </header>
-      <div className="galley-codesteps-code" style={{ "--rows": maxLines } as CSSProperties} data-focused={focus.size > 0 || undefined}>
+      {/* 步骤进度：标题栏下面一条细线，点哪一段跳到哪一步 */}
+      <span className="galley-codesteps-progress" aria-hidden="true">
+        {steps.map((_, i) => (
+          <button key={i} type="button" tabIndex={-1} data-on={i <= index || undefined} onClick={() => go(i)} aria-label={`第 ${i + 1} 步`} />
+        ))}
+      </span>
+      {/* 代码区的高度跟着当前这一步的行数走，切换时平滑地变高变矮 */}
+      <div className="galley-codesteps-code" style={{ "--rows": Math.max(3, step.lines.length), "--rows-max": Math.max(3, ...steps.map((x) => x.lines.length)) } as CSSProperties} data-focused={focus.size > 0 || undefined}>
         <pre>
           <code>
             {leaving.map((l) => (
@@ -171,42 +210,6 @@ export function CodeStepsPlayer({
         <div key={index} className="galley-codesteps-note-inner">
           {notes[index]}
         </div>
-      </div>
-      <div className="galley-codesteps-controls">
-        <button type="button" onClick={() => go(index - 1)} disabled={index === 0} aria-label="上一步">
-          <Icon d="M11 3 5 8l6 5" stroke />
-        </button>
-        <button
-          type="button"
-          className="galley-algo-play"
-          onClick={() => {
-            if (index >= last) {
-              setFrom(index);
-              setIndex(0);
-              setPlaying(true);
-            } else setPlaying((p) => !p);
-          }}
-          aria-label={playing ? "暂停" : index >= last ? "重新播放" : "播放"}
-        >
-          {playing ? <Icon d="M5 3h2v10H5zM9 3h2v10H9z" /> : index >= last ? <Icon d="M3 8a5 5 0 1 0 1.5-3.5M3 2.5V5h2.5" stroke /> : <Icon d="M5 3l8 5-8 5z" />}
-        </button>
-        <button type="button" onClick={() => go(index + 1)} disabled={index >= last} aria-label="下一步">
-          <Icon d="M5 3l6 5-6 5" stroke />
-        </button>
-        <span className="galley-codesteps-progress" aria-hidden="true">
-          {steps.map((_, i) => (
-            <button key={i} type="button" tabIndex={-1} data-on={i <= index || undefined} onClick={() => go(i)} aria-label={`第 ${i + 1} 步`} />
-          ))}
-        </span>
-        <button
-          type="button"
-          className="galley-codesteps-speed"
-          onClick={() => setSpeed((s) => SPEEDS[(SPEEDS.indexOf(s) + 1) % SPEEDS.length])}
-          aria-label={`速度 ${speed} 倍，点击切换`}
-          title="切换速度"
-        >
-          {speed}×
-        </button>
       </div>
     </figure>
   );
