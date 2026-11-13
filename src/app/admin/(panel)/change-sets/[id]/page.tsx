@@ -9,6 +9,7 @@ import { changeSetContents } from "@/core/services/changeSets";
 import { listComments } from "@/core/services/comments";
 import { getDocumentRevision } from "@/core/services/documents";
 import { Markdown } from "@/render/Markdown";
+import { runTraces } from "@/core/algo/trace";
 import { changeReviewComment, saveBlockEdit, toggleLogEntry } from "../../../actions";
 import { QuickAction } from "../../../quick-action";
 import { requireOwner } from "../../../auth";
@@ -70,6 +71,10 @@ async function ChangeSetDetail({ params }: { params: Promise<{ id: string }> }) 
   const { id } = await params;
   const db = getDb();
   const { changeSet, blockItems, documentItems, privateBlockIdsRead } = load(id);
+  for (const { revision } of documentItems) {
+    const rev = getDocumentRevision(db, revision.id);
+    if (rev) await runTraces(rev.body);
+  }
   const status = STATUS[changeSet.status];
   const comments = listComments(db, id);
   const openComments = comments.filter((c) => c.status === "open").length;

@@ -2613,8 +2613,8 @@ body {
   box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 .galley-algo [data-tone="compare"] { --tone: var(--chart-3); }
-.galley-algo [data-tone="swap"],
-.galley-algo [data-tone="active"] { --tone: var(--accent); }
+.galley-algo [data-tone="swap"] { --tone: var(--accent); }
+.galley-algo [data-tone="active"] { --tone: var(--chart-4); }
 .galley-algo [data-tone="pivot"],
 .galley-algo [data-tone="path"] { --tone: var(--chart-2); }
 .galley-algo [data-tone="sorted"],
@@ -2755,8 +2755,10 @@ body {
   }
 }
 .galley-algo-code {
+  position: relative;
+  max-height: 20rem;
   margin: 0;
-  overflow-x: auto;
+  overflow: auto;
   border-radius: 6px;
   background: var(--code-bg);
   padding: 0.6rem 0;
@@ -2765,7 +2767,7 @@ body {
   line-height: 1.8;
   color: var(--code-foreground);
 }
-.galley-algo-code span {
+.galley-algo-code > span {
   display: block;
   min-width: max-content;
   padding: 0 0.9rem;
@@ -2773,7 +2775,7 @@ body {
   opacity: 0.62;
   transition: background-color 0.25s, opacity 0.25s, box-shadow 0.25s;
 }
-.galley-algo-code span[data-current] {
+.galley-algo-code > span[data-current] {
   opacity: 1;
   background: var(--code-line-focus);
   box-shadow: inset 2px 0 0 var(--accent);
@@ -3144,4 +3146,11 @@ body {
     transition: none !important;
     animation: none !important;
   }
+}
+
+.galley-trace-error {
+  margin: 1.5em 0 -0.8em;
+  font-family: var(--font-ui);
+  font-size: 0.8rem;
+  color: #b4532a;
 }

@@ -4,6 +4,7 @@ import { Suspense, ViewTransition, type CSSProperties } from "react";
 import { Markdown } from "@/render/Markdown";
 import { Toc } from "@/render/client/toc";
 import { extractToc } from "@/render/toc";
+import { runTraces } from "@/core/algo/trace";
 import { loadPublishedDocument } from "../../data";
 import { tagPath } from "@/core/tags";
 import { ReaderSettings } from "../../reader-settings";
@@ -38,6 +39,8 @@ async function Post({ params }: { params: Promise<{ slug: string }> }) {
   if (!doc || doc.kind !== "article") notFound();
 
   const toc = extractToc(doc.body);
+  // 正文里的演示代码先在沙箱里跑一遍（结果有缓存），渲染时直接取
+  const traces = await runTraces(doc.body);
   const published = formatDate(doc.publishedAt);
   const revised = formatDate(doc.revisedAt);
   return (
@@ -65,7 +68,7 @@ async function Post({ params }: { params: Promise<{ slug: string }> }) {
         </header>
         {toc.length >= 3 && <Toc items={toc} />}
         <div className="galley-rise" style={{ "--i": 2 } as CSSProperties}>
-          <Markdown body={doc.body} blocks={doc.blocks} posts={doc.posts} />
+          <Markdown body={doc.body} blocks={doc.blocks} posts={doc.posts} traces={traces} />
         </div>
         {doc.tags.length > 0 && (
           <p className="galley-tags">

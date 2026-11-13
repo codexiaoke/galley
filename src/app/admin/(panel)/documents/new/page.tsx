@@ -35,7 +35,7 @@ async function NewDocument({ searchParams }: { searchParams: Promise<Record<stri
       document={{ id: "", slug: isPage ? "about" : "", kind: isPage ? "page" : "article", title: isPage ? "关于" : "", summary: "", category: null, tags: [], body: "", revNo: 0 }}
       categories={listCategories(db)}
       backHref="/admin/documents"
-      initialPreview={{ issues: [], blocks: {}, posts: {} }}
+      initialPreview={{ issues: [], blocks: {}, posts: {}, traces: {} }}
     />
   );
 }

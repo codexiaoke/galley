@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { Frame, Tone } from "@/core/algo/types";
 import { prefersReducedMotion, useInView, useVisible } from "../in-view";
 import { AlgoView } from "./views";
@@ -26,7 +26,8 @@ export function AlgoPlayer({
 }: {
   label: string;
   title?: string;
-  code: string[];
+  /** 代码，一行一项；可以是高亮过的内容 */
+  code: ReactNode[];
   legend: { tone: Tone; label: string }[];
   frames: Frame[];
 }) {
@@ -37,6 +38,7 @@ export function AlgoPlayer({
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const started = useRef(false);
+  const codeRef = useRef<HTMLPreElement>(null);
   const last = frames.length - 1;
   const frame = frames[Math.min(index, last)];
 
@@ -59,6 +61,17 @@ export function AlgoPlayer({
     const t = setTimeout(() => setIndex((i) => Math.min(last, i + 1)), delay);
     return () => clearTimeout(t);
   }, [playing, visible, index, last, speed, frame.view.kind]);
+
+  // 代码比较长时，代码区自己滚动，让当前行保持在可见范围里（不动整个页面）。
+  useEffect(() => {
+    const pre = codeRef.current;
+    const line = pre?.querySelector<HTMLElement>("[data-current]");
+    if (!pre || !line) return;
+    const top = line.offsetTop - pre.offsetTop;
+    if (top < pre.scrollTop + 8 || top > pre.scrollTop + pre.clientHeight - 32) {
+      pre.scrollTo({ top: Math.max(0, top - pre.clientHeight / 3), behavior: prefersReducedMotion() ? "auto" : "smooth" });
+    }
+  }, [frame.line]);
 
   const go = (i: number) => {
     setPlaying(false);
@@ -138,7 +151,7 @@ export function AlgoPlayer({
       </div>
 
       <div className="galley-algo-detail">
-        <pre className="galley-algo-code" aria-label="伪代码">
+        <pre ref={codeRef} className="galley-algo-code" aria-label="代码">
           {code.map((line, i) => (
             <span key={i} data-current={frame.line === i || undefined}>
               {line}

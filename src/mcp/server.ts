@@ -1,3 +1,4 @@
+import { runTraces } from "@/core/algo/trace";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Actor } from "@/core/actor";
@@ -95,7 +96,7 @@ export function createMcpServer(
         { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
     server.registerTool(name, { description, inputSchema: shape, annotations }, (async (args: z.infer<z.ZodObject<S>>) => {
       try {
-        const result = handler(args);
+        const result = await handler(args);
         logAgentCall(db, actor.id, name);
         return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
       } catch (e) {
@@ -430,7 +431,11 @@ export function createMcpServer(
         .describe("标签，最多 5 个，先用 list_tags 看已有的，能复用就复用。修改文章时省略表示不变，传空数组表示去掉全部标签"),
       body: z.string().describe("正文，Markdown 加引用标记，语法见 writing 技能"),
     },
-    (args) => saveDocument(db, actor, args),
+    async (args) => {
+      // 正文里的演示代码先在沙箱里跑一遍，代码有错时保存会报出第几行
+      await runTraces(args.body);
+      return saveDocument(db, actor, args);
+    },
   );
 
   tool(
@@ -442,7 +447,12 @@ export function createMcpServer(
       find: z.string().describe("要替换的原文，和正文源码逐字一致（包括标记）。必须恰好出现一次"),
       replace: z.string().describe("替换成的文字"),
     },
-    (args) => replaceInDocument(db, actor, args),
+    async (args) => {
+      // 先按替换后的正文把演示代码跑一遍（替换本身和各种检查在 replaceInDocument 里）
+      const current = getDocumentForEditing(db, { documentId: args.documentId }, args.changeSetId);
+      if (current.body.includes(args.find)) await runTraces(current.body.replace(args.find, () => args.replace));
+      return replaceInDocument(db, actor, args);
+    },
   );
 
   tool(

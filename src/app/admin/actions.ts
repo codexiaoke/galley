@@ -1,5 +1,6 @@
 "use server";
 
+import { runTraces } from "@/core/algo/trace";
 import { refresh, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Actor } from "@/core/actor";
@@ -132,7 +133,9 @@ export async function setDocumentStatus(_prev: FormState, formData: FormData) {
  */
 export async function previewBody(body: string, changeSetId?: string) {
   await requireOwner();
-  return previewDocumentBody(getDb(), body, changeSetId);
+  // 演示代码先在沙箱里跑一遍：检查时能报出代码的错误，预览也能直接播放
+  const traces = await runTraces(body);
+  return { ...previewDocumentBody(getDb(), body, changeSetId), traces };
 }
 
 /**
@@ -143,6 +146,7 @@ export async function previewBody(body: string, changeSetId?: string) {
  */
 export async function saveDocumentEdit(_prev: FormState, formData: FormData) {
   const changeSetId = text(formData, "cs");
+  await runTraces(text(formData, "body").replace(/\r\n/g, "\n"));
   return run(
     (db, actor) => {
       const input = {

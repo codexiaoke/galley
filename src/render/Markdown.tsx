@@ -11,7 +11,8 @@ import remarkRehype from "remark-rehype";
 import { unified } from "unified";
 import { BUILTIN_DIRECTIVES, getComponent } from "@/core/markup/components";
 import { isBareText, isDirective } from "@/core/markup/parse";
-import { readFlow, readSteps, STEP_LINES_PATTERN } from "@/core/markup/structure";
+import { readFlow, readSteps, readTrace, STEP_LINES_PATTERN } from "@/core/markup/structure";
+import { traceCache, traceKey, type TraceResult } from "@/core/algo/trace-shared";
 import type { BlockView } from "@/core/services/blocks";
 import type { PostCard } from "@/core/services/documents";
 import { CiteHover } from "./CiteHover";
@@ -173,6 +174,12 @@ function remarkGalley(options: { source: string }) {
         d.data = { hName: "galley-flow", hProperties: { attrs: JSON.stringify(attrs) }, hChildren: [] };
         return;
       }
+      if (d.name === "trace") {
+        const t = readTrace(d as never);
+        const code = t.code ?? "";
+        d.data = { hName: "galley-trace", hProperties: { attrs: JSON.stringify({ key: traceKey(code, t.input), code, title: t.title ?? "" }) }, hChildren: [] };
+        return;
+      }
       if (d.name === "tabs") {
         const tabs = (d.children ?? []).filter((c) => c.type === "containerDirective" && c.name === "tab");
         attrs.labels = tabs.map((t) => t.attributes?.label ?? "");
@@ -193,7 +200,7 @@ const formatDate = (d: Date) => new Date(d).toISOString().slice(0, 10);
  * 正文里只保留读者关心的东西（内容本身和数据的出处）。
  * 这些系统信息只在后台的审阅预览里显示，由 Markdown 的 review 参数打开。
  */
-type Ctx = { blocks: Record<string, BlockView>; posts: Record<string, PostCard>; review: boolean };
+type Ctx = { blocks: Record<string, BlockView>; posts: Record<string, PostCard>; review: boolean; traces: Record<string, TraceResult> };
 
 function Sources({ block }: { block: BlockView }) {
   if (block.sources.length === 0) return null;
@@ -458,6 +465,29 @@ function Algo({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
   return <AlgoPlayer label={run.def.label} title={title} code={run.def.code} legend={run.def.legend} frames={run.frames} />;
 }
 
+/**
+ * 代码驱动的动画：代码已经在服务端的沙箱里跑过（页面渲染前调用 runTraces），这里取结果。
+ * 拿不到结果或者代码出错时，读者看到的是代码本身；审阅预览里显示错误。
+ */
+function Trace({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
+  const { key, code, title } = attrsOf(props);
+  const result = ctx.traces[key] ?? traceCache.get(key);
+  if (result?.ok) {
+    // 代码区用和代码块一样的高亮，一行一项交给播放器
+    const pre = highlightCode(code, "js");
+    const codeEl = pre.children.find((c) => c.type === "element");
+    const lines = codeEl && "children" in codeEl ? codeEl.children.filter((c) => c.type === "element") : [];
+    const nodes = lines.map((line, i) => <Fragment key={i}>{toJsxRuntime({ type: "root", children: (line as unknown as { children: never[] }).children }, { Fragment, jsx, jsxs })}</Fragment>);
+    return <AlgoPlayer label={title || "代码演示"} code={nodes} legend={result.legend} frames={result.frames} />;
+  }
+  return (
+    <>
+      {ctx.review && <p className="galley-trace-error">{result ? `演示代码出错，${result.error}` : "演示代码还没有运行。"}</p>}
+      <CodeBlock code={code} lang="js" />
+    </>
+  );
+}
+
 function Fold({ props }: { props: ElementProps }) {
   return (
     <details className="galley-fold">
@@ -472,6 +502,7 @@ export function Markdown({
   blocks,
   posts = {},
   review = false,
+  traces = {},
 }: {
   body: string;
   blocks: Record<string, BlockView>;
@@ -479,8 +510,10 @@ export function Markdown({
   posts?: Record<string, PostCard>;
   /** 审阅预览：额外显示知识块的编号、内部标题、核实日期和过期状态。前台阅读时不显示。 */
   review?: boolean;
+  /** 演示代码的运行结果（runTraces 的返回值）。服务端渲染时也可以省略，直接从缓存取。 */
+  traces?: Record<string, TraceResult>;
 }) {
-  const ctx: Ctx = { blocks, posts, review };
+  const ctx: Ctx = { blocks, posts, review, traces };
   const processor = unified()
     .use(remarkParse)
     .use(remarkGfm)
@@ -506,6 +539,7 @@ export function Markdown({
     "galley-post": (props: ElementProps) => <Post ctx={ctx} props={props} />,
     "galley-fold": (props: ElementProps) => <Fold props={props} />,
     "galley-algo": (props: ElementProps) => <Algo ctx={ctx} props={props} />,
+    "galley-trace": (props: ElementProps) => <Trace ctx={ctx} props={props} />,
     "galley-code": (props: ElementProps) => {
       const { code, lang, meta } = attrsOf(props);
       return <CodeBlock code={code} lang={lang} meta={meta} />;

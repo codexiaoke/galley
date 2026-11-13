@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ALGORITHM_NAMES, checkAlgorithm, describeAlgorithms } from "../algo";
+import { TRACE_API_DOC } from "../algo/trace-doc";
 import type { BlockType } from "../db/schema";
 
 /**
@@ -157,6 +158,16 @@ export const COMPONENTS: ComponentDef[] = [
         "|---|---|---|---|",
         ...describeAlgorithms().map((a) => `| ${a.type} | ${a.label} | ${a.input} | \`${a.example}\` |`),
       ].join("\n"),
+  },
+  {
+    name: "trace",
+    form: "container",
+    description:
+      "代码驱动的算法动画：里面写一段真正的 JavaScript，在关键的地方调用 compare、swap 这些函数，页面上就按代码实际运行的过程生成一个可以播放的演示，伪代码区显示的就是这段代码，高亮正在执行的那一行。代码改了，动画跟着变。内置算法（algo）里没有的、或者想演示自己写法的时候用。代码在服务器的沙箱里运行，有错误时保存会失败并告诉你第几行。可以调用的函数见下面的说明。",
+    example:
+      ':::trace{title="冒泡排序" input="5,1,4,2,8"}\n```js\nconst a = array(input)\nfor (let i = 0; i < a.length - 1; i++) {\n  for (let j = 0; j < a.length - 1 - i; j++) {\n    vars({ i, j })\n    if (compare(j, j + 1) > 0) swap(j, j + 1)\n  }\n  mark(a.length - 1 - i, "sorted")\n}\nmark(0, "sorted")\nstep("排好了")\n```\n:::',
+    params: z.object({ input: z.string().optional(), title: z.string().optional() }),
+    details: () => TRACE_API_DOC,
   },
   {
     name: "fold",

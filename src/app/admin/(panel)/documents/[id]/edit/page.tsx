@@ -7,6 +7,7 @@ import { GalleyError } from "@/core/errors";
 import { listCategories } from "@/core/services/categories";
 import { assertNotLockedElsewhere, findChangeSet } from "@/core/services/changeSets";
 import { getDocumentForEditing, previewDocumentBody } from "@/core/services/documents";
+import { runTraces } from "@/core/algo/trace";
 import { requireOwner } from "../../../../auth";
 import { PageSkeleton } from "../../../../ui";
 import { DocumentEditor } from "./editor";
@@ -34,7 +35,7 @@ function Blocked({ title, children, href, linkLabel }: { title: string; children
 }
 
 type Loaded =
-  | { kind: "editor"; document: ReturnType<typeof getDocumentForEditing>; preview: ReturnType<typeof previewDocumentBody>; changeSetId?: string }
+  | { kind: "editor"; document: ReturnType<typeof getDocumentForEditing>; preview: ReturnType<typeof previewDocumentBody> & { traces: Awaited<ReturnType<typeof runTraces>> }; changeSetId?: string }
   /** 待审的改动已经不在待审状态了 */
   | { kind: "not-in-review"; changeSetId: string }
   /** 文章正在另一个还没结束的改动里 */
@@ -42,7 +43,7 @@ type Loaded =
   | { kind: "missing" };
 
 /** 读出要编辑的内容，并判断现在能不能改。只取数据，不拼界面。 */
-function load(id: string, changeSetId: string | undefined): Loaded {
+async function load(id: string, changeSetId: string | undefined): Promise<Loaded> {
   const db = getDb();
   try {
     if (changeSetId) {
@@ -50,7 +51,8 @@ function load(id: string, changeSetId: string | undefined): Loaded {
       if (findChangeSet(db, changeSetId).status !== "in_review") return { kind: "not-in-review", changeSetId };
       const document = getDocumentForEditing(db, { documentId: id }, changeSetId);
       if (!document.isDraft) return { kind: "missing" };
-      return { kind: "editor", document, changeSetId, preview: previewDocumentBody(db, document.body, changeSetId) };
+      const traces = await runTraces(document.body);
+      return { kind: "editor", document, changeSetId, preview: { ...previewDocumentBody(db, document.body, changeSetId), traces } };
     }
     const document = getDocumentForEditing(db, { documentId: id });
     // 文章正在某个还没结束的改动里时，不能绕过它直接改，否则两边的修改会互相覆盖。
@@ -60,7 +62,8 @@ function load(id: string, changeSetId: string | undefined): Loaded {
       if (e instanceof GalleyError && e.code === "conflict") return { kind: "locked", title: document.title, other: e.details as { id: string; title: string } };
       throw e;
     }
-    return { kind: "editor", document, preview: previewDocumentBody(db, document.body) };
+    const traces = await runTraces(document.body);
+    return { kind: "editor", document, preview: { ...previewDocumentBody(db, document.body), traces } };
   } catch (e) {
     if (e instanceof GalleyError && e.code === "not_found") return { kind: "missing" };
     throw e;
@@ -71,7 +74,7 @@ async function EditDocument({ params, searchParams }: { params: Promise<{ id: st
   await requireOwner();
   const { id } = await params;
   const { cs } = await searchParams;
-  const loaded = load(id, typeof cs === "string" && cs ? cs : undefined);
+  const loaded = await load(id, typeof cs === "string" && cs ? cs : undefined);
 
   if (loaded.kind === "missing") notFound();
   if (loaded.kind === "not-in-review") {
