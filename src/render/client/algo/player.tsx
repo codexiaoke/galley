@@ -49,6 +49,8 @@ export function AlgoPlayer({
   useEffect(() => {
     if (!inView || started.current || prefersReducedMotion()) return;
     started.current = true;
+    // 在演示模式里由演示推进，不自己播放
+    if (ref.current?.closest(".galley-present")) return;
     const t = setTimeout(() => setPlaying(true), 500);
     return () => clearTimeout(t);
   }, [inView]);
@@ -76,6 +78,29 @@ export function AlgoPlayer({
     }
   }, [frame.line]);
 
+  // 演示模式的"下一步"：没播完时开始播放（播放中继续等），播完了交给演示翻页；"上一步"回到开头
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onStep = (e: Event) => {
+      const detail = (e as CustomEvent<{ dir: number; wait?: number; caption?: string }>).detail;
+      if (detail.dir > 0) {
+        if (index >= last) return;
+        e.preventDefault();
+        if (!playing) setPlaying(true);
+        detail.wait = 700;
+        detail.caption = frame.note;
+      } else {
+        if (index === 0) return;
+        e.preventDefault();
+        setPlaying(false);
+        setIndex(0);
+      }
+    };
+    el.addEventListener("galley-step", onStep);
+    return () => el.removeEventListener("galley-step", onStep);
+  }, [index, last, playing, frame.note]);
+
   const go = (i: number) => {
     setPlaying(false);
     setIndex(Math.max(0, Math.min(last, i)));
@@ -102,7 +127,7 @@ export function AlgoPlayer({
 
   const atEnd = index >= last;
   return (
-    <figure ref={ref} className="galley-algo" tabIndex={0} onKeyDown={onKey} aria-label={`${label}演示`} data-kind={frame.view.kind}>
+    <figure ref={ref} className="galley-algo" tabIndex={0} onKeyDown={onKey} aria-label={`${label}演示`} data-kind={frame.view.kind} data-steppable>
       <header className="galley-algo-head">
         <span className="galley-algo-label">{label}</span>
         {title && <span className="galley-algo-title">{title}</span>}

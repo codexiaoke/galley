@@ -13,7 +13,9 @@ import remarkRehype from "remark-rehype";
 import { unified } from "unified";
 import { BUILTIN_DIRECTIVES, getComponent } from "@/core/markup/components";
 import { isBareText, isDirective } from "@/core/markup/parse";
-import { readFlow, readSteps, readTrace, STEP_LINES_PATTERN } from "@/core/markup/structure";
+import { readCodeSteps, readFlow, readSteps, readTrace, STEP_LINES_PATTERN } from "@/core/markup/structure";
+import { lineIdentities } from "./code-diff";
+import { CodeStepsPlayer } from "./client/code-steps";
 import { traceCache, traceKey, type TraceResult } from "@/core/algo/trace-shared";
 import type { BlockView } from "@/core/services/blocks";
 import type { PostCard } from "@/core/services/documents";
@@ -181,6 +183,24 @@ function remarkGalley(options: { source: string }) {
       if (d.name === "flow") {
         attrs.graph = readFlow(d as never, source).graph ?? null;
         d.data = { hName: "galley-flow", hProperties: { attrs: JSON.stringify(attrs) }, hChildren: [] };
+        return;
+      }
+      if (d.name === "code-steps") {
+        const { steps } = readCodeSteps(d as never);
+        const kids = d.children ?? [];
+        // 每一步的讲解收进一个元素里，顺序和代码块一一对应
+        const notes = steps.map((s) => kids.slice(s.noteFrom, s.noteTo));
+        // 每一步停留多久：按讲解的字数估一个阅读时间
+        const durations = notes.map((n) => {
+          const chars = n.map((x) => toString(x as never)).join("").length;
+          return Math.min(12000, Math.max(3200, 1800 + chars * 140));
+        });
+        d.children = notes.map((n) => ({ type: "galleyElement", children: n, data: { hName: "div", hProperties: { className: ["galley-codesteps-text"] } } }));
+        const texts = notes.map((n) => n.map((x) => toString(x as never)).join(" ").trim());
+        d.data = {
+          hName: "galley-code-steps",
+          hProperties: { attrs: JSON.stringify({ title: d.attributes?.title ?? "", texts, steps: steps.map((s, i) => ({ code: s.code, lang: s.lang, meta: s.meta, duration: durations[i] })) }) },
+        };
         return;
       }
       if (d.name === "trace") {
@@ -475,6 +495,34 @@ function Algo({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
   return <AlgoPlayer label={run.def.label} title={title} code={run.def.code} legend={run.def.legend} variants={run.variants} />;
 }
 
+/** 代码一步一步演变：每一步高亮好，算出每一行的身份，交给播放器。 */
+function CodeSteps({ props }: { props: ElementProps }) {
+  const { title, steps, texts } = attrsOf<{ title: string; texts: string[]; steps: { code: string; lang: string; meta: string; duration: number }[] }>(props);
+  const codeLines = steps.map((s) => s.code.replace(/\n$/, "").split("\n"));
+  const { keys, changed } = lineIdentities(codeLines);
+  const rendered = steps.map((s, i) => {
+    const { title: file, highlight } = parseCodeMeta(s.meta);
+    const pre = highlightCode(s.code, s.lang);
+    const codeEl = pre.children.find((c) => c.type === "element");
+    const lines = codeEl && "children" in codeEl ? codeEl.children.filter((c) => c.type === "element") : [];
+    return {
+      lines: lines.map((line, k) => ({
+        key: keys[i][k],
+        node: <Fragment key={k}>{toJsxRuntime({ type: "root", children: (line as unknown as { children: never[] }).children }, { Fragment, jsx, jsxs })}</Fragment>,
+      })),
+      // 指定了高亮行就用指定的，否则高亮这一步改动的行
+      focus: highlight.size ? [...highlight].map((n) => n - 1) : [...changed[i]],
+      file,
+      duration: s.duration,
+    };
+  });
+  return (
+    <CodeStepsPlayer title={title || undefined} lang={languageName(steps[0]?.lang)} steps={rendered} texts={texts}>
+      {props.children}
+    </CodeStepsPlayer>
+  );
+}
+
 /** 算法比赛：每个算法、每组输入各生成一份动画，交给 RacePlayer 并排播放。 */
 function Race({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
   const { types, input, presets, target, start, title } = attrsOf(props);
@@ -571,6 +619,9 @@ export function Markdown({
     "galley-algo": (props: ElementProps) => <Algo ctx={ctx} props={props} />,
     "galley-trace": (props: ElementProps) => <Trace ctx={ctx} props={props} />,
     "galley-race": (props: ElementProps) => <Race ctx={ctx} props={props} />,
+    "galley-code-steps": (props: ElementProps) => <CodeSteps props={props} />,
+    // 讲稿只在演示模式和视频里用（见 render/slides.ts），文章里不显示
+    "galley-notes": () => null,
     "galley-mermaid": (props: ElementProps) => <MermaidDiagram code={attrsOf(props).code} review={ctx.review} />,
     "galley-code": (props: ElementProps) => {
       const { code, lang, meta } = attrsOf(props);

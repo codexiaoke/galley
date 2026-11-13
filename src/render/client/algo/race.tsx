@@ -60,6 +60,7 @@ export function RacePlayer({ title, lanes }: { title?: string; lanes: Lane[] }) 
   useEffect(() => {
     if (!inView || started.current || prefersReducedMotion()) return;
     started.current = true;
+    if (ref.current?.closest(".galley-present")) return;
     const t = setTimeout(() => setPlaying(true), 500);
     return () => clearTimeout(t);
   }, [inView]);
@@ -74,6 +75,27 @@ export function RacePlayer({ title, lanes }: { title?: string; lanes: Lane[] }) 
     return () => clearTimeout(t);
   }, [playing, visible, index, longest, speed, kind]);
 
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onStep = (e: Event) => {
+      const detail = (e as CustomEvent<{ dir: number; wait?: number }>).detail;
+      if (detail.dir > 0) {
+        if (index >= longest) return;
+        e.preventDefault();
+        if (!playing) setPlaying(true);
+        detail.wait = 700;
+      } else {
+        if (index === 0) return;
+        e.preventDefault();
+        setPlaying(false);
+        setIndex(0);
+      }
+    };
+    el.addEventListener("galley-step", onStep);
+    return () => el.removeEventListener("galley-step", onStep);
+  }, [index, longest, playing]);
+
   const go = (i: number) => {
     setPlaying(false);
     setIndex(Math.max(0, Math.min(longest, i)));
@@ -86,7 +108,7 @@ export function RacePlayer({ title, lanes }: { title?: string; lanes: Lane[] }) 
   };
 
   return (
-    <figure ref={ref} className="galley-algo galley-race" aria-label={`${runs.map((r) => r.label).join("、")}的比较`} style={{ "--lanes": runs.length } as CSSProperties}>
+    <figure ref={ref} className="galley-algo galley-race" data-steppable aria-label={`${runs.map((r) => r.label).join("、")}的比较`} style={{ "--lanes": runs.length } as CSSProperties}>
       <header className="galley-algo-head">
         <span className="galley-algo-label">{runs.map((r) => r.label).join(" vs ")}</span>
         {title && <span className="galley-algo-title">{title}</span>}

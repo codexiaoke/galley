@@ -167,6 +167,23 @@ export const COMPONENTS: ComponentDef[] = [
       ].join("\n"),
   },
   {
+    name: "notes",
+    form: "container",
+    description:
+      "讲稿：只在演示模式和导出的视频里用，文章里不显示。放在某一页（某个二级标题下）里，演示时显示在演讲者视图，导出视频时作为这一页的字幕和朗读内容。写成口语，一页两三句，讲这一页最想让人记住的东西；不要照念页面上的字。",
+    example: ":::notes\n这一页只看一件事：回调和 Promise 的区别，在于错误往哪里走。\n:::",
+    params: z.object({}),
+  },
+  {
+    name: "code-steps",
+    form: "container",
+    description:
+      "代码一步一步演变，像幻灯片一样播放：每一步是一个代码块，代码块后面写这一步的讲解。切到下一步时，新加的行滑进来、删掉的行淡出去、没变的行平滑地挪到新位置，改动的行自动高亮（也可以在代码块后面写 {2-3} 指定高亮哪几行）。讲重构、讲一段代码是怎么一步步写出来的、讲新旧写法的区别时用。做成演示或者导出视频时，这是最适合的形式。每步的代码不超过 40 行，最多 12 步；每步只改一点，读者才跟得上。",
+    example:
+      ':::code-steps{title="从回调到 async/await"}\n```js\nfunction load(id, cb) {\n  db.get(id, (err, row) => {\n    if (err) return cb(err)\n    cb(null, row)\n  })\n}\n```\n最早的写法：结果通过回调传回来，错误要手动往外传。\n\n```js\nasync function load(id) {\n  const row = await db.get(id)\n  return row\n}\n```\n换成 async/await：读起来和同步代码一样，错误会自动抛出。\n:::',
+    params: z.object({ title: z.string().optional() }),
+  },
+  {
     name: "race",
     form: "leaf",
     description:

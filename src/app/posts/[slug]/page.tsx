@@ -49,6 +49,10 @@ async function Post({ params }: { params: Promise<{ slug: string }> }) {
       <article className="galley-article">
         <title>{`${doc.title} · ${site.name}`}</title>
         <header className="galley-article-header">
+          {/* 文章变成全屏的幻灯片，一步一步讲（见 present/page.tsx） */}
+          <Link href={`/posts/${doc.slug}/present`} className="galley-present-link" title="演示：变成幻灯片一步一步讲" prefetch={false}>
+            演示
+          </Link>
           <ReaderSettings />
           <ViewTransition name={`post-title-${doc.id}`} share="morph-title" default="none">
             <h1 className="galley-title">{doc.title}</h1>

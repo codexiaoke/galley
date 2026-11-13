@@ -76,6 +76,28 @@ export function readTabs(container: Node): { errors: string[] } {
   return { errors };
 }
 
+/** 代码一步一步演变：里面每个代码块是一步，代码块后面的文字是这一步的讲解。 */
+export const CODE_STEPS_MAX = 12;
+export const CODE_STEPS_MAX_LINES = 40;
+
+export function readCodeSteps(container: Node): { steps: { code: string; lang: string; meta: string; noteFrom: number; noteTo: number }[]; errors: string[] } {
+  const children = container.children ?? [];
+  const errors: string[] = [];
+  const steps: { code: string; lang: string; meta: string; noteFrom: number; noteTo: number }[] = [];
+  if (children[0]?.type !== "code") errors.push("code-steps 里第一个要是代码块：每个代码块是一步，代码块后面写这一步的讲解。");
+  children.forEach((n, i) => {
+    if (n.type === "code") {
+      if (steps.length) steps[steps.length - 1].noteTo = i;
+      steps.push({ code: n.value ?? "", lang: n.lang ?? "", meta: (n as { meta?: string | null }).meta ?? "", noteFrom: i + 1, noteTo: children.length });
+    }
+  });
+  if (steps.length < 2) errors.push("code-steps 至少要有两步（两个代码块），只有一步时用普通的代码块。");
+  if (steps.length > CODE_STEPS_MAX) errors.push(`code-steps 最多 ${CODE_STEPS_MAX} 步，现在有 ${steps.length} 步。`);
+  const long = steps.findIndex((s) => s.code.split("\n").length > CODE_STEPS_MAX_LINES);
+  if (long !== -1) errors.push(`第 ${long + 1} 步的代码超过了 ${CODE_STEPS_MAX_LINES} 行。代码讲解要聚焦，只留讲到的那部分。`);
+  return { steps, errors };
+}
+
 /** 代码驱动的动画：里面放一个 ```js 代码块。 */
 export function readTrace(container: Node): { code?: string; input?: string; presets?: string; title?: string; errors: string[] } {
   const children = container.children ?? [];
@@ -95,6 +117,7 @@ export function checkStructure(name: string, node: Node, source: string): string
   if (name === "steps") return readSteps(node, source).errors;
   if (name === "flow") return readFlow(node, source).errors;
   if (name === "tabs") return readTabs(node).errors;
+  if (name === "code-steps") return readCodeSteps(node).errors;
   if (name === "trace") {
     const t = readTrace(node);
     if (t.errors.length || t.code === undefined) return t.errors;

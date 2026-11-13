@@ -3309,3 +3309,408 @@ body {
   font-size: 0.8em;
   text-align: left;
 }
+
+/* ---- 代码一步一步演变 --------------------------------------------------------- */
+/* 每一行用 --i（第几行）定位，切换步骤时平滑地挪到新位置；新行从右边淡入，删掉的行原地淡出 */
+
+.galley-codesteps {
+  --lh: 1.8rem;
+  margin: 2.4em 0;
+  border-radius: 10px;
+  background: var(--code-bg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rule) 70%, transparent), 0 14px 32px -24px rgba(0, 0, 0, 0.35);
+  font-family: var(--font-ui);
+  text-align: left;
+  overflow: hidden;
+  outline: none;
+}
+.galley-codesteps:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.galley-codesteps-head {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--rule) 70%, transparent);
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+}
+.galley-codesteps-dots {
+  display: inline-flex;
+  gap: 5px;
+}
+.galley-codesteps-dots i {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 18%, transparent);
+}
+.galley-codesteps-file {
+  flex: 1;
+  font-family: var(--font-geist-mono), "SF Mono", Menlo, Consolas, monospace;
+  color: var(--ink-soft);
+}
+.galley-codesteps-count {
+  font-variant-numeric: tabular-nums;
+}
+.galley-codesteps-code {
+  overflow-x: auto;
+}
+.galley-codesteps-code pre {
+  margin: 0;
+  padding: 0.9rem 0;
+}
+.galley-codesteps-code code {
+  position: relative;
+  display: block;
+  min-width: max-content;
+  height: calc(var(--rows) * var(--lh));
+  font-family: var(--font-geist-mono), "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.84rem;
+  color: var(--code-foreground);
+}
+.galley-codesteps-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: var(--lh);
+  line-height: var(--lh);
+  padding: 0 1.25rem;
+  white-space: pre;
+  transform: translateY(calc(var(--i) * var(--lh)));
+  transition: transform 0.55s var(--ease-out), opacity 0.35s, background-color 0.35s, box-shadow 0.35s;
+}
+.galley-codesteps-code[data-focused] .galley-codesteps-line:not([data-focus]):not([data-leaving]) {
+  opacity: 0.5;
+}
+.galley-codesteps-line[data-focus] {
+  background: var(--code-line-focus);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.galley-codesteps-line[data-entering] {
+  animation: galley-cs-in 0.55s var(--ease-out) 0.15s backwards;
+}
+.galley-codesteps-line[data-leaving] {
+  animation: galley-cs-out 0.35s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes galley-cs-in {
+  from {
+    opacity: 0;
+    translate: 1.2rem 0;
+  }
+}
+@keyframes galley-cs-out {
+  to {
+    opacity: 0;
+    translate: -0.6rem 0;
+  }
+}
+.galley-codesteps-note {
+  min-height: 4.2em;
+  padding: 0.8rem 1.1rem 0.4rem;
+  border-top: 1px solid color-mix(in srgb, var(--rule) 70%, transparent);
+  background: color-mix(in srgb, var(--paper) 55%, var(--code-bg));
+  font-family: var(--font-serif);
+  font-size: 0.98rem;
+  line-height: 1.8;
+  color: var(--ink);
+}
+.galley-codesteps-note-inner {
+  animation: galley-tab-in 0.4s var(--ease-out);
+}
+.galley-codesteps-text > * + * {
+  margin-top: 0.6em;
+}
+.galley-codesteps-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.4rem 0.7rem 0.6rem;
+  background: color-mix(in srgb, var(--paper) 55%, var(--code-bg));
+}
+.galley-codesteps-controls > button {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 6px;
+  color: var(--ink-soft);
+}
+.galley-codesteps-controls > button:disabled {
+  opacity: 0.35;
+}
+.galley-codesteps-controls > .galley-algo-play {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--paper);
+}
+.galley-codesteps-progress {
+  display: flex;
+  flex: 1;
+  gap: 4px;
+  margin-left: 0.6rem;
+}
+.galley-codesteps-progress button {
+  flex: 1;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--rule);
+  transition: background-color 0.3s;
+}
+.galley-codesteps-progress button[data-on] {
+  background: var(--accent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .galley-codesteps-line,
+  .galley-codesteps-note-inner {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* ---- 演示模式 -------------------------------------------------------------- */
+/* 幻灯片按设计尺寸（横屏 1600×900，竖屏 900×1600）排版，整体缩放到窗口大小 */
+
+.galley-article-header:has(.galley-present-link) {
+  padding-right: 6rem;
+}
+.galley-present-link {
+  position: absolute;
+  top: 0.45rem;
+  right: 2.6rem;
+  border-radius: 4px;
+  padding: 0.15rem 0.5rem;
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  box-shadow: inset 0 0 0 1px var(--rule);
+  transition: color var(--dur-fast), box-shadow var(--dur-fast);
+}
+.galley-present-link:hover {
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.galley-present {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  overflow: hidden;
+  background: var(--paper);
+  color: var(--ink);
+  cursor: default;
+}
+.galley-present:not([data-chrome]) {
+  cursor: none;
+}
+.galley-present-stage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: center;
+}
+.galley-slide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 72px 110px;
+  animation: galley-slide-in 0.6s var(--ease-out);
+}
+.galley-present[data-orientation="portrait"] .galley-slide {
+  padding: 120px 64px 220px;
+}
+@keyframes galley-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+.galley-slide-body {
+  --fit: 1;
+  max-height: 100%;
+  overflow: hidden;
+  font-size: calc(30px * var(--fit)) !important;
+  line-height: 1.75;
+}
+.galley-present[data-orientation="portrait"] .galley-slide-body {
+  font-size: calc(34px * var(--fit)) !important;
+}
+.galley-slide-body .galley-prose > h2:first-child {
+  margin: 0 0 0.8em;
+  font-size: 1.75em;
+  line-height: 1.3;
+}
+.galley-slide-body .galley-anchor {
+  display: none;
+}
+/* 幻灯片里的组件整体放大（zoom 会连同布局一起放大，播放器里的字和按钮都跟着变大） */
+.galley-slide .galley-algo,
+.galley-slide .galley-codesteps,
+.galley-slide .galley-flow,
+.galley-slide .galley-chart,
+.galley-slide .galley-mermaid {
+  zoom: 1.35;
+  margin: 0.4em 0 0;
+}
+.galley-present[data-orientation="portrait"] .galley-slide .galley-algo,
+.galley-present[data-orientation="portrait"] .galley-slide .galley-codesteps {
+  zoom: 1.5;
+}
+.galley-slide-cover {
+  align-items: flex-start;
+  padding: 110px 140px;
+}
+.galley-slide-cover h1 {
+  font-family: var(--font-heading);
+  font-size: 76px;
+  font-weight: 900;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
+  text-wrap: balance;
+}
+.galley-present[data-orientation="portrait"] .galley-slide-cover {
+  padding: 160px 80px;
+}
+.galley-present[data-orientation="portrait"] .galley-slide-cover h1 {
+  font-size: 84px;
+}
+.galley-slide-site {
+  margin-bottom: 36px;
+  font-family: var(--font-heading);
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+}
+.galley-slide-cover h1 + .galley-slide-site {
+  margin: 44px 0 0;
+}
+.galley-slide-summary {
+  max-width: 80%;
+  margin-top: 36px;
+  font-family: var(--font-serif);
+  font-size: 32px;
+  line-height: 1.7;
+  color: var(--ink-soft);
+}
+.galley-slide-date {
+  margin-top: 28px;
+  font-family: var(--font-ui);
+  font-size: 22px;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+/* 字幕：导出视频时显示讲稿 */
+.galley-present-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 40px;
+  width: fit-content;
+  max-width: 82%;
+  margin: 0 auto;
+  border-radius: 10px;
+  padding: 14px 28px;
+  background: color-mix(in srgb, var(--ink) 86%, transparent);
+  color: var(--paper);
+  font-family: var(--font-ui);
+  font-size: 30px;
+  line-height: 1.5;
+  text-align: center;
+  animation: galley-tab-in 0.4s var(--ease-out);
+}
+.galley-present[data-orientation="portrait"] .galley-present-caption {
+  bottom: 90px;
+  font-size: 36px;
+}
+.galley-present-progress {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 3px;
+}
+.galley-present-progress i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.4s var(--ease-out);
+}
+.galley-present-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: var(--paper-raised);
+  box-shadow: 0 0 0 1px var(--rule), 0 10px 30px -14px rgba(0, 0, 0, 0.3);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--ink-soft);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.galley-present[data-chrome] .galley-present-bar {
+  opacity: 1;
+}
+.galley-present-bar a,
+.galley-present-bar button {
+  display: grid;
+  place-items: center;
+  min-width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  padding: 0 10px;
+}
+.galley-present-bar a:hover,
+.galley-present-bar button:hover,
+.galley-present-bar button[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  color: var(--ink);
+}
+.galley-present-count {
+  min-width: 56px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.galley-present-notes {
+  position: absolute;
+  right: 18px;
+  bottom: 70px;
+  width: min(420px, 90vw);
+  max-height: 40vh;
+  overflow: auto;
+  border-radius: 12px;
+  padding: 16px 18px;
+  background: var(--paper-raised);
+  box-shadow: 0 0 0 1px var(--rule), 0 14px 40px -18px rgba(0, 0, 0, 0.35);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.7;
+}
+.galley-present-notes strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+/* 正文渲染自带一层 galley-prose（有自己的字号），在幻灯片里跟随幻灯片的字号 */
+.galley-slide-body .galley-prose {
+  font-size: inherit;
+  line-height: inherit;
+}
+
+/* 有字幕时，代码演变里的讲解已经在字幕里了，不再重复显示 */
+.galley-present[data-captions] .galley-codesteps-note {
+  display: none;
+}
