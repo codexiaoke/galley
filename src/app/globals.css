@@ -3654,14 +3654,19 @@ body {
   background: var(--accent);
   transition: width 0.4s var(--ease-out);
 }
+/* 居中用左右都贴边加自动外边距：用 left: 50% 再往回移的话，宽度最多只有屏幕的一半，按钮会被挤得换行 */
 .galley-present-bar {
   position: absolute;
-  left: 50%;
+  left: 0;
+  right: 0;
   bottom: 18px;
   display: flex;
   align-items: center;
   gap: 4px;
-  transform: translateX(-50%);
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  margin: 0 auto;
+  white-space: nowrap;
   border-radius: 999px;
   padding: 5px 8px;
   background: var(--paper-raised);
@@ -3679,6 +3684,8 @@ body {
 .galley-present-bar button {
   display: grid;
   place-items: center;
+  flex: 0 0 auto;
+  white-space: nowrap;
   min-width: 32px;
   height: 32px;
   border-radius: 999px;
