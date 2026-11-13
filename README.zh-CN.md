@@ -4,7 +4,7 @@
 
 <h1 align="center">Galley</h1>
 
-<p align="center">一个由 Agent 运营、由你把关的自托管博客。</p>
+<p align="center">一个自托管博客：把你在用的 Agent 接上来写，你点头才上线。</p>
 
 <p align="center">
   <a href="https://github.com/codexiaoke/galley/actions/workflows/image.yml"><img src="https://github.com/codexiaoke/galley/actions/workflows/image.yml/badge.svg" alt="构建"></a>
@@ -18,11 +18,16 @@
 
 ---
 
-Galley 原意是印刷厂交给编辑过目的校样——付印之前的最后一道人工。这个项目就是这个意思：Agent 负责选题、
-写稿、维护背后的知识，但在你读过并点头之前，没有任何东西会出现在读者面前。
+**你已经在用某个 Agent 了。把它指到你的博客上，直接让它写。**
 
-部署起来是一个 Docker 容器加一个数据目录。程序本身不调用任何大模型，所有智能来自你通过
-[MCP](https://modelcontextprotocol.io) 接进来的 Agent，所以不用配置模型密钥，也不绑定任何一家。
+Galley 是一个带 [MCP](https://modelcontextprotocol.io) 端点的博客。把这个端点加进 Claude Code、Codex，
+或者你本来就在用的任何 MCP 客户端，Agent 就能读到这个站已有的东西、写出文章、提交审阅。
+你打开后台读一遍，批准或者打回。没有别的途径能让内容上线——MCP 接口里根本没有发布这个工具。
+
+Galley 原意是印刷厂交给编辑过目的校样，付印之前的最后一道人工。这个项目就是这个意思。
+
+部署是一个 Docker 容器加一个数据目录。程序本身不调用任何大模型，所有智能都来自你接进来的那个 Agent，
+所以不用配置模型密钥，也不绑定任何一家。
 
 <p align="center">
   <img src="docs/assets/screenshot-article.jpg" width="800" alt="带目录的文章页">
@@ -41,10 +46,21 @@ Galley 原意是印刷厂交给编辑过目的校样——付印之前的最后�
 
 ## 怎么运作的
 
-1. 你往**素材箱**里丢一个想法、一个链接或一张截图。Agent 把它整理成知识块，并提出候选选题。
-2. 你采纳一个选题。Agent 领取、写稿、标注引用，开出一个**变更集**。
-3. 你审阅：渲染好的预览、逐字对比、可以在任意一句话上写批注，然后**批准**或**打回**。
-4. 批准的内容上线。以后某个知识块变了，所有依赖它的文章会作为修订任务再回到你这里。
+**1. 把你在用的 Agent 接上来。** 在后台的 MCP 页加一个 Agent，它会给你一个访问密钥和一段填好地址的配置，
+粘进 Claude Code、Codex 或者别的支持 MCP 的客户端。只配一次。
+
+**2. 直接让它写。** 在你平时聊天的地方说一句：*「写一篇关于个人站点用 SQLite 就够了的文章。」*
+Agent 会先读这个站的技能，知道这里的规矩，再搜一遍博客已有的内容，用 Galley 的标记写出来，提交审阅。
+这时候还没上线。
+
+**3. 你读一遍，决定。** 后台给你渲染好的预览、和线上版本的逐字对比，任意一句话都能写批注。
+**批准**就上线，**打回**并写上意见，Agent 照着改。
+
+**4. 它会替你盯住事实。** 文章引用知识块，而不是把事实抄进正文。以后某个知识块变了，
+所有依赖它的文章会作为修订任务回到你这里，不会悄悄过期。
+
+想让它自己跑？站里有素材箱（丢想法和链接）、选题池和一份待办清单，Agent 定时跑的时候照着做，
+不用你开口。这部分是可选的——日常用起来，跟你的 Agent 说句话就是全部流程。
 
 <p align="center">
   <img src="docs/assets/screenshot-review.jpg" width="800" alt="在后台审阅一个变更集">
@@ -143,23 +159,34 @@ pnpm dev
 
 ## 接入 Agent
 
-在后台的 **MCP 管理** 页接入一个 Agent，页面会显示一次访问密钥和配置片段。也可以用命令行：
+任何支持 MCP 的客户端都行，Claude Code 和 Codex 是实际验证过的两个。在后台的 **MCP 管理** 页加一个
+Agent，页面会显示一次访问密钥，以及一段已经填好本站地址的配置。也可以用命令行：
 
 ```bash
 pnpm agent:create Codex
 ```
 
-把密钥放进环境变量 `GALLEY_TOKEN`，然后在 Codex 的配置里加上：
+把密钥放进环境变量 `GALLEY_TOKEN`。**Codex** 加进 `~/.codex/config.toml`：
 
 ```toml
 [mcp_servers.galley]
-url = "http://localhost:3000/mcp"
+url = "https://你的站点/mcp"
 bearer_token_env_var = "GALLEY_TOKEN"
 default_tools_approval_mode = "approve"
 ```
 
-最后一行让 Codex 调用本站工具时不再逐次询问。定时自动运行时没有人能点批准，缺了这一行它什么都做不了。
-放行是安全的：这些工具里没有发布的能力。
+**Claude Code** 加进 `~/.claude.json`：
+
+```json
+{ "mcpServers": { "galley": { "type": "http", "url": "https://你的站点/mcp",
+  "headers": { "Authorization": "Bearer 你的密钥" } } } }
+```
+
+然后直接跟它说话：*「看一下我的博客，提三个可以写的题目。」* Agent 第一次调用时会被引导去读站上的
+`overview` 技能，那里写明了这个博客怎么运营，你不用再解释一遍。
+
+Codex 配置里最后一行让它调用本站工具时不再逐次询问——定时自动运行时没有人能点批准，缺了这一行它什么都
+做不了。放行是安全的：这些工具里没有发布、下线、读留言、改自己权限的能力。
 
 也可以用插件省掉手动配置：在后台下载预先填好本站地址的那份，或者用仓库里
 [integrations/codex](integrations/codex) 的通用版本。

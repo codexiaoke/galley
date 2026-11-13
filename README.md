@@ -4,7 +4,7 @@
 
 <h1 align="center">Galley</h1>
 
-<p align="center">A self-hosted blog that agents run and you approve.</p>
+<p align="center">A self-hosted blog your AI agent writes over MCP. Nothing ships until you approve it.</p>
 
 <p align="center">
   <a href="https://github.com/codexiaoke/galley/actions/workflows/image.yml"><img src="https://github.com/codexiaoke/galley/actions/workflows/image.yml/badge.svg" alt="Build"></a>
@@ -18,13 +18,17 @@
 
 ---
 
-A *galley* is the proof a printer hands an editor before anything goes to press. That is the whole idea
-here: an agent picks topics, writes drafts and maintains the knowledge behind them, and nothing reaches
-a reader until you have read it and said yes.
+**You already have an agent. Point it at your blog and tell it to write.**
 
-Galley is one Docker container and one data directory. It calls no language model of its own — every bit
-of intelligence comes from whichever agent you connect over [MCP](https://modelcontextprotocol.io), so
-there are no model keys to configure and no vendor to lock into.
+Galley is a blog with an [MCP](https://modelcontextprotocol.io) endpoint. Add that endpoint to Claude
+Code, Codex, or any other MCP client you already use, and the agent can read what the site knows, draft
+an article and submit it. You open the admin, read the draft, and approve it or send it back. Nothing
+reaches a reader any other way — the MCP surface has no publish tool at all.
+
+A *galley* is the proof a printer hands an editor before anything goes to press. That is the whole idea.
+
+One Docker container, one data directory, and no language model of its own: every bit of intelligence
+comes from the agent you connect, so there are no model keys to configure and nothing to lock into.
 
 <p align="center">
   <img src="docs/assets/screenshot-article.jpg" width="800" alt="An article with its table of contents">
@@ -45,13 +49,25 @@ there are no model keys to configure and no vendor to lock into.
 
 ## How it works
 
-1. You drop a thought, a link or a screenshot into the **inbox**. The agent turns it into knowledge
-   blocks and proposes topics.
-2. You accept a topic. The agent claims it, writes the article, cites blocks, and opens a **change set**.
-3. You review: a rendered preview, a word-level diff, inline comments on any sentence. Then **approve**
-   or **send it back**.
-4. Approved work goes live. Later, when a block changes, every article resting on it comes back to you
-   as a revision task.
+**1. Connect the agent you already use.** Add an agent on the admin's MCP page, which hands you an access
+key and a ready-made config snippet, and paste it into Claude Code, Codex or whatever else speaks MCP.
+One-time setup.
+
+**2. Tell it to write.** In your usual chat: *"Write a post about why SQLite is enough for a personal
+site."* The agent reads the site's skills to learn the house rules, searches what the blog already knows,
+writes the article in Galley's markup, and submits it for review. Nothing is live yet.
+
+**3. Read it and decide.** The admin shows a rendered preview, a word-level diff against what is online,
+and lets you comment on any sentence. **Approve** and it goes live; **send it back** with notes and the
+agent revises.
+
+**4. It keeps the facts honest.** Articles cite knowledge blocks rather than repeating facts inline. When
+a block changes later, every article resting on it comes back as a revision task instead of quietly
+rotting.
+
+Want it to run on its own? There is an inbox you can drop thoughts and links into, a topic pool, and a
+to-do list the agent reads on a schedule — so a nightly run has something to do without you asking. That
+part is optional; day to day, talking to your agent is the whole workflow.
 
 <p align="center">
   <img src="docs/assets/screenshot-review.jpg" width="800" alt="Reviewing a change set in the admin">
@@ -157,24 +173,36 @@ The site is on http://localhost:3000, the admin on `/admin`, the MCP endpoint on
 
 ## Connect an agent
 
-Add an agent on the admin's **MCP** page and it shows an access key once, along with a ready-made config
-snippet. On the command line:
+Any MCP client works — Claude Code and Codex are the two this is tested against. Add an agent on the
+admin's **MCP** page: it shows an access key once, along with a config snippet already filled in with
+your site's address. Or from the command line:
 
 ```bash
 pnpm agent:create Codex
 ```
 
-Put the key in `GALLEY_TOKEN` and add this to your Codex config:
+Put the key in `GALLEY_TOKEN`. In **Codex**, add to `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.galley]
-url = "http://localhost:3000/mcp"
+url = "https://your-site/mcp"
 bearer_token_env_var = "GALLEY_TOKEN"
 default_tools_approval_mode = "approve"
 ```
 
-That last line stops Codex asking for approval on every call, which matters for unattended runs — and it
-is safe, because none of the tools can publish anything.
+In **Claude Code**, add to `~/.claude.json`:
+
+```json
+{ "mcpServers": { "galley": { "type": "http", "url": "https://your-site/mcp",
+  "headers": { "Authorization": "Bearer YOUR_TOKEN" } } } }
+```
+
+Then just talk to it: *"Have a look at my blog and suggest three posts I could write."* On its first call
+the agent is pointed at the site's `overview` skill, which tells it how this blog is run — you do not
+have to explain anything.
+
+Approving tool calls up front (that last line in the Codex config) matters for unattended runs, and it is
+safe: none of the tools can publish, unpublish, read your guest book, or change their own permissions.
 
 There is also a plugin that skips the manual setup: download one pre-filled with your site's address from
 the admin, or use the generic one in [integrations/codex](integrations/codex).
