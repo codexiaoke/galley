@@ -40,6 +40,12 @@ the config files to `~/galley` on the server, and runs `deploy.sh` there. The fi
 three questions. To update later, pull the latest code locally and run the same command again —
 configuration and data on the server are left alone.
 
+Each release completes SSH authentication before building or uploading, then reuses that connection
+for checks, uploads, and startup without repeated SSH password prompts. The script does not store
+the password and closes the connection when it exits or is interrupted. A lost connection fails
+instead of prompting behind the upload progress. With `pv` installed locally, the Galley upload shows bytes
+transferred, speed, and elapsed time.
+
 To upload it yourself instead, just build the bundle:
 
 ```bash

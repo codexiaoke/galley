@@ -85,7 +85,27 @@ DIR=${2:-galley}
 [ -n "$HOST" ] || fail "用法：./release.sh 用户名@服务器地址 [服务器上的目录，默认 galley]，或者 ./release.sh --pack [amd64|arm64] 只打包"
 [[ "$DIR" =~ ^[A-Za-z0-9._/-]+$ ]] || fail "目录名只能用字母、数字和 . _ / -。"
 
-remote() { ssh "$HOST" "$@"; }
+# 使用短的私有目录存放控制套接字，避免 macOS 的 Unix socket 路径长度限制。
+SSH_CONTROL_DIR=$(mktemp -d /tmp/galley-ssh.XXXXXX)
+SSH=(ssh -S "$SSH_CONTROL_DIR/control")
+cleanup_ssh() {
+  local status=$?
+  trap - EXIT
+  "${SSH[@]}" -O exit "$HOST" >/dev/null 2>&1 || true
+  rm -rf "$SSH_CONTROL_DIR"
+  exit "$status"
+}
+trap cleanup_ssh EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+say "登录服务器（本次发布共用这条连接，之后无需重复输入 SSH 密码）"
+# -f 在认证完成后才转入后台；先完成密码和主机指纹确认，再开始构建、压缩与上传。
+"${SSH[@]}" -M -o ControlPersist=no -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -fN "$HOST" \
+  || fail "连不上 ${HOST}。先确认 ssh $HOST 能登录。"
+# 套接字失效时禁止重新建连接，也不再弹出密码提示，以免被上传进度覆盖。
+SSH+=(-o ControlMaster=no -o BatchMode=yes -o ProxyCommand=false)
+remote() { "${SSH[@]}" "$HOST" "$@"; }
 
 say "检查服务器"
 ARCH=$(remote uname -m) || fail "连不上 ${HOST}。先确认 ssh $HOST 能登录。"
@@ -118,4 +138,4 @@ tar czf - "${DEPLOY_FILES[@]}" | remote "mkdir -p '$DIR' && tar xzf - -C '$DIR'"
 
 say "在服务器上启动"
 # -t：第一次部署时要在服务器上回答几个问题（端口、域名、后台密码）。
-ssh -t "$HOST" "cd '$DIR' && GALLEY_PREBUILT=1 ./deploy.sh"
+"${SSH[@]}" -t "$HOST" "cd '$DIR' && GALLEY_PREBUILT=1 ./deploy.sh"
