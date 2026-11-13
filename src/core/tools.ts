@@ -20,6 +20,7 @@ export const TOOLS: ToolInfo[] = [
   { name: "get_skill", group: "入门", label: "读取技能", required: true },
   { name: "suggest_skill_change", group: "入门", label: "对技能提修改建议" },
   { name: "list_components", group: "入门", label: "查看正文里可用的组件" },
+  { name: "get_component", group: "入门", label: "读一个组件的详细说明" },
   { name: "list_categories", group: "入门", label: "查看分类" },
   { name: "list_tags", group: "入门", label: "查看已有的标签" },
 

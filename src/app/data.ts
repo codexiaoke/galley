@@ -2,7 +2,8 @@ import { cacheLife, cacheTag } from "next/cache";
 import { connection } from "next/server";
 import { getDb } from "@/core/db/client";
 import { listCategories } from "@/core/services/categories";
-import { getPublishedDocument, listPublished, publishedSlugExists } from "@/core/services/documents";
+import { articleNavigation, getPublishedDocument, listPublished, publishedSlugExists } from "@/core/services/documents";
+import { listTerms, publicHistory, siteGraph } from "@/core/services/knowledge";
 import { listOperationLog } from "@/core/services/oplog";
 
 /**
@@ -78,4 +79,56 @@ async function cachedHasAboutPage() {
 export async function loadHasAboutPage() {
   await connection();
   return cachedHasAboutPage();
+}
+
+async function cachedTerms() {
+  "use cache";
+  cacheLife("max");
+  cacheTag(PUBLIC_CONTENT_TAG);
+  return listTerms(getDb());
+}
+
+/** 站点上的术语（公开、已核实的概念块）。文章里第一次出现时可以悬停看定义。 */
+export async function loadTerms() {
+  await connection();
+  return cachedTerms();
+}
+
+async function cachedSiteGraph() {
+  "use cache";
+  cacheLife("max");
+  cacheTag(PUBLIC_CONTENT_TAG);
+  return siteGraph(getDb());
+}
+
+/** 站点的知识图谱：文章和概念，以及它们之间的联系。 */
+export async function loadSiteGraph() {
+  await connection();
+  return cachedSiteGraph();
+}
+
+async function cachedHistory(slug: string) {
+  "use cache";
+  cacheLife("max");
+  cacheTag(PUBLIC_CONTENT_TAG);
+  return publicHistory(getDb(), slug) ?? null;
+}
+
+/** 一篇文章上线过的每一版。 */
+export async function loadHistory(slug: string) {
+  await connection();
+  return cachedHistory(slug);
+}
+
+async function cachedNavigation(documentId: string) {
+  "use cache";
+  cacheLife("max");
+  cacheTag(PUBLIC_CONTENT_TAG);
+  return articleNavigation(getDb(), documentId);
+}
+
+/** 文章页上的系列目录和上一篇、下一篇。 */
+export async function loadNavigation(documentId: string) {
+  await connection();
+  return cachedNavigation(documentId);
 }

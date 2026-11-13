@@ -1067,6 +1067,99 @@ body {
   color: var(--accent);
 }
 
+/* 系列目录：正文前面的一小块，左边一条朱红竖线 */
+.galley-series {
+  margin: 0 0 2rem;
+  padding: 0.15rem 0 0.15rem 1rem;
+  border-left: 2px solid var(--accent);
+}
+.galley-series > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.75rem;
+  cursor: pointer;
+  list-style: none;
+}
+.galley-series > summary::-webkit-details-marker {
+  display: none;
+}
+.galley-series-kicker {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+.galley-series-name {
+  font-weight: 700;
+}
+.galley-series-count {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+}
+.galley-series ol {
+  margin-top: 0.5rem;
+  padding-left: 1.4em;
+  list-style: decimal;
+  font-size: 0.9375rem;
+  line-height: 1.9;
+  color: var(--ink-faint);
+}
+.galley-series li a {
+  color: var(--ink-soft);
+  transition: color var(--dur-fast);
+}
+.galley-series li a:hover {
+  color: var(--accent);
+}
+.galley-series li[aria-current] {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* 文章末尾的上一篇、下一篇：左右两栏，窄屏上下排 */
+.galley-prevnext {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--rule);
+}
+.galley-prevnext-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.galley-prevnext-link[data-dir="next"] {
+  grid-column: 2;
+  text-align: right;
+}
+.galley-prevnext-label {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+.galley-prevnext-title {
+  line-height: 1.6;
+  color: var(--ink-soft);
+  transition: color var(--dur-fast);
+}
+.galley-prevnext-link:hover .galley-prevnext-title {
+  color: var(--accent);
+}
+@media (max-width: 560px) {
+  .galley-prevnext {
+    grid-template-columns: 1fr;
+  }
+  .galley-prevnext-link[data-dir="next"] {
+    grid-column: 1;
+  }
+}
+
 /* 标签页列表上方的一行："标签 · SQLite  3 篇" */
 .galley-index-heading {
   margin: 1.75rem 0 0.25rem;
@@ -1152,6 +1245,254 @@ body {
 }
 .galley-log-meta a:hover {
   color: var(--accent);
+}
+
+/* ---- 修改记录 ---- */
+
+.galley-meta-history {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-underline-offset: 4px;
+  transition: color var(--dur-fast);
+}
+.galley-meta-history:hover {
+  color: var(--accent);
+}
+.galley-lede a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--rule);
+  text-underline-offset: 4px;
+}
+.galley-history-entry {
+  border-bottom: 1px solid var(--rule);
+  padding: 1.1rem 0;
+}
+.galley-history-date {
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+.galley-history-note {
+  margin-top: 0.2rem;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1.6;
+}
+.galley-history-size {
+  margin-top: 0.25rem;
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  color: var(--ink-faint);
+}
+.galley-history-diff {
+  margin-top: 0.6rem;
+}
+.galley-history-diff > summary {
+  cursor: pointer;
+  width: fit-content;
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  color: var(--accent);
+}
+.galley-diff {
+  margin-top: 0.75rem;
+  padding: 0.9rem 1rem;
+  border-radius: 6px;
+  background: var(--paper-sunken);
+  font-size: 0.9375rem;
+  line-height: 1.85;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.galley-diff > p + p {
+  margin-top: 0.5rem;
+}
+.galley-diff-same {
+  color: var(--ink-faint);
+}
+.galley-diff del {
+  border-radius: 2px;
+  background: color-mix(in srgb, #c2413c 14%, transparent);
+  color: color-mix(in srgb, #c2413c 80%, var(--ink));
+  text-decoration-color: color-mix(in srgb, #c2413c 50%, transparent);
+}
+.galley-diff ins {
+  border-radius: 2px;
+  background: color-mix(in srgb, #3d7558 16%, transparent);
+  color: color-mix(in srgb, #3d7558 80%, var(--ink));
+  text-decoration: none;
+}
+.galley-diff-gap {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+  user-select: none;
+}
+
+/* ---- 知识图谱 ---- */
+
+/* 图比正文栏宽：在宽屏上向两边撑开，最多 68rem */
+.galley-graph {
+  position: relative;
+  width: min(68rem, 100vw - 2rem);
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+.galley-graph-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  touch-action: manipulation;
+}
+.galley-graph-links line {
+  stroke: var(--rule);
+  stroke-width: 1.2;
+  transition: stroke var(--dur-fast), opacity var(--dur-fast);
+}
+.galley-graph-links line[data-kind="mentions"],
+.galley-graph-links line[data-kind="related"] {
+  stroke-dasharray: 3 4;
+}
+.galley-graph-links line[data-state="on"] {
+  stroke: color-mix(in srgb, var(--accent) 70%, transparent);
+  stroke-width: 1.6;
+}
+.galley-graph-links line[data-state="off"] {
+  opacity: 0.25;
+}
+.galley-graph-node {
+  cursor: pointer;
+  outline: none;
+  transition: opacity var(--dur-fast);
+}
+.galley-graph-node[data-state="off"] {
+  opacity: 0.22;
+}
+.galley-graph-hit {
+  fill: transparent;
+}
+.galley-graph-dot {
+  fill: var(--ink);
+  stroke: var(--paper);
+  stroke-width: 2;
+  transition: r var(--dur-fast);
+}
+.galley-graph-node[data-kind="concept"] .galley-graph-dot {
+  fill: var(--paper);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+.galley-graph-node[data-selected] .galley-graph-dot,
+.galley-graph-node:focus-visible .galley-graph-dot {
+  stroke-width: 3.5;
+}
+.galley-graph-node[data-kind="article"][data-selected] .galley-graph-dot {
+  stroke: var(--accent);
+}
+.galley-graph-node text {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  fill: var(--ink-soft);
+  paint-order: stroke;
+  stroke: var(--paper);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.galley-graph-node[data-kind="concept"] text {
+  fill: var(--accent);
+}
+.galley-graph-node[data-state="on"] text,
+.galley-graph-node[data-selected] text {
+  font-weight: 600;
+  fill: var(--ink);
+}
+.galley-graph-legend {
+  display: flex;
+  gap: 1.25rem;
+  justify-content: flex-end;
+  margin-top: 0.5rem;
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+}
+.galley-graph-legend span::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 0.4em;
+  border-radius: 50%;
+  vertical-align: -0.05em;
+  background: var(--ink);
+}
+.galley-graph-legend span[data-kind="concept"]::before {
+  background: var(--paper);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.galley-graph-details {
+  max-width: 43rem;
+  margin: 1.25rem auto 0;
+  padding: 0 1.5rem;
+}
+.galley-graph-kind {
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+.galley-graph-title {
+  margin-top: 0.2rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.galley-graph-title a:hover {
+  color: var(--accent);
+}
+.galley-graph-text {
+  margin-top: 0.4rem;
+  line-height: 1.85;
+  color: var(--ink-soft);
+}
+.galley-graph-related {
+  margin-top: 0.9rem;
+  border-top: 1px solid var(--rule);
+}
+.galley-graph-related li {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+.galley-graph-relation {
+  flex: none;
+  width: 6.5em;
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+}
+.galley-graph-related a,
+.galley-graph-related button {
+  text-align: left;
+  color: var(--ink);
+  transition: color var(--dur-fast);
+}
+.galley-graph-related button {
+  color: var(--accent);
+  cursor: pointer;
+}
+.galley-graph-related a:hover,
+.galley-graph-related button:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
 /* ---- 文章正文 ------------------------------------------------------------ */
@@ -1298,6 +1639,186 @@ body {
 }
 
 /* 提示框：左侧一条色线，底色只比纸张深一点 */
+/* ---- 小测验：一道选择题，点选后标出对错、显示解析 ---- */
+.galley-quiz {
+  --quiz-right: #3d7558;
+  --quiz-wrong: #b5483a;
+  margin: 2.25em 0;
+  padding: 1.1em 1.3em 1em;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  font-size: 0.97em;
+}
+:root[data-reader-theme="dark"] .galley-quiz {
+  --quiz-right: #8cc4a4;
+  --quiz-wrong: #e08b7d;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-reader-theme="light"]) .galley-quiz {
+    --quiz-right: #8cc4a4;
+    --quiz-wrong: #e08b7d;
+  }
+}
+.galley-quiz-kicker {
+  display: flex;
+  gap: 0.6em;
+  align-items: baseline;
+  margin: 0 0 0.4em;
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+.galley-quiz-kicker span {
+  color: var(--ink-faint);
+}
+.galley-quiz-question {
+  font-weight: 700;
+  line-height: 1.75;
+}
+.galley-quiz-question > * + * {
+  margin-top: 0.6em;
+}
+.galley-prose .galley-quiz-options {
+  display: grid;
+  gap: 0.5em;
+  margin: 0.9em 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: quiz;
+}
+.galley-prose .galley-quiz-options > li {
+  position: relative;
+  margin: 0;
+  padding: 0.55em 0.9em 0.55em 2.6em;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  line-height: 1.7;
+  counter-increment: quiz;
+  transition: border-color var(--dur-fast), background-color var(--dur-fast);
+}
+.galley-prose .galley-quiz-options > li::before {
+  content: counter(quiz, upper-alpha);
+  position: absolute;
+  left: 0.9em;
+  top: 0.55em;
+  font-family: var(--font-ui);
+  font-size: 0.85em;
+  font-weight: 600;
+  line-height: 1.95;
+  color: var(--ink-faint);
+}
+.galley-prose .galley-quiz-options > li > p {
+  margin: 0;
+}
+.galley-quiz[data-ready] .galley-quiz-options > li {
+  cursor: pointer;
+}
+.galley-quiz[data-ready] .galley-quiz-options > li:hover,
+.galley-quiz-options > li:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--rule));
+  outline: none;
+}
+.galley-quiz-options > li[data-chosen="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.galley-quiz[data-state="revealed"] .galley-quiz-options > li {
+  cursor: default;
+}
+.galley-quiz-options > li[data-result="right"],
+.galley-quiz-options > li[data-result="missed"] {
+  border-color: var(--quiz-right);
+  background: color-mix(in srgb, var(--quiz-right) 10%, transparent);
+}
+.galley-quiz-options > li[data-result="wrong"] {
+  border-color: var(--quiz-wrong);
+  background: color-mix(in srgb, var(--quiz-wrong) 9%, transparent);
+}
+.galley-quiz-options > li[data-result="plain"] {
+  opacity: 0.6;
+}
+/* 对错不只靠颜色：选项末尾再写一个字 */
+.galley-quiz-options > li[data-result]::after {
+  position: absolute;
+  right: 0.9em;
+  top: 0.55em;
+  font-family: var(--font-ui);
+  font-size: 0.8em;
+  line-height: 2.05;
+}
+.galley-quiz-options > li[data-result="right"]::after {
+  content: "✓ 对";
+  color: var(--quiz-right);
+}
+.galley-quiz-options > li[data-result="missed"]::after {
+  content: "✓ 正确答案";
+  color: var(--quiz-right);
+}
+.galley-quiz-options > li[data-result="wrong"]::after {
+  content: "✗ 不对";
+  color: var(--quiz-wrong);
+}
+.galley-quiz-options > li[data-result] {
+  padding-right: 6.5em;
+}
+/* 解析：答完才出现 */
+.galley-quiz-explain {
+  display: none;
+  margin-top: 0.9em;
+  padding-top: 0.8em;
+  border-top: 1px dashed var(--rule);
+  color: var(--ink-soft);
+  line-height: 1.85;
+}
+.galley-quiz[data-state="revealed"] .galley-quiz-explain {
+  display: block;
+  animation: galley-quiz-in 0.35s var(--ease-out);
+}
+@keyframes galley-quiz-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.galley-quiz-footer {
+  display: flex;
+  gap: 1em;
+  align-items: center;
+  margin-top: 0.8em;
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  color: var(--ink-faint);
+}
+.galley-quiz-footer button {
+  cursor: pointer;
+  color: var(--accent);
+}
+.galley-quiz-footer button:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.galley-quiz-footer .galley-quiz-submit {
+  padding: 0.3em 1em;
+  border-radius: 5px;
+  background: var(--accent);
+  color: var(--paper);
+}
+.galley-quiz-footer .galley-quiz-submit:hover {
+  text-decoration: none;
+}
+.galley-quiz-footer .galley-quiz-submit:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+.galley-quiz-verdict {
+  font-weight: 600;
+  color: var(--quiz-wrong);
+}
+.galley-quiz-verdict[data-right="true"] {
+  color: var(--quiz-right);
+}
+
 .galley-callout {
   margin: 2em 0;
   border-left: 2px solid var(--callout-color, var(--ink-faint));
@@ -1455,6 +1976,44 @@ body {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
   text-decoration-color: var(--accent);
 }
+/* 术语：站点上定义过的概念，第一次出现时标出。和依据区分开：依据是灰色点线，术语是朱红色的细虚线 */
+.galley-term {
+  cursor: help;
+  border-radius: 2px;
+  text-decoration: underline dashed;
+  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 5px;
+  outline: none;
+  transition: background-color 0.12s;
+}
+.galley-term:hover,
+.galley-term:focus-visible,
+.galley-term[aria-describedby] {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  text-decoration-color: var(--accent);
+}
+.galley-term-name {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+.galley-term-aliases {
+  margin-left: 0.5em;
+  font-weight: 400;
+  font-size: 0.85em;
+  color: var(--ink-faint);
+}
+.galley-term-link {
+  display: inline-block;
+  margin-top: 0.4rem;
+  font-size: 0.85em;
+  color: var(--accent);
+  text-decoration: none;
+}
+.galley-term-link:hover {
+  text-decoration: underline;
+}
 /* 只在后台的审阅预览里出现：依据已过期的句子 */
 .galley-cite-stale {
   text-decoration-color: #c47a12;
@@ -1581,6 +2140,94 @@ body {
   text-align: left;
   overflow: hidden;
 }
+/* ---- 可以运行的代码块：代码下面一条「运行」「改一改」，再下面是输出 ---- */
+.galley-code[data-editing="true"] > pre {
+  display: none;
+}
+.galley-run-editor {
+  display: block;
+  width: 100%;
+  padding: 0.9rem 1rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  line-height: 1.7;
+  tab-size: 2;
+  resize: vertical;
+  outline: none;
+}
+.galley-run-editor:focus {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.galley-run-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.9rem;
+  padding: 0.45rem 0.75rem;
+  border-top: 1px solid color-mix(in srgb, var(--rule) 75%, transparent);
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+}
+.galley-run-bar button {
+  cursor: pointer;
+  color: var(--ink-soft);
+  transition: color var(--dur-fast);
+}
+.galley-run-bar button:hover {
+  color: var(--accent);
+}
+.galley-run-bar .galley-run-button {
+  padding: 0.2rem 0.75rem;
+  border-radius: 5px;
+  background: var(--accent);
+  color: var(--paper);
+  font-weight: 600;
+}
+.galley-run-bar .galley-run-button:hover {
+  color: var(--paper);
+  opacity: 0.9;
+}
+.galley-run-bar .galley-run-button:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+.galley-run-meta {
+  margin-left: auto;
+}
+.galley-run-output {
+  max-height: 22rem;
+  overflow: auto;
+  padding: 0.7rem 1rem 0.8rem;
+  border-top: 1px dashed color-mix(in srgb, var(--rule) 80%, transparent);
+  background: color-mix(in srgb, var(--paper) 55%, var(--code-bg));
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  animation: galley-quiz-in 0.25s var(--ease-out);
+}
+.galley-run-output p {
+  margin: 0;
+}
+.galley-run-output [data-level="warn"] {
+  color: #a67a1f;
+}
+.galley-run-output [data-level="error"] {
+  color: #b5483a;
+}
+.galley-run-output [data-level="result"] {
+  color: var(--ink-soft);
+}
+.galley-run-empty {
+  color: var(--ink-faint);
+  font-family: var(--font-ui);
+}
+
 .galley-code-bar {
   display: flex;
   align-items: center;
@@ -3633,6 +4280,73 @@ body {
   color: var(--ink);
   cursor: default;
 }
+/* 打印（存成 PDF）：每页幻灯片按设计尺寸一页接一页排下来，屏幕上可以滚动预览 */
+.galley-present[data-print] {
+  position: static;
+  overflow: visible;
+  background: var(--paper);
+}
+.galley-present[data-print] .galley-present-stage {
+  position: relative;
+  top: auto;
+  left: auto;
+  margin: 0 auto;
+}
+@media screen {
+  .galley-present[data-print] {
+    padding: 56px 0 24px;
+  }
+}
+.galley-present[data-print] .galley-slide {
+  position: relative;
+  inset: auto;
+  width: var(--slide-w);
+  height: var(--slide-h);
+  animation: none;
+  break-after: page;
+  page-break-after: always;
+}
+.galley-present[data-print] .galley-slide:last-child {
+  break-after: auto;
+  page-break-after: auto;
+}
+.galley-present[data-print] .galley-diagram-toolbar {
+  display: none;
+}
+.galley-present-print-hint {
+  position: fixed;
+  top: 12px;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  width: fit-content;
+  margin: auto;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-ui);
+  font-size: 13px;
+}
+.galley-present-print-hint a {
+  margin-left: 0.75em;
+  color: inherit;
+  text-decoration: underline;
+}
+@media screen {
+  .galley-present[data-print] .galley-slide + .galley-slide {
+    border-top: 1px dashed var(--rule);
+  }
+}
+@media print {
+  .galley-present-print-hint {
+    display: none;
+  }
+  .galley-present[data-print] {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
 .galley-present:not([data-chrome]) {
   cursor: none;
 }
@@ -4166,4 +4880,10 @@ body {
 /* 幻灯片里代码区固定成最长那一步的高度：高度一变，整页的缩放就会跟着跳 */
 .galley-slide .galley-codesteps-code code {
   height: calc(var(--rows-max) * var(--lh));
+}
+
+/* 图的连线上写的关系名（下单、包含……）：比权重的数字小一点、淡一点 */
+.galley-algo-weight[data-label] {
+  font-size: 3px;
+  fill: var(--ink-faint);
 }

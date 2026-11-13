@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { download, prepareRecording, recordingSupport, type Recording, type RecordingSupport } from "./recorder";
 import { formatSpeed, PresentSpeed, SPEEDS } from "./speed";
+import { printWhenDiagramsReady } from "../print-readiness";
 
 /**
  * 演示模式：文章变成全屏的幻灯片。
@@ -46,6 +47,7 @@ export function Presentation({
   orientation: orientationParam,
   captions: captionsParam = false,
   durations,
+  print = false,
 }: {
   cover: Cover;
   slides: PresentSlide[];
@@ -55,6 +57,8 @@ export function Presentation({
   captions?: boolean;
   /** 每一页至少停留多久（毫秒） */
   durations?: number[];
+  /** 打印（存成 PDF）：所有页一页接一页排好，打开浏览器的打印对话框 */
+  print?: boolean;
 }) {
   // 第 0 页是封面，最后一页是结尾
   const total = slides.length + 2;
@@ -108,26 +112,45 @@ export function Presentation({
   // 用 transform 缩放不影响元素自己的高度，所以可以一直拿它和可用的高度比；
   // 再用负的下边距把缩小后多出来的空白收回去，页面里的垂直居中才是对的。
   // 内容的高度会变（比如 Mermaid 图加载完、动画换了一页），所以一直盯着它重新算。
+  // 打印时每一页都要算，平时只算当前这一页。
   useLayoutEffect(() => {
-    const slide = slideRefs.current[page];
-    const el = slide?.querySelector<HTMLElement>(".galley-slide-body");
-    if (!slide || !el) return;
-    const fit = () => {
-      const style = getComputedStyle(slide);
-      const available = slide.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
-      const natural = el.offsetHeight;
-      const f = natural > available ? Math.max(0.5, available / natural) : 1;
-      el.style.transform = f < 1 ? `scale(${f})` : "";
-      el.style.marginBottom = f < 1 ? `${-natural * (1 - f)}px` : "";
-      // 缩到最小还放不下时从顶部开始排，至少标题和开头不会被裁掉
-      if (natural * f > available + 1) slide.dataset.overflow = "true";
-      else delete slide.dataset.overflow;
+    const targets = print ? slideRefs.current : [slideRefs.current[page]];
+    const observers = targets.map((slide) => {
+      const el = slide?.querySelector<HTMLElement>(".galley-slide-body");
+      if (!slide || !el) return null;
+      const fit = () => fitSlide(slide, el);
+      fit();
+      const ro = new ResizeObserver(fit);
+      ro.observe(el);
+      return ro;
+    });
+    return () => observers.forEach((ro) => ro?.disconnect());
+  }, [page, run, orientation, print]);
+
+  // 打印：屏幕上按窗口宽度缩小预览，真正打印时恢复原大（一页 PDF 正好是一页幻灯片）。
+  // 打印前后的切换直接改样式：打印对话框弹出之前浏览器就要排版，等 React 重新渲染来不及。
+  useLayoutEffect(() => {
+    const stage = stageRef.current;
+    if (!print || !stage) return;
+    const preview = () => void (stage.style.zoom = String(Math.min(1, (window.innerWidth - 32) / size.w)));
+    const actual = () => void (stage.style.zoom = "1");
+    preview();
+    window.addEventListener("resize", preview);
+    window.addEventListener("beforeprint", actual);
+    window.addEventListener("afterprint", preview);
+    return () => {
+      window.removeEventListener("resize", preview);
+      window.removeEventListener("beforeprint", actual);
+      window.removeEventListener("afterprint", preview);
     };
-    fit();
-    const ro = new ResizeObserver(fit);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [page, run, orientation]);
+  }, [print, size.w]);
+
+  // 打印：等待所有 Mermaid 页完成渲染和布局，避免导出的 PDF 留下占位框。
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!print || !stage) return;
+    return printWhenDiagramsReady(stage, document.fonts.ready, () => window.print());
+  }, [print]);
 
   /** 让当前页里的动画走一步；返回它接没接，以及建议等多久再走下一步 */
   const stepInside = useCallback(
@@ -235,8 +258,9 @@ export function Presentation({
     return () => window.removeEventListener("galley-diagram-open", pause);
   }, []);
 
-  // 键盘
+  // 键盘（打印模式下不翻页）
   useEffect(() => {
+    if (print) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (document.querySelector(".galley-diagram-dialog[open]")) return;
@@ -271,7 +295,7 @@ export function Presentation({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [auto, move, total, backHref, rec, stopRecording]);
+  }, [auto, move, total, backHref, rec, stopRecording, print]);
 
   // 控制条：鼠标不动两秒后隐藏
   useEffect(() => {
@@ -344,30 +368,36 @@ export function Presentation({
       data-captions={captions || undefined}
       data-chrome={chrome || undefined}
       data-recording={recording_ || undefined}
+      data-print={print || undefined}
+      style={print ? ({ "--slide-w": `${size.w}px`, "--slide-h": `${size.h}px` } as CSSProperties) : undefined}
       onClick={(e) => idle && !auto && e.target === e.currentTarget && move(1)}
     >
       <div
         ref={stageRef}
         className="galley-present-stage"
-        style={{ width: size.w, height: size.h, top: recording_ ? `calc(50% - ${REC_BAR / 2}px)` : "50%", transform: `translate(-50%, -50%) scale(${scale})` } as CSSProperties}
+        style={
+          (print
+            ? { width: size.w }
+            : { width: size.w, height: size.h, top: recording_ ? `calc(50% - ${REC_BAR / 2}px)` : "50%", transform: `translate(-50%, -50%) scale(${scale})` }) as CSSProperties
+        }
       >
         <PresentSpeed.Provider value={speed}>
         <div key={run} className="galley-present-slides">
-          <section ref={(el) => void (slideRefs.current[0] = el)} className="galley-slide galley-slide-cover" data-current={page === 0 || undefined} hidden={page !== 0}>
+          <section ref={(el) => void (slideRefs.current[0] = el)} className="galley-slide galley-slide-cover" data-current={page === 0 || undefined} hidden={!print && page !== 0}>
             <p className="galley-slide-site">{cover.site}</p>
             <h1>{cover.title}</h1>
             {cover.summary && <p className="galley-slide-summary">{cover.summary}</p>}
             {cover.date && <p className="galley-slide-date">{cover.date}</p>}
           </section>
           {slides.map((s, i) => (
-            <section key={i} ref={(el) => void (slideRefs.current[i + 1] = el)} className="galley-slide" data-current={page === i + 1 || undefined} hidden={page !== i + 1}>
+            <section key={i} ref={(el) => void (slideRefs.current[i + 1] = el)} className="galley-slide" data-current={page === i + 1 || undefined} hidden={!print && page !== i + 1}>
               <div className="galley-slide-body galley-prose">
                 {s.section && <p className="galley-slide-section">{s.section}</p>}
                 {s.content}
               </div>
             </section>
           ))}
-          <section ref={(el) => void (slideRefs.current[total - 1] = el)} className="galley-slide galley-slide-cover" data-current={page === total - 1 || undefined} hidden={page !== total - 1}>
+          <section ref={(el) => void (slideRefs.current[total - 1] = el)} className="galley-slide galley-slide-cover" data-current={page === total - 1 || undefined} hidden={!print && page !== total - 1}>
             <h1>{cover.title}</h1>
             <p className="galley-slide-site">{cover.site}</p>
             {cover.url && <p className="galley-slide-date">{cover.url.replace(/^https?:\/\//, "")}</p>}
@@ -381,7 +411,17 @@ export function Presentation({
         )}
       </div>
 
-      {idle && !autoParam && (
+      {print && (
+        <>
+          {/* 纸张大小跟着幻灯片走：一页 PDF 就是一页幻灯片 */}
+          <style>{`@page { size: ${size.w}px ${size.h}px; margin: 0; }`}</style>
+          <p className="galley-present-print-hint">
+            打印对话框里选「存储为 PDF」，边距选「无」，勾上「背景图形」。没有弹出的话按 ⌘P 或 Ctrl+P。<a href={backHref}>返回</a>
+          </p>
+        </>
+      )}
+
+      {idle && !autoParam && !print && (
         <>
           <div className="galley-present-progress" aria-hidden="true">
             <i style={{ width: `${(page / (total - 1)) * 100}%` }} />
@@ -421,6 +461,10 @@ export function Presentation({
             >
               全屏
             </button>
+            {/* 存成 PDF：换成打印模式（网址加上 print=1），所有页排好后打开打印对话框 */}
+            <a href={`?print=1&orientation=${orientation}`} title="存成 PDF（每页一张幻灯片）">
+              PDF
+            </a>
             <button
               type="button"
               className="galley-present-rec-button"
@@ -566,4 +610,17 @@ function Choice<T extends string>({ label, value, options, onChange }: { label: 
       ))}
     </fieldset>
   );
+}
+
+/** 一页内容放不下时整页等比缩小，见上面用到它的地方。 */
+function fitSlide(slide: HTMLElement, el: HTMLElement) {
+  const style = getComputedStyle(slide);
+  const available = slide.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+  const natural = el.offsetHeight;
+  const f = natural > available ? Math.max(0.5, available / natural) : 1;
+  el.style.transform = f < 1 ? `scale(${f})` : "";
+  el.style.marginBottom = f < 1 ? `${-natural * (1 - f)}px` : "";
+  // 缩到最小还放不下时从顶部开始排，至少标题和开头不会被裁掉
+  if (natural * f > available + 1) slide.dataset.overflow = "true";
+  else delete slide.dataset.overflow;
 }

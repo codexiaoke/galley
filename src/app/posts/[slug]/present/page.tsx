@@ -1,10 +1,8 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { runTraces } from "@/core/algo/trace";
-import { plainText } from "@/core/markup/text";
-import { Markdown } from "@/render/Markdown";
 import { Presentation } from "@/render/client/present";
-import { splitSlides } from "@/render/slides";
+import { presentSlides } from "@/render/present-slides";
 import { loadPublishedDocument } from "../../../data";
 import { loadSite } from "../../../site";
 
@@ -16,6 +14,7 @@ import { loadSite } from "../../../site";
  * - orientation=portrait：竖屏（9:16）
  * - captions=1：把讲稿当字幕显示
  * - durations=3000,5200,…：每一页至少停留多少毫秒（按朗读的长度）
+ * - print=1：所有页排好后打开打印对话框，存成 PDF
  */
 export default function PresentPage({ params, searchParams }: PageProps<"/posts/[slug]/present">) {
   return (
@@ -31,7 +30,6 @@ async function Present({ params, searchParams }: { params: Promise<{ slug: strin
   const [doc, site] = await Promise.all([loadPublishedDocument(slug), loadSite()]);
   if (!doc || doc.kind !== "article") notFound();
   const traces = await runTraces(doc.body);
-  const slides = splitSlides(doc.body);
   const one = (k: string) => (typeof query[k] === "string" ? (query[k] as string) : undefined);
   const durations = one("durations")
     ?.split(",")
@@ -49,6 +47,7 @@ async function Present({ params, searchParams }: { params: Promise<{ slug: strin
         orientation={one("orientation") === "portrait" ? "portrait" : one("orientation") === "landscape" ? "landscape" : undefined}
         captions={one("captions") === "1"}
         durations={durations?.length ? durations : undefined}
+        print={one("print") === "1"}
         cover={{
           title: doc.title,
           summary: doc.summary ?? undefined,
@@ -56,13 +55,7 @@ async function Present({ params, searchParams }: { params: Promise<{ slug: strin
           date: date ? `${date.getFullYear()} 年 ${date.getMonth() + 1} 月 ${date.getDate()} 日` : undefined,
           url: site.url ?? undefined,
         }}
-        slides={slides.map((s) => ({
-          title: s.title,
-          section: s.section,
-          notes: s.notes,
-          text: plainText(s.source).replace(/\s+/g, "").length,
-          content: <Markdown body={s.source} blocks={doc.blocks} posts={doc.posts} traces={traces} />,
-        }))}
+        slides={presentSlides(doc, traces)}
       />
     </>
   );

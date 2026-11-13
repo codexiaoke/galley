@@ -1,6 +1,6 @@
 "use server";
 
-import { runTraces } from "@/core/algo/trace";
+import { prepareBody } from "@/core/prepare";
 import { refresh, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Actor } from "@/core/actor";
@@ -17,6 +17,7 @@ import { deleteMessage, setMessageStatus } from "@/core/services/messages";
 import { addMaterial, deleteMaterial, setMaterialStatus } from "@/core/services/materials";
 import { deleteMedia, saveMedia, updateMediaAlt } from "@/core/services/media";
 import { updateSiteSettings } from "@/core/services/settings";
+import { writeAutoBackup } from "@/core/auto-backup";
 import { clearMailSettings, resolveMailConfig, saveMailSettings } from "@/core/services/mail";
 import { smtpSender } from "@/core/services/notify";
 import { setHiddenFromLog } from "@/core/services/oplog";
@@ -134,7 +135,7 @@ export async function setDocumentStatus(_prev: FormState, formData: FormData) {
 export async function previewBody(body: string, changeSetId?: string) {
   await requireOwner();
   // 演示代码先在沙箱里跑一遍：检查时能报出代码的错误，预览也能直接播放
-  const traces = await runTraces(body);
+  const { traces } = await prepareBody(body);
   return { ...previewDocumentBody(getDb(), body, changeSetId), traces };
 }
 
@@ -146,7 +147,7 @@ export async function previewBody(body: string, changeSetId?: string) {
  */
 export async function saveDocumentEdit(_prev: FormState, formData: FormData) {
   const changeSetId = text(formData, "cs");
-  await runTraces(text(formData, "body").replace(/\r\n/g, "\n"));
+  await prepareBody(text(formData, "body").replace(/\r\n/g, "\n"));
   return run(
     (db, actor) => {
       const input = {
@@ -156,6 +157,7 @@ export async function saveDocumentEdit(_prev: FormState, formData: FormData) {
         category: text(formData, "category") || undefined,
         // 页面没有标签输入框，这时不改标签；有输入框时按逗号、顿号拆开。
         tags: formData.has("tags") ? text(formData, "tags").split(/[,，、]/) : undefined,
+        series: formData.has("series") ? text(formData, "series") : undefined,
         body: text(formData, "body").replace(/\r\n/g, "\n"),
       };
       const result = changeSetId
@@ -366,6 +368,18 @@ export async function changeTag(_prev: FormState, formData: FormData) {
 
 export async function toggleLogEntry(_prev: FormState, formData: FormData) {
   return run((db, actor) => setHiddenFromLog(db, actor, text(formData, "id"), text(formData, "hidden") === "true"), { touchesPublic: true });
+}
+
+// ---- 自动备份 ----
+
+/** 打开或关闭每天的自动备份。 */
+export async function setAutoBackup(_prev: FormState, formData: FormData) {
+  return run((db, actor) => void updateSiteSettings(db, actor, { autoBackup: text(formData, "autoBackup") === "off" ? "off" : "on" }));
+}
+
+/** 马上在服务器上存一份备份（和自动备份放在一起，同样只留最近几份）。 */
+export async function backupNow() {
+  return run((db) => void writeAutoBackup(db));
 }
 
 // ---- 邮件通知 ----

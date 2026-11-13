@@ -1,0 +1,1 @@
+ALTER TABLE `document_revisions` ADD `series` text;

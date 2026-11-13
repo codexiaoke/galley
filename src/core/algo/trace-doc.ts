@@ -21,7 +21,7 @@ export const TRACE_API_DOC = `**trace 里可以用的函数**
 
 网格（迷宫、洪水填充）：\`const g = grid(["S..#", ".#.E"])\`（# 墙，S 起点，E 终点），\`g.start\`、\`g.end\` 是 {r, c}，\`g.isWall(r, c)\`、\`g.visit(r, c, 说明?)\`（记一帧）、\`g.frontier(r, c)\`、\`g.path(r, c, 说明?)\`（有说明时记一帧）。
 
-图：\`const G = graph("A-B:4, A-C:1, C>D")\`（- 无向，> 有向，冒号后是权重，最多 12 个节点，排成一圈），\`G.nodes\`、\`G.edges\`、\`G.neighbors(名字)\`（返回 [{ node, weight }]）、\`G.weight(a, b)\`；\`G.visit(名字, 说明?)\`（标成已访问并记一帧）、\`G.focus(名字, 说明?)\`、\`G.focusEdge(a, b, 说明?)\`（记一帧）；\`G.mark(名字, 状态)\`、\`G.markEdge(a, b, 状态)\`、\`G.label(名字, 文字)\`（节点旁边的小字，比如距离）。
+图：\`const G = graph("A-B:4, A-C:1, 张三>订单1:下单")\`（- 无向，> 有向；冒号后是数字时是权重，是文字时是关系的名字，显示在连线上；最多 12 个节点。全是有向边又没有环时从左到右分层排，否则排成一圈），\`G.nodes\`、\`G.edges\`、\`G.neighbors(名字)\`（返回 [{ node, weight, label }]）、\`G.weight(a, b)\`；\`G.visit(名字, 说明?)\`（标成已访问并记一帧）、\`G.focus(名字, 说明?)\`、\`G.focusEdge(a, b, 说明?)\`（记一帧）；\`G.mark(名字, 状态)\`、\`G.markEdge(a, b, 状态)\`、\`G.label(名字, 文字)\`（节点旁边的小字，比如距离）。
 
 二叉树：\`const T = tree([5, 3, 8, null, 4])\`（按层排列，空位写 null；也可以 tree() 建一棵空树），节点用编号表示，根是 \`T.root\`；\`T.value(i)\`、\`T.left(i)\`、\`T.right(i)\`、\`T.parent(i)\`（没有时是 null）；\`T.add(父节点, "left" 或 "right", 值, 说明?)\` 加一个节点并记一帧，返回新节点的编号（空树时 T.add(null, null, 值) 建根）；\`T.visit(i, 说明?)\`、\`T.focus(i, 说明?)\`、\`T.set(i, 值, 说明?)\` 记一帧；\`T.mark(i, 状态)\`；\`T.output(名字, 数组)\` 在树下面显示一个输出序列（遍历结果）。加节点时整棵树会重新排开，节点平滑地挪过去。
 

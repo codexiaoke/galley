@@ -10,6 +10,7 @@ import { toString } from "mdast-util-to-string";
 import type { RefMode } from "../db/schema";
 import { BLOCK_ID_PATTERN } from "../ids";
 import { getComponent } from "./components";
+import { mermaidResults } from "./mermaid-cache";
 import { checkStructure } from "./structure";
 
 export type ParsedRef = {
@@ -180,10 +181,20 @@ export function parseMarkup(body: string): ParsedMarkup {
         error(`公式写错了：${reason}。公式是「${node.value}」。正文里要写美元符号本身时，写成反斜杠加美元符号。`, node.position?.start.line);
       }
     }
+    if (node.type === "code" && /(^|\s)run(\s|$)/.test((node.meta ?? "").replace(/title=(?:"[^"]*"|'[^']*'|\S+)/, ""))) {
+      // 读者能在浏览器里运行的只有 JavaScript（在沙箱里跑，见 render/client/run-sandbox.ts）
+      if (!["js", "javascript", "mjs"].includes((node.lang ?? "").toLowerCase())) {
+        error(`只有 JavaScript 代码块可以加 run 让读者运行，这个代码块是「${node.lang ?? "没写语言"}」。去掉 run，或者改写成 JavaScript。`, node.position?.start.line);
+      }
+    }
     if (node.type === "code" && node.lang === "mermaid") {
       const first = node.value.trim().split(/\s+/)[0] ?? "";
+      const checked = mermaidResults.get(node.value);
       if (!MERMAID_TYPES.includes(first)) {
         error(`Mermaid 图的第一行要写图表类型，比如 flowchart LR、sequenceDiagram、classDiagram。现在是「${first}」。`, node.position?.start.line);
+      } else if (checked) {
+        // 保存前已经在服务端检查过（见 mermaid.ts），这里取结果
+        error(`Mermaid ${checked}`, node.position?.start.line);
       }
     }
     if (node.type === "image") {

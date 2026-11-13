@@ -13,27 +13,20 @@ import remarkRehype from "remark-rehype";
 import { unified } from "unified";
 import { BUILTIN_DIRECTIVES, getComponent } from "@/core/markup/components";
 import { isBareText, isDirective } from "@/core/markup/parse";
-import { readCodeSteps, readFlow, readSteps, readTrace, STEP_LINES_PATTERN } from "@/core/markup/structure";
+import type { FlowGraph } from "@/core/markup/flow";
+import { readCodeSteps, readFlow, readQuiz, readSteps, readTrace, STEP_LINES_PATTERN } from "@/core/markup/structure";
 import { lineIdentities } from "./code-diff";
-import { CodeStepsPlayer } from "./client/code-steps";
 import { traceCache, traceKey, type TraceResult } from "@/core/algo/trace-shared";
 import type { BlockView } from "@/core/services/blocks";
 import type { PostCard } from "@/core/services/documents";
 import { CiteHover } from "./CiteHover";
-import { highlightCode, languageName, parseCodeMeta } from "./highlight";
+import { findTerms, termSpellings, type Term } from "@/core/markup/terms";
+import { highlightCode, languageName, parseCodeMeta, RUNNABLE_LANGS } from "./highlight";
 import { runAlgorithmVariants } from "@/core/algo";
 import { variantsOf } from "@/core/algo/presets";
-import { AlgoPlayer } from "./client/algo/player";
-import { RacePlayer } from "./client/algo/race";
-import { ChartView } from "./client/chart";
 import { CopyButton } from "./client/copy";
-import { Compare } from "./client/compare";
-import { FlowView } from "./client/flow";
-import { ZoomImage } from "./client/image";
-import { MermaidDiagram } from "./client/mermaid";
-import { CountUp } from "./client/stat";
-import { StepsController } from "./client/steps";
-import { Tabs } from "./client/tabs";
+// 播放器按需加载，见 client/lazy.tsx
+import { AlgoPlayer, ChartView, CodeStepsPlayer, CodeRunner, Compare, CountUp, FlowView, MermaidDiagram, Quiz, RacePlayer, StepsController, Tabs, ZoomImage } from "./client/lazy";
 import { headingSlugger } from "./toc";
 
 /**
@@ -54,6 +47,7 @@ type MdNode = {
   alt?: string | null;
   title?: string | null;
   depth?: number;
+  checked?: boolean | null;
   attributes?: Record<string, string | null | undefined> | null;
   children?: MdNode[];
   position?: { start: { offset?: number }; end: { offset?: number } };
@@ -86,6 +80,46 @@ function stripStepLines(item: MdNode) {
   const paragraph = item.children?.[0];
   const first = paragraph?.children?.[0];
   if (first?.type === "text" && first.value) first.value = first.value.replace(STEP_LINES_PATTERN, "");
+}
+
+/** 这些节点里面的文字不标术语：标题、链接、代码、公式，以及各种标记（依据、取值、图表……）。 */
+const NO_TERMS = new Set(["heading", "link", "linkReference", "inlineCode", "code", "inlineMath", "math", "textDirective", "leafDirective", "html", "footnoteDefinition", "footnoteReference", "galleyElement"]);
+
+/**
+ * 术语：站点上定义过的概念，在正文里第一次出现时加上虚线，悬停看定义（见下面的 TermHover）。
+ * 每个术语只标第一次，标多了满篇都是虚线，读者反而看不清。
+ */
+function remarkTerms(options: { terms: Term[] }) {
+  const spellings = termSpellings(options.terms);
+  return (tree: MdastRoot) => {
+    if (spellings.length === 0) return;
+    const done = new Set<string>();
+    const visit = (node: MdNode) => {
+      if (!node.children || NO_TERMS.has(node.type)) return;
+      // 讲稿、算法动画这类容器里也不标
+      if (node.type === "containerDirective" && ["notes", "code-steps", "trace", "algo", "race", "chart", "timeline"].includes(node.name ?? "")) return;
+      const out: MdNode[] = [];
+      for (const child of node.children) {
+        if (child.type !== "text" || !child.value) {
+          out.push(child);
+          visit(child);
+          continue;
+        }
+        const text = child.value;
+        const hits = findTerms(text, spellings, done);
+        let at = 0;
+        for (const hit of hits) {
+          done.add(hit.id);
+          if (hit.start > at) out.push({ type: "text", value: text.slice(at, hit.start) });
+          out.push({ ...element("galley-term", { id: hit.id }, [{ type: "text", value: text.slice(hit.start, hit.end) }]), type: "galleyElement" });
+          at = hit.end;
+        }
+        if (at < text.length) out.push(at === 0 ? child : { type: "text", value: text.slice(at) });
+      }
+      node.children = out;
+    };
+    visit(tree as unknown as MdNode);
+  };
 }
 
 /** 把标记节点改写成自定义元素，交给下面的 React 组件渲染。 */
@@ -210,6 +244,25 @@ function remarkGalley(options: { source: string }) {
         d.data = { hName: "galley-trace", hProperties: { attrs: JSON.stringify({ keys, code, title: t.title ?? "" }) }, hChildren: [] };
         return;
       }
+      if (d.name === "quiz") {
+        const { parts } = readQuiz(d as never);
+        if (!parts) return replace({ type: "paragraph", children: [{ type: "text", value: "" }] });
+        const kids = d.children ?? [];
+        const div = (className: string, children: MdNode[], hName = "div"): MdNode => ({ type: "galleyElement", children, data: { hName, hProperties: { className: [className] } } });
+        // 选项不再是任务列表（否则会画出勾选框），哪个对记在 data-correct 上，由脚本判断
+        const options = (kids[parts.listIndex].children ?? []).map((item, i) => ({
+          ...item,
+          checked: null,
+          data: { hName: "li", hProperties: { "data-correct": parts.correct.includes(i) ? "true" : "false" } },
+        }));
+        const explanation = kids.slice(parts.listIndex + 1);
+        d.children = [
+          div("galley-quiz-question", kids.slice(0, parts.listIndex)),
+          div("galley-quiz-options", options, "ol"),
+          ...(explanation.length ? [div("galley-quiz-explain", explanation)] : []),
+        ];
+        attrs.correct = parts.correct;
+      }
       if (d.name === "tabs") {
         const tabs = (d.children ?? []).filter((c) => c.type === "containerDirective" && c.name === "tab");
         attrs.labels = tabs.map((t) => t.attributes?.label ?? "");
@@ -230,7 +283,7 @@ const formatDate = (d: Date) => new Date(d).toISOString().slice(0, 10);
  * 正文里只保留读者关心的东西（内容本身和数据的出处）。
  * 这些系统信息只在后台的审阅预览里显示，由 Markdown 的 review 参数打开。
  */
-type Ctx = { blocks: Record<string, BlockView>; posts: Record<string, PostCard>; review: boolean; traces: Record<string, TraceResult> };
+type Ctx = { blocks: Record<string, BlockView>; posts: Record<string, PostCard>; review: boolean; traces: Record<string, TraceResult>; terms: Map<string, Term> };
 
 function Sources({ block }: { block: BlockView }) {
   if (block.sources.length === 0) return null;
@@ -280,6 +333,29 @@ function Cite({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
   );
 }
 
+/** 术语：虚线下划线，悬停（触屏上点击）看它的定义。和依据用同一种浮动卡片。 */
+function TermHover({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
+  const term = ctx.terms.get(attrsOf(props).id ?? "");
+  if (!term) return <>{props.children}</>;
+  const card = (
+    <span className="galley-cite-item">
+      <span className="galley-term-name">
+        {term.term}
+        {term.aliases.length > 0 && <span className="galley-term-aliases">也叫 {term.aliases.join("、")}</span>}
+      </span>
+      <span className="galley-cite-statement">{term.definition}</span>
+      <Link href={`/graph?focus=${term.id}`} className="galley-term-link" prefetch={false}>
+        在知识图谱里看 →
+      </Link>
+    </span>
+  );
+  return (
+    <CiteHover card={card} className="galley-term">
+      {props.children}
+    </CiteHover>
+  );
+}
+
 function Value({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
   const { b, key } = attrsOf(props);
   return <span className="galley-value">{ctx.blocks[b]?.values[key] ?? ""}</span>;
@@ -290,16 +366,18 @@ function Value({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
  * 每行带 data-line 行号，分步讲解（steps）靠它找到要高亮的行。
  */
 function CodeBlock({ code, lang, meta, footer }: { code: string; lang?: string; meta?: string; footer?: ReactNode }) {
-  const { title, highlight } = parseCodeMeta(meta);
+  const { title, highlight, run } = parseCodeMeta(meta);
   const pre = highlightCode(code, lang, highlight);
   const label = title ?? languageName(lang);
+  const runnable = run && RUNNABLE_LANGS.includes((lang ?? "").toLowerCase());
   return (
-    <figure className="galley-code" data-has-highlight={highlight.size > 0 || undefined}>
+    <figure className="galley-code" data-has-highlight={highlight.size > 0 || undefined} data-runnable={runnable || undefined}>
       <figcaption className="galley-code-bar">
         <span className={title ? "galley-code-file" : "galley-code-lang"}>{label}</span>
         <CopyButton text={code.replace(/\n$/, "")} />
       </figcaption>
       {toJsxRuntime(pre, { Fragment, jsx, jsxs })}
+      {runnable && <CodeRunner code={code} />}
       {footer}
     </figure>
   );
@@ -578,6 +656,7 @@ export function Markdown({
   posts = {},
   review = false,
   traces = {},
+  terms = [],
 }: {
   body: string;
   blocks: Record<string, BlockView>;
@@ -587,14 +666,17 @@ export function Markdown({
   review?: boolean;
   /** 演示代码的运行结果（runTraces 的返回值）。服务端渲染时也可以省略，直接从缓存取。 */
   traces?: Record<string, TraceResult>;
+  /** 站点上的术语（见 core/services/knowledge.ts 的 listTerms）。给了才标，正文里每个术语只标第一次出现 */
+  terms?: Term[];
 }) {
-  const ctx: Ctx = { blocks, posts, review, traces };
+  const ctx: Ctx = { blocks, posts, review, traces, terms: new Map(terms.map((t) => [t.id, t])) };
   const processor = unified()
     .use(remarkParse)
     .use(remarkGfm)
     .use(remarkMath)
     .use(remarkDirective)
     .use(remarkGalley, { source: body })
+    .use(remarkTerms, { terms })
     .use(remarkRehype, {
       footnoteLabel: "注释",
       footnoteLabelProperties: { className: ["galley-footnotes-label"] },
@@ -607,6 +689,7 @@ export function Markdown({
   const components = {
     "galley-cite": (props: ElementProps) => <Cite ctx={ctx} props={props} />,
     "galley-value": (props: ElementProps) => <Value ctx={ctx} props={props} />,
+    "galley-term": (props: ElementProps) => <TermHover ctx={ctx} props={props} />,
     "galley-block": (props: ElementProps) => <BlockEmbed ctx={ctx} props={props} />,
     "galley-chart": (props: ElementProps) => <Chart ctx={ctx} props={props} />,
     "galley-stat": (props: ElementProps) => <Stat ctx={ctx} props={props} />,
@@ -632,8 +715,16 @@ export function Markdown({
       return <ZoomImage src={src} alt={alt} caption={title || alt} />;
     },
     "galley-steps": (props: ElementProps) => <StepsController>{props.children}</StepsController>,
+    "galley-quiz": (props: ElementProps) => {
+      const { title, correct } = attrsOf<{ title?: string; correct?: number[] }>(props);
+      return (
+        <Quiz title={title} correct={correct ?? []}>
+          {props.children}
+        </Quiz>
+      );
+    },
     "galley-flow": (props: ElementProps) => {
-      const { graph } = attrsOf<{ graph: Parameters<typeof FlowView>[0]["graph"] | null }>(props);
+      const { graph } = attrsOf<{ graph: FlowGraph | null }>(props);
       return graph ? <FlowView graph={graph} /> : null;
     },
     "galley-tabs": (props: ElementProps) => <Tabs labels={attrsOf<{ labels: string[] }>(props).labels}>{props.children}</Tabs>,

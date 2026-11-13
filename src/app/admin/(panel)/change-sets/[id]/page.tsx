@@ -1,4 +1,4 @@
-import { ArrowLeft, PencilLine } from "lucide-react";
+import { ArrowLeft, PencilLine, Presentation } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -112,6 +112,13 @@ async function ChangeSetDetail({ params }: { params: Promise<{ id: string }> }) 
                 actions={
                   <span className="flex items-center gap-2">
                     <span className="text-xs text-a-muted">{revision.revNo === 1 ? "新建" : `修改为第 ${revision.revNo} 版`}</span>
+                    {document.kind === "article" && (
+                      // 新窗口打开：演示是全屏的，看完关掉就回到审阅页，批注和评论都还在。
+                      <a href={`/admin/preview/${revision.id}/present?from=${changeSet.id}`} target="_blank" rel="noreferrer" className={ROW_LINK}>
+                        <Presentation size={13} />
+                        预览演示
+                      </a>
+                    )}
                     {inReview && (
                       <Link href={`/admin/documents/${document.id}/edit?cs=${changeSet.id}`} className={ROW_LINK}>
                         <PencilLine size={13} />
@@ -130,6 +137,12 @@ async function ChangeSetDetail({ params }: { params: Promise<{ id: string }> }) 
                     <>
                       <dt className="text-a-muted">标签</dt>
                       <dd>{revision.tags.length > 0 ? revision.tags.join("、") : <span className="text-a-muted">没有</span>}</dd>
+                      {revision.series && (
+                        <>
+                          <dt className="text-a-muted">系列</dt>
+                          <dd>{revision.series}</dd>
+                        </>
+                      )}
                     </>
                   )}
                   {revision.summary && (

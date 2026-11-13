@@ -108,9 +108,14 @@ export function highlightCode(code: string, lang: string | null | undefined, hig
  * - title：标题栏上显示的文件名
  * - 花括号里的行号：要高亮的行
  */
-export function parseCodeMeta(meta: string | null | undefined): { title?: string; highlight: Set<number> } {
+export function parseCodeMeta(meta: string | null | undefined): { title?: string; highlight: Set<number>; run: boolean } {
   const text = meta ?? "";
   const title = /title=(?:"([^"]*)"|'([^']*)'|(\S+))/.exec(text);
   const lines = /\{([\d,\s-]+)\}/.exec(text);
-  return { title: title ? (title[1] ?? title[2] ?? title[3]) : undefined, highlight: parseLineRanges(lines?.[1] ?? "") };
+  // 单独的一个词 run：读者可以运行这段代码（只支持 JavaScript，见 client/run-sandbox.ts）
+  const run = /(^|\s)run(\s|$)/.test(text.replace(/title=(?:"[^"]*"|'[^']*'|\S+)/, ""));
+  return { title: title ? (title[1] ?? title[2] ?? title[3]) : undefined, highlight: parseLineRanges(lines?.[1] ?? ""), run };
 }
+
+/** 可以在读者浏览器里运行的语言 */
+export const RUNNABLE_LANGS = ["js", "javascript", "mjs"];

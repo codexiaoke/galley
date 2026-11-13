@@ -4,6 +4,7 @@ import path from "node:path";
 import { gunzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { OWNER, type Actor } from "../actor";
+import { backupDue, backupsDir, KEEP, listStoredBackups, storedBackupPath, writeAutoBackup } from "../auto-backup";
 import { createBackup, exportContent, restoreBackup } from "../backup";
 import { closeDb, getDb, type Db } from "../db/client";
 import { GalleyError } from "../errors";
@@ -202,5 +203,41 @@ describe("备份与恢复", () => {
     expect(post).toMatch(/^---\ntitle: "exported"\nslug: "exported"\nsummary: "摘要"\n/);
     expect(post).toMatch(/---\n\n正文第一段。\n$/);
     expect(files.map((f) => f.name)).toContain("blocks.json");
+  });
+});
+
+describe("自动备份", () => {
+  it("没有备份时该备份了；存一份之后一天之内不用再备份；关掉后不备份", () => {
+    expect(backupDue(db)).toBe(true);
+    const name = writeAutoBackup(db);
+    expect(listStoredBackups().map((b) => b.name)).toEqual([name]);
+    expect(backupDue(db)).toBe(false);
+    expect(backupDue(db, new Date(Date.now() + 25 * 60 * 60 * 1000))).toBe(true);
+    updateSiteSettings(db, OWNER, { autoBackup: "off" });
+    expect(backupDue(db, new Date(Date.now() + 25 * 60 * 60 * 1000))).toBe(false);
+  });
+
+  it("只留最近几份，旧的删掉", () => {
+    fs.mkdirSync(backupsDir(), { recursive: true });
+    // 先放几份"以前的"备份，修改时间依次往前推一天。
+    for (let i = 1; i <= KEEP + 2; i++) {
+      const file = path.join(backupsDir(), `galley-backup-2020010${i % 10}-0000${String(i).padStart(2, "0")}.tar.gz`);
+      fs.writeFileSync(file, "old");
+      const time = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+      fs.utimesSync(file, time, time);
+    }
+    const name = writeAutoBackup(db);
+    const kept = listStoredBackups();
+    expect(kept).toHaveLength(KEEP);
+    expect(kept[0].name).toBe(name);
+    // 留下的是最新的那几份
+    expect(kept.at(-1)!.createdAt.getTime()).toBeGreaterThan(Date.now() - KEEP * 24 * 60 * 60 * 1000);
+  });
+
+  it("按名字取备份时不接受奇怪的名字", () => {
+    const name = writeAutoBackup(db);
+    expect(storedBackupPath(name)).toBeTruthy();
+    expect(storedBackupPath("../galley.db")).toBeUndefined();
+    expect(storedBackupPath("galley-backup-20200101-000000.tar.gz")).toBeUndefined();
   });
 });

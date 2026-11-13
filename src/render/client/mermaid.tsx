@@ -118,6 +118,11 @@ export function MermaidDiagram({ code, review = false }: { code: string; review?
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    // 打印需要所有页的图，即使它们尚未滚动到视野内。
+    if (el.closest(".galley-present[data-print]")) {
+      const frame = requestAnimationFrame(() => setNear(true));
+      return () => cancelAnimationFrame(frame);
+    }
     const observer = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && setNear(true), { rootMargin: "400px 0px" });
     observer.observe(el);
     return () => observer.disconnect();
@@ -149,7 +154,7 @@ export function MermaidDiagram({ code, review = false }: { code: string; review?
   }, [near, code, id, theme]);
 
   return (
-    <figure ref={ref} className="galley-mermaid" data-ready={diagram && !error ? true : undefined}>
+    <figure ref={ref} className="galley-mermaid" data-ready={diagram && !error ? true : undefined} data-error={error ? true : undefined}>
       {diagram && !error ? (
         <MermaidViewer diagram={diagram} presentation={diagram.presentation} />
       ) : error ? (

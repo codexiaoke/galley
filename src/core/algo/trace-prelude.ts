@@ -265,14 +265,19 @@ function graph(spec, options) {
   var node = function (name) { name = String(name); var i = names.indexOf(name); if (i === -1) i = names.push(name) - 1; return i; };
   if (typeof spec === "string") {
     spec.split(/[,，]/).map(function (p) { return p.trim(); }).filter(Boolean).forEach(function (part) {
-      var m = /^([^\s\->:]{1,6})\s*(-|>)\s*([^\s\->:]{1,6})\s*(?::\s*(-?\d+(?:\.\d+)?))?$/.exec(part);
-      if (m) edges.push({ from: node(m[1]), to: node(m[3]), weight: m[4] === undefined ? undefined : Number(m[4]), directed: m[2] === ">" });
+      // 冒号后面是数字时当权重，是文字时当关系的名字（比如 "张三>订单1001:下单"）
+      var m = /^([^\s\->:]{1,6})\s*(-|>)\s*([^\s\->:]{1,6})\s*(?::\s*(.{1,8}))?$/.exec(part);
+      if (m) {
+        var extra = m[4] === undefined ? undefined : m[4].trim();
+        var isNumber = extra !== undefined && /^-?\d+(\.\d+)?$/.test(extra);
+        edges.push({ from: node(m[1]), to: node(m[3]), weight: isNumber ? Number(extra) : undefined, label: extra !== undefined && !isNumber ? extra : undefined, directed: m[2] === ">" });
+      }
       else if (/^[^\s\->:]{1,6}$/.test(part)) node(part);
-      else __fail("graph() 看不懂 \"" + part + "\"。边写成 \"A-B\"（无向）或 \"A>B\"（有向），带权重写成 \"A-B:4\"；节点名最多 6 个字符。");
+      else __fail("graph() 看不懂 \"" + part + "\"。边写成 \"A-B\"（无向）或 \"A>B\"（有向），带权重写成 \"A-B:4\"，写关系的名字用 \"A>B:下单\"（最多 8 个字）；节点名最多 6 个字符。");
     });
   } else if (spec && Array.isArray(spec.edges)) {
     (spec.nodes || []).forEach(node);
-    spec.edges.forEach(function (e) { edges.push({ from: node(e[0]), to: node(e[1]), weight: e[2], directed: !!options.directed }); });
+    spec.edges.forEach(function (e) { edges.push({ from: node(e[0]), to: node(e[1]), weight: typeof e[2] === "number" ? e[2] : undefined, label: typeof e[2] === "string" ? e[2] : undefined, directed: !!options.directed }); });
   } else __fail("graph() 需要边的列表，例如 graph(\"A-B:4, B-C:2\")。");
   if (names.length < 2 || names.length > 12) __fail("graph() 要有 2 到 12 个节点。");
   var pos = __layout(names.length, edges, options.layout);
@@ -291,17 +296,17 @@ function graph(spec, options) {
     return [{
       kind: "graph",
       nodes: names.map(function (name, i) { return { name: name, x: pos[i].x, y: pos[i].y, tone: temp.nodes[i] || nodeTone[i] || null, label: labels[i] }; }),
-      edges: edges.map(function (e, k) { return { from: e.from, to: e.to, weight: e.weight, directed: e.directed, tone: temp.edges[k] || edgeTone[k] || null }; }),
+      edges: edges.map(function (e, k) { return { from: e.from, to: e.to, weight: e.weight, label: e.label, directed: e.directed, tone: temp.edges[k] || edgeTone[k] || null }; }),
     }];
   });
   return {
     nodes: names.slice(),
-    edges: edges.map(function (e) { return { from: names[e.from], to: names[e.to], weight: e.weight }; }),
+    edges: edges.map(function (e) { return { from: names[e.from], to: names[e.to], weight: e.weight, label: e.label }; }),
     neighbors: function (name) {
       var i = id(name, "neighbors"), out = [];
       edges.forEach(function (e) {
-        if (e.from === i) out.push({ node: names[e.to], weight: e.weight });
-        else if (!e.directed && e.to === i) out.push({ node: names[e.from], weight: e.weight });
+        if (e.from === i) out.push({ node: names[e.to], weight: e.weight, label: e.label });
+        else if (!e.directed && e.to === i) out.push({ node: names[e.from], weight: e.weight, label: e.label });
       });
       return out;
     },

@@ -32,8 +32,11 @@ const CLOSE_DELAY = 280; // 留出时间让鼠标从文字移到卡片上
 export function CiteHover({
   marked = false,
   card,
+  className = "galley-cite",
   children,
 }: {
+  /** 文字的样式：依据是 galley-cite，术语是 galley-term */
+  className?: string;
   /** 审阅预览里用来标出依据已过期的句子；前台阅读时始终为 false */
   marked?: boolean;
   card: ReactNode;
@@ -130,7 +133,7 @@ export function CiteHover({
         ref={anchorRef}
         tabIndex={0}
         aria-describedby={anchor ? cardId : undefined}
-        className={`galley-cite ${marked ? "galley-cite-stale" : ""}`}
+        className={marked ? `${className} galley-cite-stale` : className}
         onPointerDown={(e) => {
           pointerType.current = e.pointerType;
         }}

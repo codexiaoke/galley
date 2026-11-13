@@ -21,6 +21,8 @@ export type SiteSettings = {
   notifyReview: "on" | "off";
   /** 有新留言时发邮件通知 */
   notifyMessages: "on" | "off";
+  /** 每天在服务器上自动留一份完整备份（见 core/auto-backup.ts） */
+  autoBackup: "on" | "off";
   /** 前台每个页面最底部的一段文字，例如版权声明或备案号。空表示不显示 */
   footerText: string;
   /** 点那段文字时打开的网址。空表示只显示文字、不能点 */
@@ -36,6 +38,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   showLog: "on",
   notifyReview: "on",
   notifyMessages: "on",
+  autoBackup: "on",
   footerText: "",
   footerUrl: "",
 };
@@ -46,7 +49,7 @@ export function getSiteSettings(db: Db): SiteSettings {
   const stored = new Map(db.select().from(settings).all().map((row) => [row.key, row.value]));
   const result = { ...DEFAULT_SETTINGS };
   for (const key of KEYS) (result as Record<string, string>)[key] = stored.get(key) ?? DEFAULT_SETTINGS[key];
-  for (const key of ["showLog", "notifyReview", "notifyMessages"] as const) if (result[key] !== "off") result[key] = "on";
+  for (const key of ["showLog", "notifyReview", "notifyMessages", "autoBackup"] as const) if (result[key] !== "off") result[key] = "on";
   return result;
 }
 
@@ -100,7 +103,7 @@ export function updateSiteSettings(db: Db, actor: Actor, input: Partial<SiteSett
   }
   if (input.footerUrl !== undefined) next.footerUrl = normalizeLink(input.footerUrl);
   if (input.url !== undefined) next.url = normalizeUrl(input.url);
-  for (const key of ["showLog", "notifyReview", "notifyMessages"] as const) {
+  for (const key of ["showLog", "notifyReview", "notifyMessages", "autoBackup"] as const) {
     if (input[key] !== undefined) next[key] = input[key] === "off" ? "off" : "on";
   }
 

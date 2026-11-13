@@ -62,13 +62,17 @@ function defaultSkills(): Map<string, DefaultSkill> {
 /** 技能里可以包含由程序生成的实时内容，保证和站点的实际状态一致。 */
 function fillLiveContent(body: string): string {
   if (!body.includes("{{components}}")) return body;
-  const components = describeComponents()
-    .map(
-      (c) =>
-        `### ${c.name}\n\n${c.description}\n\n\`\`\`markdown\n${c.example}\n\`\`\`\n\n参数：\n\n\`\`\`json\n${JSON.stringify(c.params, null, 2)}\n\`\`\`` +
-        ("details" in c && c.details ? `\n\n${c.details}` : ""),
-    )
-    .join("\n\n");
+  // 这里只放一份简短的目录（名字、用途、一个例子），完整的参数和清单很长（算法清单、trace 的函数……），
+  // 每次读技能都带上太费 token。Agent 要用某个组件时，再调用 get_component 读它的详细说明。
+  const components = [
+    "下面是可用的组件。**用某个组件之前，先调用 `get_component` 读它的详细说明**（参数的可选值、算法清单、trace 里能调用的函数都在那里），不要凭这里的一句话猜参数。",
+    "",
+    ...describeComponents().map((c) => {
+      const firstSentence = c.description.split(/(?<=。)/)[0];
+      const example = c.example.includes("\n") ? c.example.split("\n")[0] + " …" : c.example;
+      return `- **${c.name}**：${firstSentence} 例：\`${example}\``;
+    }),
+  ].join("\n");
   return body.replace("{{components}}", components);
 }
 

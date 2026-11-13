@@ -191,9 +191,9 @@ function GraphStage({ view }: { view: GraphView }) {
         return (
           <g key={i} className="galley-algo-edge" data-tone={e.tone ?? undefined}>
             <line {...l} markerEnd={e.directed ? "url(#galley-algo-arrow)" : undefined} />
-            {e.weight !== undefined && (
-              <text x={(a.x + b.x) / 2} y={(a.y + b.y) / 2} dy="0.35em" textAnchor="middle" className="galley-algo-weight">
-                {e.weight}
+            {(e.weight !== undefined || e.label) && (
+              <text x={(a.x + b.x) / 2} y={(a.y + b.y) / 2} dy="0.35em" textAnchor="middle" className="galley-algo-weight" data-label={e.label ? true : undefined}>
+                {[e.label, e.weight].filter((x) => x !== undefined).join(" ")}
               </text>
             )}
           </g>

@@ -39,7 +39,7 @@ export type ArrayView = {
 export type GridView = { kind: "grid"; rows: number; cols: number; cells: string };
 
 export type GraphNode = { name: string; x: number; y: number; tone: Tone | null; label?: string };
-export type GraphEdge = { from: number; to: number; weight?: number; directed: boolean; tone: Tone | null };
+export type GraphEdge = { from: number; to: number; weight?: number; label?: string; directed: boolean; tone: Tone | null };
 export type GraphView = { kind: "graph"; nodes: GraphNode[]; edges: GraphEdge[] };
 
 export type TreeNode = { id: number; value: number; x: number; y: number; tone: Tone | null };

@@ -225,6 +225,15 @@ export const COMPONENTS: ComponentDef[] = [
     example: ':::fold{title="完整的配置文件"}\n```yaml\n...\n```\n:::',
     params: z.object({ title: z.string().min(1) }),
   },
+  {
+    name: "quiz",
+    form: "container",
+    description:
+      "小测验：一道选择题，读者点选后马上知道对不对，再看解析。放在一节讲完之后，让读者确认自己真的懂了。先写题目，再写选项：正确的写成「- [x] 选项」，错误的写成「- [ ] 选项」，2 到 6 个；有几个正确选项就是几选，读者选完点「提交」。选项后面可以接一段解析，说明为什么。一个 quiz 一道题，错误选项要像样（常见的误解），不要一眼就能排除。演示模式里按一下右方向键揭晓答案。",
+    example:
+      ':::quiz\n本体和知识图谱是什么关系？\n\n- [ ] 本体就是知识图谱的另一种叫法\n- [x] 本体规定有哪些概念和关系，知识图谱按它装进具体的数据\n- [ ] 两者没有关系\n\n本体像表结构，知识图谱像表里的数据：先有骨架，再往里填。\n:::',
+    params: z.object({ title: z.string().optional() }),
+  },
 ];
 
 const byName = new Map(COMPONENTS.map((c) => [c.name, c]));
