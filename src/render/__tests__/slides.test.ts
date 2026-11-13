@@ -63,3 +63,22 @@ describe("Mermaid 演示分页", () => {
     expect(slides[0].notes).toBe("图的讲稿");
   });
 });
+
+describe("讲稿和正文分开", () => {
+  it("讲稿从页面内容里摘出来，不留在 source 里", () => {
+    const slides = splitSlides(`## 一节\n\n正文一句。\n\n:::notes\n这是我演讲时自己看的提词\n:::\n\n正文第二句。`);
+    expect(slides).toHaveLength(1);
+    expect(slides[0].notes).toBe("这是我演讲时自己看的提词");
+    // present.json 把 source 公开出去，讲稿绝不能混在里面
+    expect(slides[0].source).not.toContain("notes");
+    expect(slides[0].source).not.toContain("提词");
+    expect(slides[0].source).toContain("正文一句。");
+    expect(slides[0].source).toContain("正文第二句。");
+  });
+
+  it("一页里写了好几段讲稿时合在一起", () => {
+    const slides = splitSlides(`## 一节\n\n正文。\n\n:::notes\n第一段\n:::\n\n:::notes\n第二段\n:::`);
+    expect(slides[0].notes).toBe("第一段\n第二段");
+    expect(slides[0].source).toBe("## 一节\n\n正文。");
+  });
+});

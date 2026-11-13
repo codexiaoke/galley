@@ -99,6 +99,7 @@ Agent 会先读这个站的技能，知道这里的规矩，再搜一遍博客�
   有讲稿、自动播放和速度调节。
 - 在你自己的浏览器里直接录成 MP4——横屏或竖屏、字幕、麦克风配音。视频不上传，服务器不参与。
 - 导出 PDF，一页幻灯片一页纸。
+- `/posts/<别名>/present.json` 把拆页的结果交给别的程序：序号、标题和这一页的 Markdown。刻意不含讲稿——那是演讲时自己看的提词，页面上也不给读者看。
 
 <p align="center">
   <img src="docs/assets/screenshot-present.jpg" width="800" alt="演示模式和控制条">

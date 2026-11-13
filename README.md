@@ -111,6 +111,8 @@ part is optional; day to day, talking to your agent is the whole workflow.
 - Record it to MP4 entirely in your own browser — landscape or portrait, captions, microphone. Nothing is
   uploaded and the server does no work.
 - Export the deck to PDF, one slide per page.
+- `/posts/<slug>/present.json` hands the slide breakdown to other programs — index, title and the
+  page's own Markdown. Speaker notes are deliberately left out: they are not shown to readers.
 
 <p align="center">
   <img src="docs/assets/screenshot-present.jpg" width="800" alt="Presentation mode with the control bar">
