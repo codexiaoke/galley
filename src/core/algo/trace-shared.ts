@@ -1,3 +1,4 @@
+import { TRACE_PRELUDE } from "./trace-prelude";
 import type { Frame, Tone } from "./types";
 
 /**
@@ -9,9 +10,7 @@ export type TraceResult =
   | { ok: true; frames: Frame[]; legend: { tone: Tone; label: string }[] }
   | { ok: false; error: string; line?: number };
 
-/** 代码和输入的指纹，用来缓存运行结果。不需要防碰撞攻击，够区分就行。 */
-export function traceKey(code: string, input = ""): string {
-  const text = `${code}\u0000${input}`;
+function hash(text: string): string {
   let h1 = 0xdeadbeef;
   let h2 = 0x41c6ce57;
   for (let i = 0; i < text.length; i++) {
@@ -22,6 +21,14 @@ export function traceKey(code: string, input = ""): string {
   h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
   h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
   return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+
+/** 沙箱里那套函数（trace-prelude.ts）的指纹：函数改了，所有演示自动重新运行，不会用到旧的结果 */
+const ENGINE = hash(TRACE_PRELUDE);
+
+/** 代码、输入和沙箱函数一起的指纹，用来缓存运行结果。不需要防碰撞攻击，够区分就行。 */
+export function traceKey(code: string, input = ""): string {
+  return hash(`${ENGINE}\u0000${code}\u0000${input}`);
 }
 
 /**

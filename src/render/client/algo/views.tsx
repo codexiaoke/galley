@@ -152,20 +152,33 @@ function GridStage({ view }: { view: GridView }) {
 
 /* ---- 图 ------------------------------------------------------------------ */
 
+/** 文字的大致宽度（图的坐标单位）：中文一个字约 3.8，其他字符约 2.2 */
+const nodeTextWidth = (s: string) => [...s].reduce((w, ch) => w + (/[\u2E80-\uFFEF]/.test(ch) ? 3.8 : 2.2), 0);
+
 function GraphStage({ view }: { view: GraphView }) {
   const R = 5.6;
-  // 有向边的箭头停在圆圈边上，不要扎进圆里。
-  const line = (a: { x: number; y: number }, b: { x: number; y: number }, directed: boolean) => {
+  // 名字短的画成圆，长的画成胶囊，宽度随名字
+  const half = view.nodes.map((n) => Math.max(R, nodeTextWidth(n.name) / 2 + 2.4));
+  // 连线停在节点边上（按椭圆算），有向边再多留一点给箭头
+  const edge = (i: number, j: number, directed: boolean) => {
+    const a = view.nodes[i];
+    const b = view.nodes[j];
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const len = Math.hypot(dx, dy) || 1;
     const ux = dx / len;
     const uy = dy / len;
-    const end = directed ? R + 1.6 : R;
-    return { x1: a.x + ux * R, y1: a.y + uy * R, x2: b.x - ux * end, y2: b.y - uy * end };
+    const reach = (k: number) => 1 / Math.hypot(ux / half[k], uy / R);
+    const end = reach(j) + (directed ? 1.6 : 0);
+    return { x1: a.x + ux * reach(i), y1: a.y + uy * reach(i), x2: b.x - ux * end, y2: b.y - uy * end };
   };
+  // 画布的范围：所有节点加上边距（节点下方的小字也要留位置）
+  const minX = Math.min(...view.nodes.map((n, i) => n.x - half[i])) - 4;
+  const maxX = Math.max(...view.nodes.map((n, i) => n.x + half[i])) + 4;
+  const minY = Math.min(...view.nodes.map((n) => n.y)) - R - 6;
+  const maxY = Math.max(...view.nodes.map((n) => n.y)) + R + 8;
   return (
-    <svg className="galley-algo-graph" viewBox="-6 -6 112 112" role="img" aria-label="图">
+    <svg className="galley-algo-graph" viewBox={`${minX} ${minY} ${maxX - minX} ${maxY - minY}`} role="img" aria-label="图">
       <defs>
         <marker id="galley-algo-arrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
           <path d="M0,1 L9,5 L0,9 z" />
@@ -174,7 +187,7 @@ function GraphStage({ view }: { view: GraphView }) {
       {view.edges.map((e, i) => {
         const a = view.nodes[e.from];
         const b = view.nodes[e.to];
-        const l = line(a, b, e.directed);
+        const l = edge(e.from, e.to, e.directed);
         return (
           <g key={i} className="galley-algo-edge" data-tone={e.tone ?? undefined}>
             <line {...l} markerEnd={e.directed ? "url(#galley-algo-arrow)" : undefined} />
@@ -188,17 +201,19 @@ function GraphStage({ view }: { view: GraphView }) {
       })}
       {view.nodes.map((n, i) => {
         // 节点外侧的小字（距离、顺序）放在远离圆心的方向。
-        const dx = n.x - 50;
-        const dy = n.y - 50;
+        // 分层排列时（所有节点都不在圆上）小字放在节点下方，排成圆时放在远离圆心的一侧
+        const onCircle = Math.abs(Math.hypot(n.x - 50, n.y - 50) - 40) < 0.5;
+        const dx = onCircle ? n.x - 50 : 0;
+        const dy = onCircle ? n.y - 50 : 1;
         const len = Math.hypot(dx, dy) || 1;
         return (
           <g key={i} className="galley-algo-node" data-tone={n.tone ?? undefined}>
-            <circle cx={n.x} cy={n.y} r={R} />
+            {half[i] > R ? <rect x={n.x - half[i]} y={n.y - R} width={half[i] * 2} height={R * 2} rx={R} /> : <circle cx={n.x} cy={n.y} r={R} />}
             <text x={n.x} y={n.y} dy="0.35em" textAnchor="middle">
               {n.name}
             </text>
             {n.label && (
-              <text x={n.x + (dx / len) * 10.5} y={n.y + (dy / len) * 10.5} dy="0.35em" textAnchor="middle" className="galley-algo-node-label">
+              <text x={n.x + (dx / len) * (onCircle ? 10.5 : 9.5)} y={n.y + (dy / len) * (onCircle ? 10.5 : 9.5)} dy="0.35em" textAnchor="middle" className="galley-algo-node-label">
                 {n.label}
               </text>
             )}

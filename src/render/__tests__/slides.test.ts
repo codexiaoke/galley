@@ -30,4 +30,17 @@ describe("演示和代码演变", () => {
     expect([...changed[1]]).toEqual([1, 2]);
     expect(changed[0].size).toBe(0);
   });
+
+  it("一页里有几个大块时一个大块一页，冒号结尾的引子跟着下一个走", () => {
+    const body = "## 查询\n\n从张三出发：\n\n::algo{type=graph-bfs input=\"A-B\"}\n\n图上一目了然。\n\n换成代码是这样的：\n\n```sql\nSELECT 1;\n```\n\n:::notes\n讲稿\n:::";
+    const slides = splitSlides(body);
+    expect(slides).toHaveLength(2);
+    expect(slides[0].title).toBe("查询");
+    expect(slides[0].source).toContain("图上一目了然");
+    expect(slides[0].source).not.toContain("换成代码");
+    expect(slides[1].section).toBe("查询");
+    expect(slides[1].source).toContain("换成代码是这样的");
+    expect(slides[1].notes).toBe("讲稿");
+  });
 });
+

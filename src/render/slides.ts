@@ -48,8 +48,11 @@ export function splitSlides(body: string): Slide[] {
   }
   flush();
 
+  // 一页里有好几个大块（代码演变、算法动画、图、表格……）时，一个大块一页
+  const pages = slides.flatMap((d) => splitHeavy(d, body));
+
   const slice = (n: Node) => body.slice(n.position?.start.offset ?? 0, n.position?.end.offset ?? 0);
-  return slides.map((s) => {
+  return pages.map((s) => {
     const notes: string[] = [];
     const kept: string[] = [];
     for (const n of s.parts) {
@@ -58,4 +61,47 @@ export function splitSlides(body: string): Slide[] {
     }
     return { title: s.title, section: s.title === s.section ? undefined : s.section, source: kept.join("\n\n"), notes: notes.join("\n").trim() };
   });
+}
+
+/** 占地方的东西：组件、代码块、表格、整块嵌入。提示框和讲稿不算。 */
+function isHeavy(n: Node): boolean {
+  if (n.type === "code" || n.type === "table") return true;
+  if (n.type === "containerDirective") return n.name !== "notes" && n.name !== "callout";
+  if (n.type === "leafDirective") return true;
+  return false;
+}
+
+/** 以冒号结尾的段落是在引出下一个东西（"写出来是这样的："），跟着下一页走 */
+function leadsIntoNext(n: Node, body: string): boolean {
+  if (n.type !== "paragraph") return false;
+  const text = body.slice(n.position?.start.offset ?? 0, n.position?.end.offset ?? 0).trim();
+  return /[：:]$/.test(text);
+}
+
+type DraftPage = { title?: string; section?: string; parts: Node[] };
+
+/**
+ * 一页里有两个以上的大块时拆开：每个大块一页。
+ * 两个大块之间的文字：以冒号结尾的是下一个的引子，跟着下一页；其余的是上一个的说明，留在上一页。
+ * 拆出来的后续页，上方用小字标出这一节的标题。
+ */
+function splitHeavy(d: DraftPage, body: string): DraftPage[] {
+  const heavyCount = d.parts.filter(isHeavy).length;
+  if (heavyCount < 2) return [d];
+  const pages: Node[][] = [[]];
+  let hasHeavy = false;
+  for (const n of d.parts) {
+    if (isHeavy(n) && hasHeavy) {
+      // 把紧挨着的引子段落挪到新的一页
+      const current = pages[pages.length - 1];
+      const moved: Node[] = [];
+      while (current.length && leadsIntoNext(current[current.length - 1], body)) moved.unshift(current.pop()!);
+      pages.push([...moved, n]);
+      continue;
+    }
+    if (isHeavy(n)) hasHeavy = true;
+    pages[pages.length - 1].push(n);
+  }
+  const kicker = d.section ?? d.title;
+  return pages.map((parts, i) => (i === 0 ? { ...d, parts } : { title: undefined, section: kicker, parts }));
 }

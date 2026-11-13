@@ -4,6 +4,7 @@ import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 import bash from "shiki/langs/bash.mjs";
 import c from "shiki/langs/c.mjs";
 import cpp from "shiki/langs/cpp.mjs";
+import cypher from "shiki/langs/cypher.mjs";
 import css from "shiki/langs/css.mjs";
 import diff from "shiki/langs/diff.mjs";
 import dockerfile from "shiki/langs/dockerfile.mjs";
@@ -20,10 +21,12 @@ import nginx from "shiki/langs/nginx.mjs";
 import php from "shiki/langs/php.mjs";
 import python from "shiki/langs/python.mjs";
 import rust from "shiki/langs/rust.mjs";
+import sparql from "shiki/langs/sparql.mjs";
 import sql from "shiki/langs/sql.mjs";
 import swift from "shiki/langs/swift.mjs";
 import toml from "shiki/langs/toml.mjs";
 import tsx from "shiki/langs/tsx.mjs";
+import turtle from "shiki/langs/turtle.mjs";
 import typescript from "shiki/langs/typescript.mjs";
 import vue from "shiki/langs/vue.mjs";
 import xml from "shiki/langs/xml.mjs";
@@ -45,8 +48,8 @@ function getHighlighter() {
   highlighter ??= createHighlighterCoreSync({
     themes: [theme],
     langs: [
-      bash, c, cpp, css, diff, dockerfile, go, html, ini, java, javascript, json, jsx, kotlin,
-      markdown, nginx, php, python, rust, sql, swift, toml, tsx, typescript, vue, xml, yaml,
+      bash, c, cpp, css, cypher, diff, dockerfile, go, html, ini, java, javascript, json, jsx, kotlin,
+      markdown, nginx, php, python, rust, sparql, sql, swift, toml, tsx, turtle, typescript, vue, xml, yaml,
     ],
     // 少数语法规则 JavaScript 的正则表达不了，跳过这些规则，不让整段代码失败。
     engine: createJavaScriptRegexEngine({ forgiving: true }),
@@ -62,11 +65,12 @@ const LANGUAGE_NAMES: Record<string, string> = {
   html: "HTML", yaml: "YAML", yml: "YAML", toml: "TOML", diff: "Diff", dockerfile: "Dockerfile", docker: "Dockerfile",
   md: "Markdown", markdown: "Markdown", java: "Java", swift: "Swift", kt: "Kotlin", kotlin: "Kotlin", php: "PHP",
   c: "C", cpp: "C++", "c++": "C++", nginx: "Nginx", ini: "INI", xml: "XML", vue: "Vue", text: "", txt: "", plain: "",
+  turtle: "Turtle", ttl: "Turtle", sparql: "SPARQL", rq: "SPARQL", cypher: "Cypher",
 };
 
 export const languageName = (lang?: string | null) => (lang ? (LANGUAGE_NAMES[lang.toLowerCase()] ?? lang) : "");
 
-const ALIASES: Record<string, string> = { sh: "bash", shell: "bash", zsh: "bash", console: "bash", "c++": "cpp", docker: "dockerfile" };
+const ALIASES: Record<string, string> = { sh: "bash", shell: "bash", zsh: "bash", console: "bash", "c++": "cpp", docker: "dockerfile", ttl: "turtle", rq: "sparql" };
 
 /**
  * 把代码转成带高亮的语法树：pre > code > 每行一个 span.line（带 data-line 行号）。

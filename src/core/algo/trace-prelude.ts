@@ -228,6 +228,37 @@ function grid(lines) {
 }
 
 /* ---------- 图 ---------- */
+/** 节点位置：全是有向边又没有环时按层从左到右排（layout: "layers"），否则排成一圈（"circle"）。和 algo/graph.ts 的 layoutGraph 一样。 */
+function __layout(n, edges, mode) {
+  var circle = function () { return Array.from({ length: n }, function (_, i) { var a = -Math.PI / 2 + (i / n) * Math.PI * 2; return { x: 50 + 40 * Math.cos(a), y: 50 + 40 * Math.sin(a) }; }); };
+  if (mode === "circle" || !edges.length || !edges.every(function (e) { return e.directed; })) return circle();
+  var indeg = new Array(n).fill(0), layer = new Array(n).fill(0), queue = [], seen = 0;
+  edges.forEach(function (e) { indeg[e.to]++; });
+  indeg.forEach(function (d, i) { if (d === 0) queue.push(i); });
+  while (queue.length) {
+    var u = queue.shift(); seen++;
+    edges.forEach(function (e) { if (e.from === u) { layer[e.to] = Math.max(layer[e.to], layer[u] + 1); if (--indeg[e.to] === 0) queue.push(e.to); } });
+  }
+  if (seen !== n) return circle();
+  var count = Math.max.apply(null, layer) + 1, byLayer = [], rank = {};
+  for (var l = 0; l < count; l++) byLayer.push([]);
+  layer.forEach(function (l, i) { byLayer[l].push(i); });
+  byLayer.forEach(function (list, l) {
+    if (l > 0) {
+      var score = function (v) { var f = edges.filter(function (e) { return e.to === v; }).map(function (e) { return rank[e.from] || 0; }); return f.length ? f.reduce(function (a, b) { return a + b; }, 0) / f.length : 0; };
+      list.sort(function (a, b) { return score(a) - score(b) || a - b; });
+    }
+    list.forEach(function (v, k) { rank[v] = k / Math.max(1, list.length - 1); });
+  });
+  var width = Math.max(100, count * 40);
+  var tallest = Math.max.apply(null, byLayer.map(function (l) { return l.length; }));
+  var gap = Math.min(26, 80 / Math.max(1, tallest - 1));
+  var pos = new Array(n);
+  byLayer.forEach(function (list, l) {
+    list.forEach(function (v, k) { pos[v] = { x: 10 + (count === 1 ? (width - 20) / 2 : (l / (count - 1)) * (width - 20)), y: 50 + (k - (list.length - 1) / 2) * gap }; });
+  });
+  return pos;
+}
 function graph(spec, options) {
   options = options || {};
   var names = [], edges = [];
@@ -244,8 +275,7 @@ function graph(spec, options) {
     spec.edges.forEach(function (e) { edges.push({ from: node(e[0]), to: node(e[1]), weight: e[2], directed: !!options.directed }); });
   } else __fail("graph() 需要边的列表，例如 graph(\"A-B:4, B-C:2\")。");
   if (names.length < 2 || names.length > 12) __fail("graph() 要有 2 到 12 个节点。");
-  var n = names.length;
-  var pos = names.map(function (_, i) { var a = -Math.PI / 2 + (i / n) * Math.PI * 2; return { x: 50 + 40 * Math.cos(a), y: 50 + 40 * Math.sin(a) }; });
+  var pos = __layout(names.length, edges, options.layout);
   var nodeTone = {}, edgeTone = {}, labels = {};
   var id = function (name, fn) { var i = names.indexOf(String(name)); if (i === -1) __fail(fn + "() 里的节点 " + name + " 不在图里。"); return i; };
   var edgeOf = function (a, b, fn) {

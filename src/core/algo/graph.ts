@@ -6,12 +6,67 @@ import type { AlgoDef, AlgoInput, Frame, GraphView, Tone } from "./types";
  * 每一帧给出每个节点、每条边的状态。
  */
 
-function layout(g: Graph): { x: number; y: number }[] {
-  const n = g.nodes.length;
-  return g.nodes.map((_, i) => {
-    const a = -Math.PI / 2 + (i / n) * Math.PI * 2;
-    return { x: 50 + 40 * Math.cos(a), y: 50 + 40 * Math.sin(a) };
+/**
+ * 节点的位置。全是有向边、又没有环的图（比如依赖关系、客户→订单→商品）按层从左到右排，
+ * 每一层竖着排开：箭头都朝右，一眼能看出先后。其余的排在一个圆上。
+ */
+export function layoutGraph(nodes: number, edges: { from: number; to: number; directed: boolean }[]): { x: number; y: number }[] {
+  const layered = edges.length > 0 && edges.every((e) => e.directed) ? layers(nodes, edges) : null;
+  if (!layered) {
+    return Array.from({ length: nodes }, (_, i) => {
+      const a = -Math.PI / 2 + (i / nodes) * Math.PI * 2;
+      return { x: 50 + 40 * Math.cos(a), y: 50 + 40 * Math.sin(a) };
+    });
+  }
+  const count = Math.max(...layered) + 1;
+  const byLayer: number[][] = Array.from({ length: count }, () => []);
+  layered.forEach((l, i) => byLayer[l].push(i));
+  // 同一层按上一层连过来的节点的平均位置排，减少交叉
+  const rank = new Map<number, number>();
+  byLayer.forEach((list, l) => {
+    if (l > 0) {
+      const score = (v: number) => {
+        const from = edges.filter((e) => e.to === v).map((e) => rank.get(e.from) ?? 0);
+        return from.length ? from.reduce((a, b) => a + b, 0) / from.length : 0;
+      };
+      list.sort((a, b) => score(a) - score(b) || a - b);
+    }
+    list.forEach((v, k) => rank.set(v, k / Math.max(1, list.length - 1)));
   });
+  // 画布的宽度随层数增加（每层大约 40），节点之间竖着的间距固定，整层上下居中
+  const width = Math.max(100, count * 40);
+  const tallest = Math.max(...byLayer.map((l) => l.length));
+  const gap = Math.min(26, 80 / Math.max(1, tallest - 1));
+  const pos = new Array<{ x: number; y: number }>(nodes);
+  byLayer.forEach((list, l) => {
+    list.forEach((v, k) => {
+      pos[v] = { x: 10 + (count === 1 ? (width - 20) / 2 : (l / (count - 1)) * (width - 20)), y: 50 + (k - (list.length - 1) / 2) * gap };
+    });
+  });
+  return pos;
+}
+
+/** 最长路径分层；有环时返回 null */
+function layers(nodes: number, edges: { from: number; to: number }[]): number[] | null {
+  const indeg = new Array(nodes).fill(0);
+  edges.forEach((e) => indeg[e.to]++);
+  const queue = indeg.flatMap((d, i) => (d === 0 ? [i] : []));
+  const layer = new Array(nodes).fill(0);
+  let seen = 0;
+  while (queue.length) {
+    const u = queue.shift()!;
+    seen++;
+    for (const e of edges) {
+      if (e.from !== u) continue;
+      layer[e.to] = Math.max(layer[e.to], layer[u] + 1);
+      if (--indeg[e.to] === 0) queue.push(e.to);
+    }
+  }
+  return seen === nodes ? layer : null;
+}
+
+function layout(g: Graph): { x: number; y: number }[] {
+  return layoutGraph(g.nodes.length, g.edges);
 }
 
 function recorder(g: Graph) {
