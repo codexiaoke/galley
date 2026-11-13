@@ -1,13 +1,14 @@
 import { Suspense } from "react";
 import { SiteIndex } from "../../site-index";
+import { SiteShell } from "../../site-shell";
 
 export default function CategoryPage({ params }: PageProps<"/category/[slug]">) {
   return (
-    <div className="galley-site flex-1">
-      <Suspense fallback={null}>
+    <Suspense fallback={null}>
+      <SiteShell>
         <Category params={params} />
-      </Suspense>
-    </div>
+      </SiteShell>
+    </Suspense>
   );
 }
 

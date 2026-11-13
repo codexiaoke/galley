@@ -14,6 +14,8 @@ import { decideChangeSet, openChangeSet, submitChangeSet } from "../services/cha
 import { getPublishedDocument, saveDocument } from "../services/documents";
 import { deleteMedia, findMediaFile, listMedia, saveMedia } from "../services/media";
 import { DEFAULT_SETTINGS, getSiteSettings, updateSiteSettings } from "../services/settings";
+import { settings as settingsTable } from "../db/schema";
+import { DEFAULT_THEME, THEMES } from "../themes";
 import { isSafeEntryName, packTar, unpackTar } from "../tar";
 
 let db: Db;
@@ -239,5 +241,21 @@ describe("自动备份", () => {
     expect(storedBackupPath(name)).toBeTruthy();
     expect(storedBackupPath("../galley.db")).toBeUndefined();
     expect(storedBackupPath("galley-backup-20200101-000000.tar.gz")).toBeUndefined();
+  });
+});
+
+describe("前台主题", () => {
+  it("默认是书卷；只能选清单里有的", () => {
+    expect(getSiteSettings(db).theme).toBe(DEFAULT_THEME);
+    expect(THEMES.map((t) => t.name)).toContain(DEFAULT_THEME);
+    for (const t of THEMES) expect(updateSiteSettings(db, OWNER, { theme: t.name }).theme).toBe(t.name);
+    expectError(() => updateSiteSettings(db, OWNER, { theme: "不存在的主题" as never }), "invalid", /没有这套主题/);
+    // 改坏了的不影响其他设置
+    expect(getSiteSettings(db).theme).toBe(THEMES.at(-1)!.name);
+  });
+
+  it("存着的主题名不认识时退回默认，页面不会没有样式", () => {
+    db.insert(settingsTable).values({ key: "theme", value: "从未来版本带回来的主题" }).onConflictDoUpdate({ target: settingsTable.key, set: { value: "从未来版本带回来的主题" } }).run();
+    expect(getSiteSettings(db).theme).toBe(DEFAULT_THEME);
   });
 });

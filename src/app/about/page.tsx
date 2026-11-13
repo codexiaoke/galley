@@ -6,18 +6,19 @@ import { loadPublishedDocument } from "../data";
 import { SiteFooter } from "../site-footer";
 import { SiteHeader } from "../site-header";
 import { loadSite } from "../site";
+import { SiteShell } from "../site-shell";
 import { TrackView } from "../track-view";
 
 /** "关于"页：站长在后台新建一个网址别名为 about 的页面，它就显示在这里。 */
 export default function AboutPage() {
   return (
-    <div className="galley-site flex-1">
-      <main className="galley-page pb-12">
-        <Suspense fallback={null}>
+    <Suspense fallback={null}>
+      <SiteShell>
+        <main className="galley-page pb-12">
           <About />
-        </Suspense>
-      </main>
-    </div>
+        </main>
+      </SiteShell>
+    </Suspense>
   );
 }
 

@@ -11,6 +11,7 @@ import { tagPath } from "@/core/tags";
 import { ReaderSettings } from "../../reader-settings";
 import { loadSite } from "../../site";
 import { SiteFooter } from "../../site-footer";
+import { SiteShell } from "../../site-shell";
 import { TrackView } from "../../track-view";
 import { SiteHeader } from "../../site-header";
 
@@ -73,14 +74,14 @@ function ArticleJsonLd({ doc, site }: { doc: NonNullable<Awaited<ReturnType<type
 
 export default function PostPage({ params }: PageProps<"/posts/[slug]">) {
   return (
-    <div className="galley-site flex-1">
-      <div className="galley-progress" aria-hidden="true" />
-      <main className="galley-page pb-20">
-        <Suspense fallback={null}>
+    <Suspense fallback={null}>
+      <SiteShell>
+        <div className="galley-progress" aria-hidden="true" />
+        <main className="galley-page pb-20">
           <Post params={params} />
-        </Suspense>
-      </main>
-    </div>
+        </main>
+      </SiteShell>
+    </Suspense>
   );
 }
 

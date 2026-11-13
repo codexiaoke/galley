@@ -20,6 +20,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - 页面上由脚本处理提交的表单（`onSubmit` 里 `preventDefault`）都要写 `method="post"`：脚本还没加载好时点了提交，浏览器会按默认的 GET 提交，填的内容（包括密码）会出现在网址里。表单里也不能再套表单（`ModalForm` 自带表单，要放在外面）。
 - 运行时要从磁盘读的东西（`drizzle/`、`skills/`）不在构建产物里，新增这类目录时要同时加进 `Dockerfile`。
 - 前台和后台是两套界面：前台用 `galley-` 开头的样式（纸张色、宋体），后台用 `src/app/admin/ui.tsx` 和 `modal.tsx` 里的零件（`a-` 开头的配色）。不要混用。
+- 前台有三套内置主题，靠 `galley-site` 上的 `data-theme` 切换，样式都在 `globals.css` 的 `[data-theme]` 一节，清单在 `src/core/themes.ts`。新写前台样式时，颜色一律用变量（`--ink`、`--accent` 这些），版式尽量用 `--column`、`--prose-size`、`--prose-leading`，写死的值换不了主题。
 - 后台的列表用表格，新建、编辑、确认类操作用 `ModalForm` 弹框；服务端操作统一走 `actions.ts` 里的 `run`。
 - 后台的视觉参照 Notion 和飞书：内容直接排在白底上，不套卡片，不用投影，不给图标加底色方块；颜色只用在标签（`Badge`）和主按钮上。新增页面时沿用 `ui.tsx` 里的零件，不要自己另写一套样式。
 - 后台不使用浏览器原生的 `<select>`，下拉选择一律用 `src/app/admin/select.tsx` 里的 `Select`。

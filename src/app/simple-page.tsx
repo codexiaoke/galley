@@ -1,6 +1,7 @@
 import { Suspense, type ReactNode } from "react";
 import { SiteFooter } from "./site-footer";
 import { SiteHeader } from "./site-header";
+import { SiteShell } from "./site-shell";
 import { loadSite } from "./site";
 
 /** 浏览器标签上的标题：页面名加网站名。网站名来自数据库，所以单独等它。 */
@@ -15,7 +16,8 @@ async function TabTitle({ title }: { title: string }) {
  */
 export function SimplePage({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="galley-site flex-1">
+    <Suspense fallback={null}>
+      <SiteShell>
       <main className="galley-page pb-12">
         <Suspense fallback={null}>
           <SiteHeader />
@@ -33,6 +35,7 @@ export function SimplePage({ title, children }: { title: string; children: React
           <SiteFooter />
         </Suspense>
       </main>
-    </div>
+      </SiteShell>
+    </Suspense>
   );
 }

@@ -16,7 +16,7 @@ import { createDocumentAsOwner, editDocumentAsOwner, previewDocumentBody, saveDo
 import { deleteMessage, setMessageStatus } from "@/core/services/messages";
 import { addMaterial, deleteMaterial, setMaterialStatus } from "@/core/services/materials";
 import { deleteMedia, saveMedia, updateMediaAlt } from "@/core/services/media";
-import { updateSiteSettings } from "@/core/services/settings";
+import { updateSiteSettings, type SiteSettings } from "@/core/services/settings";
 import { writeAutoBackup } from "@/core/auto-backup";
 import { clearMailSettings, resolveMailConfig, saveMailSettings } from "@/core/services/mail";
 import { smtpSender } from "@/core/services/notify";
@@ -292,6 +292,7 @@ export async function saveSettings(_prev: FormState, formData: FormData) {
         author: text(formData, "author"),
         url: text(formData, "url"),
         showLog: text(formData, "showLog") === "off" ? "off" : "on",
+        theme: text(formData, "theme") as SiteSettings["theme"],
         footerText: text(formData, "footerText"),
         footerUrl: text(formData, "footerUrl"),
       }),

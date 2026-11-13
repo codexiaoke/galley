@@ -2,6 +2,7 @@ import type { Actor } from "../actor";
 import type { Db } from "../db/client";
 import { settings } from "../db/schema";
 import { forbidden, invalid } from "../errors";
+import { DEFAULT_THEME, isTheme, type ThemeName } from "../themes";
 
 /**
  * 站点设置。存成"设置项 → 值"的形式，以后加新的设置项不需要改表结构。
@@ -23,6 +24,8 @@ export type SiteSettings = {
   notifyMessages: "on" | "off";
   /** 每天在服务器上自动留一份完整备份（见 core/auto-backup.ts） */
   autoBackup: "on" | "off";
+  /** 前台用哪一套内置主题，见 core/themes.ts */
+  theme: ThemeName;
   /** 前台每个页面最底部的一段文字，例如版权声明或备案号。空表示不显示 */
   footerText: string;
   /** 点那段文字时打开的网址。空表示只显示文字、不能点 */
@@ -39,6 +42,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   notifyReview: "on",
   notifyMessages: "on",
   autoBackup: "on",
+  theme: DEFAULT_THEME,
   footerText: "",
   footerUrl: "",
 };
@@ -50,6 +54,8 @@ export function getSiteSettings(db: Db): SiteSettings {
   const result = { ...DEFAULT_SETTINGS };
   for (const key of KEYS) (result as Record<string, string>)[key] = stored.get(key) ?? DEFAULT_SETTINGS[key];
   for (const key of ["showLog", "notifyReview", "notifyMessages", "autoBackup"] as const) if (result[key] !== "off") result[key] = "on";
+  // 存着的主题名不认识时（比如从装了自定义主题的版本降回来）退回默认，不要让页面没有样式
+  if (!isTheme(result.theme)) result.theme = DEFAULT_THEME;
   return result;
 }
 
@@ -105,6 +111,10 @@ export function updateSiteSettings(db: Db, actor: Actor, input: Partial<SiteSett
   if (input.url !== undefined) next.url = normalizeUrl(input.url);
   for (const key of ["showLog", "notifyReview", "notifyMessages", "autoBackup"] as const) {
     if (input[key] !== undefined) next[key] = input[key] === "off" ? "off" : "on";
+  }
+  if (input.theme !== undefined) {
+    if (!isTheme(input.theme)) throw invalid("没有这套主题。");
+    next.theme = input.theme;
   }
 
   db.transaction((tx) => {

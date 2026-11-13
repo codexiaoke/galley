@@ -49,6 +49,210 @@
   --font-heading: "Galley Song", "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", STSong, SimSun, serif;
   --font-kai: Charter, Cambria, "Kaiti SC", STKaiti, KaiTi, "Songti SC", serif;
   --font-ui: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+
+  /* 版式。主题能改的就是这几项加上面的颜色和字体，见下面的 [data-theme] */
+  --column: 46rem; /* 正文栏宽 */
+  --prose-size: 1.125rem; /* 正文字号 */
+  --prose-leading: 1.95; /* 正文行距 */
+  --prose-align: justify; /* 正文对齐 */
+  --title-weight: 900; /* 大标题的字重 */
+}
+
+/*
+ * 内置主题
+ *
+ * 站长在后台选一套，前台整体换样子。每套主题只改上面 :root 里的那些变量：
+ * 颜色、字体、栏宽、字号、行距、对齐、标题字重。不碰结构，也不加新的类名。
+ * 默认那套（书卷）就是上面的 :root 本身，不用单独写。
+ *
+ * 要加一套新的：照着下面任意一套复制一份，改个名字，浅色写在这里、深色写在下面那一组，
+ * 再到 core/services/settings.ts 的主题清单里登记一下就行。
+ */
+
+/* 素白：纯白底、无衬线、宽栏，像现在大多数技术博客 */
+.galley-site[data-theme="plain"] {
+  --paper: #ffffff;
+  --paper-raised: #ffffff;
+  --paper-sunken: #f5f6f7;
+  --ink: #1f2328;
+  --ink-soft: #4a515a;
+  --ink-faint: #868d96;
+  --rule: #e3e6e9;
+  --accent: #1a6fd4;
+  --code-bg: #f6f8fa;
+  --code-foreground: #1f2328;
+  --code-token-keyword: #cf222e;
+  --code-token-string: #0a3069;
+  --code-token-string-expression: #0a3069;
+  --code-token-comment: #6e7781;
+  --code-token-function: #8250df;
+  --code-token-constant: #0550ae;
+  --code-token-parameter: #953800;
+  --code-token-punctuation: #57606a;
+  --code-token-link: #0969da;
+  --code-line-focus: rgba(26, 111, 212, 0.08);
+  --chart-1: #1a6fd4;
+  --chart-2: #e0803a;
+  --chart-3: #2f9e6e;
+  --chart-4: #9a5cd0;
+  --chart-5: #d4575f;
+  --font-serif: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --font-heading: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --column: 52rem;
+  --prose-size: 1.1875rem;
+  --prose-leading: 1.85;
+  --prose-align: left;
+  --title-weight: 800;
+}
+
+/* 工程：浅灰白、无衬线正文配等宽标题、行距紧凑，像一份文档 */
+.galley-site[data-theme="engineer"] {
+  --paper: #fafafa;
+  --paper-raised: #ffffff;
+  --paper-sunken: #f0f1f2;
+  --ink: #1b1f24;
+  --ink-soft: #4e565e;
+  --ink-faint: #8a9199;
+  --rule: #e1e4e7;
+  --accent: #0a7a70;
+  --code-bg: #f1f2f0;
+  --code-foreground: #22262b;
+  --code-token-keyword: #0f7b74;
+  --code-token-string: #6a7d2a;
+  --code-token-string-expression: #6a7d2a;
+  --code-token-comment: #8b929a;
+  --code-token-function: #2a6fa8;
+  --code-token-constant: #96640f;
+  --code-token-parameter: #7a4fa0;
+  --code-token-punctuation: #545b63;
+  --code-token-link: #2a6fa8;
+  --code-line-focus: rgba(15, 123, 116, 0.08);
+  --chart-1: #0f7b74;
+  --chart-2: #2a6fa8;
+  --chart-3: #96640f;
+  --chart-4: #7a4fa0;
+  --chart-5: #5f8f3a;
+  --font-serif: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --font-heading: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  --column: 48rem;
+  --prose-size: 1.0625rem;
+  --prose-leading: 1.8;
+  --prose-align: left;
+  --title-weight: 700;
+}
+
+/* ---- 三套主题的版式差异 ----
+ *
+ * 颜色和字体靠上面的变量，这里是各自不同的版式。只改已有的类，不加新结构、不碰组件。
+ * 书卷是默认那套（左名右导航、标题在上日期在下、首页左标题右日期），所以不用写。
+ */
+
+/* 素白：页眉居中、日期提到标题上方并加一条分隔线、首页列表改成单栏堆叠 */
+.galley-site[data-theme="plain"] .galley-header {
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2.2rem 0 1rem;
+}
+.galley-site[data-theme="plain"] .galley-nav {
+  gap: 0.2rem 1.4rem;
+  font-size: 0.9rem;
+}
+.galley-site[data-theme="plain"] .galley-article-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 1.4rem;
+}
+.galley-site[data-theme="plain"] .galley-article-header .galley-meta {
+  order: -1;
+}
+.galley-site[data-theme="plain"] .galley-row {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.4rem;
+  padding: 1.5rem 0;
+}
+.galley-site[data-theme="plain"] .galley-row-meta {
+  order: -1;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.9rem;
+}
+.galley-site[data-theme="plain"] .galley-row-title {
+  font-size: 1.55rem;
+}
+.galley-site[data-theme="plain"] .galley-row-summary {
+  font-size: 1.05rem;
+}
+
+/* 工程：页眉靠左挨着、底线加重，文章头紧凑，首页变成左边日期右边标题的索引表，小节标题带下划线 */
+.galley-site[data-theme="engineer"] .galley-header {
+  justify-content: flex-start;
+  gap: 0.4rem 2.5rem;
+  border-bottom-width: 2px;
+  padding: 1.2rem 0 0.7rem;
+}
+.galley-site[data-theme="engineer"] .galley-sitename {
+  font-size: 1.15rem;
+}
+.galley-site[data-theme="engineer"] .galley-nav {
+  font-size: 0.85rem;
+}
+.galley-site[data-theme="engineer"] .galley-home {
+  max-width: 52rem;
+}
+.galley-site[data-theme="engineer"] .galley-article-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-bottom: 1.6rem;
+}
+.galley-site[data-theme="engineer"] .galley-article-header .galley-meta {
+  order: -1;
+}
+/* 等宽只用在首页那一列纯数字的日期上（2026.11.13）：对齐好看。
+   文章页的日期是「2026 年 11 月 13 日」，数字等宽汉字不等宽，混在一起反而难看，所以不用。 */
+.galley-site[data-theme="engineer"] .galley-row-meta time {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0;
+}
+.galley-site[data-theme="engineer"] .galley-title {
+  font-size: clamp(1.5rem, 1.2rem + 1.2vw, 1.9rem);
+}
+.galley-site[data-theme="engineer"] .galley-prose h2 {
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 0.3em;
+}
+.galley-site[data-theme="engineer"] .galley-row {
+  grid-template-columns: 7rem minmax(0, 1fr);
+  gap: 0 1.75rem;
+  padding: 1.05rem 0;
+}
+.galley-site[data-theme="engineer"] .galley-row-main {
+  grid-column: 2;
+}
+/* 日期右对齐，数字排成整齐的一列，这是索引表好看的地方 */
+.galley-site[data-theme="engineer"] .galley-row-meta {
+  grid-column: 1;
+  grid-row: 1;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+  font-size: 0.75rem;
+}
+/* 分类不用强调色：十几行下来会变成左边一列彩色碎块 */
+.galley-site[data-theme="engineer"] .galley-row-category {
+  color: var(--ink-faint);
+}
+.galley-site[data-theme="engineer"] .galley-row-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+.galley-site[data-theme="engineer"] .galley-row-summary {
+  margin-top: 0.2rem;
+  font-size: 0.9rem;
+  line-height: 1.7;
 }
 
 /*
@@ -114,6 +318,84 @@
   --chart-4: #a874c4;
   --chart-5: #5fa36a;
   color-scheme: dark;
+}
+
+/* 主题的深色版。放在基础深色后面，所以同一个主题浅色深色各有一套。 */
+:root[data-reader-theme="dark"] .galley-site[data-theme="plain"],
+:root[data-reader-theme="dark"] .galley-site[data-theme="engineer"] {
+  --paper: #15181c;
+  --paper-raised: #1c2025;
+  --paper-sunken: #0f1216;
+  --ink: #dfe3e8;
+  --ink-soft: #a7aeb6;
+  --ink-faint: #79818a;
+  --rule: #2b3037;
+  --code-bg: #0f1216;
+  --code-foreground: #dfe3e8;
+  --code-token-comment: #79818a;
+  --code-token-punctuation: #a7aeb6;
+  color-scheme: dark;
+}
+:root[data-reader-theme="dark"] .galley-site[data-theme="plain"] {
+  --accent: #6cb0ff;
+  --code-token-keyword: #ff8088;
+  --code-token-string: #a5d6ff;
+  --code-token-string-expression: #a5d6ff;
+  --code-token-function: #d2a8ff;
+  --code-token-constant: #79c0ff;
+  --code-token-parameter: #ffa657;
+  --code-token-link: #6cb0ff;
+  --code-line-focus: rgba(108, 176, 255, 0.1);
+}
+:root[data-reader-theme="dark"] .galley-site[data-theme="engineer"] {
+  --accent: #4fc0b4;
+  --code-token-keyword: #4fc0b4;
+  --code-token-string: #b5cc7a;
+  --code-token-string-expression: #b5cc7a;
+  --code-token-function: #7cb3e0;
+  --code-token-constant: #d6a95f;
+  --code-token-parameter: #b79ad6;
+  --code-token-link: #7cb3e0;
+  --code-line-focus: rgba(79, 192, 180, 0.1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-reader-theme="light"]) .galley-site[data-theme="plain"],
+  :root:not([data-reader-theme="light"]) .galley-site[data-theme="engineer"] {
+    --paper: #15181c;
+    --paper-raised: #1c2025;
+    --paper-sunken: #0f1216;
+    --ink: #dfe3e8;
+    --ink-soft: #a7aeb6;
+    --ink-faint: #79818a;
+    --rule: #2b3037;
+    --code-bg: #0f1216;
+    --code-foreground: #dfe3e8;
+    --code-token-comment: #79818a;
+    --code-token-punctuation: #a7aeb6;
+    color-scheme: dark;
+  }
+  :root:not([data-reader-theme="light"]) .galley-site[data-theme="plain"] {
+    --accent: #6cb0ff;
+    --code-token-keyword: #ff8088;
+    --code-token-string: #a5d6ff;
+    --code-token-string-expression: #a5d6ff;
+    --code-token-function: #d2a8ff;
+    --code-token-constant: #79c0ff;
+    --code-token-parameter: #ffa657;
+    --code-token-link: #6cb0ff;
+    --code-line-focus: rgba(108, 176, 255, 0.1);
+  }
+  :root:not([data-reader-theme="light"]) .galley-site[data-theme="engineer"] {
+    --accent: #4fc0b4;
+    --code-token-keyword: #4fc0b4;
+    --code-token-string: #b5cc7a;
+    --code-token-string-expression: #b5cc7a;
+    --code-token-function: #7cb3e0;
+    --code-token-constant: #d6a95f;
+    --code-token-parameter: #b79ad6;
+    --code-token-link: #7cb3e0;
+    --code-line-focus: rgba(79, 192, 180, 0.1);
+  }
 }
 
 /* 读者在"阅读设置"里调的字号：在正文原本的大小上整体放大或缩小 */
@@ -558,6 +840,9 @@ body {
 /* ---- 前台的版面 ---------------------------------------------------------- */
 
 .galley-site {
+  /* 主题挂在这一层（见 app/site-shell.tsx），所以底色也由它铺，
+     否则 body 还是默认主题的颜色，换主题后页面边缘会露出旧底色 */
+  background: var(--paper);
   font-family: var(--font-serif);
   /* 中英文之间自动留出间距、行首的标点收紧：浏览器支持时才生效 */
   text-autospace: normal;
@@ -573,9 +858,8 @@ body {
 .galley-page {
   margin-inline: auto;
   width: 100%;
-  max-width: 46rem;
+  max-width: var(--column);
   padding-inline: 1.5rem;
-  --prose-size: 1.125rem;
 }
 @media (min-width: 900px) {
   .galley-page {
@@ -621,7 +905,7 @@ body {
   width: fit-content;
   max-width: 100%;
   font-size: clamp(1.8rem, 1.3rem + 2.2vw, 2.6rem);
-  font-weight: 900;
+  font-weight: var(--title-weight);
   line-height: 1.35;
   letter-spacing: 0.01em;
   text-wrap: balance;
@@ -1500,8 +1784,8 @@ body {
 .galley-prose {
   font-family: var(--font-serif);
   font-size: calc(var(--prose-size, 1.125rem) * var(--reader-scale, 1));
-  line-height: 1.95;
-  text-align: justify;
+  line-height: var(--prose-leading);
+  text-align: var(--prose-align);
   line-break: strict;
   overflow-wrap: break-word;
   hanging-punctuation: allow-end;

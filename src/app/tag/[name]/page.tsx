@@ -1,14 +1,15 @@
 import { Suspense } from "react";
 import { SiteIndex } from "../../site-index";
+import { SiteShell } from "../../site-shell";
 
 /** 标签页：用到这个标签的已发布文章。 */
 export default function TagPage({ params }: PageProps<"/tag/[name]">) {
   return (
-    <div className="galley-site flex-1">
-      <Suspense fallback={null}>
+    <Suspense fallback={null}>
+      <SiteShell>
         <Tag params={params} />
-      </Suspense>
-    </div>
+      </SiteShell>
+    </Suspense>
   );
 }
 

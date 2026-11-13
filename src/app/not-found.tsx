@@ -2,11 +2,13 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { SiteFooter } from "./site-footer";
 import { SiteHeader } from "./site-header";
+import { SiteShell } from "./site-shell";
 
 /** 读者访问了不存在的网址时看到的页面。和前台的其他页面是同一个样子。 */
 export default function NotFound() {
   return (
-    <div className="galley-site flex-1">
+    <Suspense fallback={null}>
+      <SiteShell>
       <main className="galley-page pb-20">
         <Suspense fallback={null}>
           <SiteHeader />
@@ -27,6 +29,7 @@ export default function NotFound() {
           <SiteFooter />
         </Suspense>
       </main>
-    </div>
+      </SiteShell>
+    </Suspense>
   );
 }

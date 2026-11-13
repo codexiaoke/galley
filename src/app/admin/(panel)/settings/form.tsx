@@ -3,6 +3,7 @@
 import { LoaderCircle } from "lucide-react";
 import { useState, useTransition } from "react";
 import type { SiteSettings } from "@/core/services/settings";
+import { THEMES } from "@/core/themes";
 import { saveSettings } from "../../actions";
 import { useToast } from "../../toast";
 import { Select } from "../../select";
@@ -39,6 +40,9 @@ export function SettingsForm({ settings }: { settings: SiteSettings }) {
       </Field>
       <Field label="网站地址" hint="读者访问这个站用的地址，例如 https://example.com。订阅源和站点地图里的链接以它开头；不填时用访问时的地址。">
         <input name="url" type="url" placeholder="https://" defaultValue={settings.url} className={INPUT} />
+      </Field>
+      <Field label="主题" hint={THEMES.find((t) => t.name === settings.theme)?.description ?? "前台的配色、字体和版式。"}>
+        <Select name="theme" defaultValue={settings.theme} options={THEMES.map((t) => ({ value: t.name, label: t.label }))} />
       </Field>
       <Field label="页脚文字" hint="显示在前台每个页面的最底部，例如「© 2026 程序员小柯」或者备案号。留空就不显示。">
         <input name="footerText" maxLength={120} defaultValue={settings.footerText} placeholder="© 2026 程序员小柯" className={INPUT} />

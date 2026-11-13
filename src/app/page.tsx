@@ -1,12 +1,13 @@
 import { Suspense } from "react";
 import { SiteIndex } from "./site-index";
+import { SiteShell } from "./site-shell";
 
 export default function Home() {
   return (
-    <div className="galley-site flex-1">
-      <Suspense fallback={null}>
+    <Suspense fallback={null}>
+      <SiteShell>
         <SiteIndex />
-      </Suspense>
-    </div>
+      </SiteShell>
+    </Suspense>
   );
 }
