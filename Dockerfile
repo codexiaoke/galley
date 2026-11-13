@@ -4,15 +4,25 @@
 # 数据（数据库和上传的图片）不在镜像里，在 /data 这个卷里。
 
 FROM node:22-bookworm-slim AS base
+# 国内服务器上构建时可以换成国内的镜像源，下载会快很多（deploy.sh 第一次运行时会问）。
+#   NPM_REGISTRY 例如 https://registry.npmmirror.com
+#   APT_MIRROR   例如 mirrors.aliyun.com
+ARG NPM_REGISTRY=
+ARG APT_MIRROR=
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable
+# 先把 pnpm 下载好放进这一层，后面几步都用它，不用每一步再下载一次。
+RUN corepack enable \
+  && COREPACK_NPM_REGISTRY="${NPM_REGISTRY:-https://registry.npmjs.org}" corepack prepare pnpm@10.33.3 --activate \
+  && if [ -n "$NPM_REGISTRY" ]; then pnpm config set registry "$NPM_REGISTRY" --global; fi
 
 # ---- 安装依赖 ----
 FROM base AS deps
 WORKDIR /app
 # better-sqlite3 是原生模块。当前平台没有现成的预编译包时要现场编译，需要这些工具。
-RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
+ARG APT_MIRROR
+RUN if [ -n "$APT_MIRROR" ]; then sed -i "s|deb.debian.org|$APT_MIRROR|g" /etc/apt/sources.list.d/debian.sources; fi \
+  && apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 # 现场编译时用镜像里自带的 Node 头文件（/usr/local/include/node），不去 nodejs.org 下载。
 # 预编译包和头文件都要从国外下载，服务器的网络不通时安装会直接失败。
@@ -31,6 +41,8 @@ RUN GALLEY_STANDALONE=1 GALLEY_DATA_DIR=/tmp/galley-build pnpm build
 
 # ---- 运行 ----
 FROM node:22-bookworm-slim AS run
+# 给镜像打个标记：更新后清理旧镜像时，只清理 Galley 自己的，不碰服务器上别的东西。
+LABEL org.opencontainers.image.title="galley"
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

@@ -8,6 +8,9 @@
 #   ./deploy.sh logs     看日志（Ctrl+C 退出）
 #   ./deploy.sh stop     停止（数据保留）
 #
+# 服务器上构建太慢（下载依赖慢、内存小）的话，可以在自己电脑上运行 ./release.sh 用户名@服务器地址，
+# 在本地构建好镜像再上传过来。那样服务器上就不再构建，这个脚本只负责启动。
+#
 # 配置都在同一目录的 .env 里。第一次运行时会问你几个问题并生成它；之后想改端口、域名，直接改 .env 再运行一次。
 # 不想回答问题（比如在自动化脚本里）：先自己写好 .env，或者设置环境变量 GALLEY_PORT、GALLEY_DOMAIN、GALLEY_ADMIN_PASSWORD 再运行。
 
@@ -65,7 +68,7 @@ ask() {
   # ask 提示 默认值：交互时读一行输入，回车用默认值；不交互时直接用默认值。
   local prompt=$1 default=${2:-} answer=""
   if [ "$INTERACTIVE" = 1 ]; then
-    read -r -p "  $prompt${default:+（直接回车用 $default）}：" answer
+    read -r -p "  $prompt${default:+（直接回车用 ${default}）}：" answer
   fi
   printf '%s' "${answer:-$default}"
 }
@@ -109,6 +112,12 @@ first_time_setup() {
   env_set GALLEY_ADMIN_PASSWORD "$password"
   env_set GALLEY_PORT "$port"
   env_set GALLEY_DOMAIN "$domain"
+
+  # 在服务器上构建时，国内的服务器连国外的软件源很慢，可以换成国内的镜像源。本地构建上传时用不到。
+  if ! prebuilt && [ -z "${GALLEY_NPM_REGISTRY:-}" ] && [ "$(ask "服务器在中国大陆吗？输入 y 用国内镜像源下载依赖，会快很多" n)" = y ]; then
+    env_set GALLEY_NPM_REGISTRY https://registry.npmmirror.com
+    env_set GALLEY_APT_MIRROR mirrors.aliyun.com
+  fi
   chmod 600 "$ENV_FILE"
   info "已写入 .env（只有你能读）。之后想改端口、域名或密码，直接改这个文件再运行 ./deploy.sh。"
 }
@@ -139,6 +148,11 @@ open_firewall() {
 }
 
 # ---- 启动 -------------------------------------------------------------------
+
+# 镜像是不是在本地构建好、用 release.sh 传上来的。是的话服务器上不构建。
+prebuilt() {
+  [ "${GALLEY_PREBUILT:-}" = 1 ] || [ "$(env_get GALLEY_PREBUILT)" = 1 ] || [ ! -f Dockerfile ]
+}
 
 compose() {
   if [ -n "$(env_get GALLEY_DOMAIN)" ]; then
@@ -177,8 +191,17 @@ up() {
   # 用域名时，Galley 的端口只让本机（也就是 Caddy）访问，读者统一从 80/443 进来。
   if [ -n "$domain" ]; then env_set GALLEY_BIND 127.0.0.1; else env_set GALLEY_BIND 0.0.0.0; fi
 
-  say "构建并启动（第一次要下载依赖、编译，可能需要几分钟）"
-  compose up -d --build --remove-orphans
+  if prebuilt; then
+    env_set GALLEY_PREBUILT 1
+    docker image inspect galley:latest >/dev/null 2>&1 || fail "服务器上还没有 galley 镜像。请在自己电脑上运行 ./release.sh 用户名@服务器地址，它会构建好镜像传上来。"
+    say "启动（用本地构建好传上来的镜像）"
+    compose up -d --no-build --remove-orphans
+  else
+    say "构建并启动（第一次要下载依赖、编译，可能需要几分钟）"
+    compose up -d --build --remove-orphans
+  fi
+  # 清理被新镜像替换下来的旧镜像，只清理 Galley 自己的。
+  docker image prune -f --filter "label=org.opencontainers.image.title=galley" >/dev/null 2>&1 || true
 
   say "等待服务就绪"
   if wait_until_healthy "$port"; then
@@ -193,7 +216,7 @@ up() {
     info "网站：https://$domain"
     info "后台：https://$domain/admin"
     info "第一次访问时 Caddy 会去申请 HTTPS 证书，需要域名已经解析到这台服务器，并且 80、443 端口能从外面访问。"
-    info "登录后台后，在「站点设置」里把网站地址填成 https://$domain，订阅源和站点地图里的链接才是对的。"
+    info "登录后台后，在「站点设置」里把网站地址填成 https://${domain}，订阅源和站点地图里的链接才是对的。"
   else
     open_firewall "$port"
     local addr
@@ -214,6 +237,9 @@ up() {
 case "${1:-up}" in
   up) up ;;
   update)
+    if prebuilt; then
+      fail "这台服务器用的是本地构建好传上来的镜像。要更新，请在自己电脑上拉取最新代码，再运行 ./release.sh 用户名@服务器地址。"
+    fi
     if [ -d .git ]; then
       say "拉取最新代码"
       git pull --ff-only

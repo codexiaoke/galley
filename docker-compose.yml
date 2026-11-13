@@ -1,6 +1,7 @@
 # 用 Docker 运行 Galley。
 #
 # 最省事的办法是运行项目根目录下的 ./deploy.sh，它会帮你生成配置、构建、启动，并检查能不能访问。
+# 服务器上构建太慢的话，在自己电脑上运行 ./release.sh 用户名@服务器地址：本地构建好镜像再上传，服务器不用构建。
 # 也可以手动来：
 #   1. 在同一个目录下建一个 .env 文件，至少写上后台密码（8 位以上）：
 #        GALLEY_ADMIN_PASSWORD=换成你自己的密码
@@ -16,7 +17,12 @@
 
 services:
   galley:
-    build: .
+    build:
+      context: .
+      args:
+        # 国内服务器上构建时用的镜像源，deploy.sh 会帮你填。用本地构建好再上传（release.sh）时用不到。
+        NPM_REGISTRY: ${GALLEY_NPM_REGISTRY:-}
+        APT_MIRROR: ${GALLEY_APT_MIRROR:-}
     image: galley:latest
     restart: unless-stopped
     ports:
