@@ -127,3 +127,28 @@ describe("组件", () => {
   });
 });
 
+
+describe("小测验的写法", () => {
+  const issues = (body: string) => parseMarkup(body).issues.map((i) => i.message).join("\n");
+
+  it("正确的写法没有问题", () => {
+    expect(issues(":::quiz\n哪个对？\n\n- [ ] 甲\n- [x] 乙\n:::")).toBe("");
+  });
+
+  it("没有题目、没有正确选项、不是任务列表时报错", () => {
+    expect(issues(":::quiz\n- [ ] 甲\n- [x] 乙\n:::")).toMatch(/先写题目/);
+    expect(issues(":::quiz\n题目\n\n- [ ] 甲\n- [ ] 乙\n:::")).toMatch(/至少要有一个正确选项/);
+    expect(issues(":::quiz\n题目\n\n- 甲\n- 乙\n:::")).toMatch(/任务列表/);
+    expect(issues(":::quiz\n题目\n\n- [x] 甲\n- [x] 乙\n:::")).toMatch(/不能全都正确/);
+  });
+});
+
+describe("可以运行的代码块", () => {
+  const issues = (body: string) => parseMarkup(body).issues.map((i) => i.message).join("\n");
+
+  it("只有 JavaScript 可以加 run", () => {
+    expect(issues("```js run\nconsole.log(1)\n```")).toBe("");
+    expect(issues('```python title="run" \nprint(1)\n```')).toBe("");
+    expect(issues("```python run\nprint(1)\n```")).toMatch(/只有 JavaScript/);
+  });
+});

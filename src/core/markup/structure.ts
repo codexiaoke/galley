@@ -15,6 +15,8 @@ type Node = {
   value?: string;
   attributes?: Record<string, string | null | undefined> | null;
   ordered?: boolean | null;
+  /** 任务列表项（- [ ] / - [x]）是否勾选；普通列表项为 null */
+  checked?: boolean | null;
   children?: Node[];
   position?: { start: { offset?: number }; end: { offset?: number } };
 };
@@ -113,11 +115,36 @@ export function readTrace(container: Node): { code?: string; input?: string; pre
 }
 
 /** 保存时对容器组件内部结构的检查，返回错误信息。 */
+export type QuizParts = {
+  /** 选项列表在容器子节点里的位置：它前面是题目，后面是解析 */
+  listIndex: number;
+  /** 正确选项的序号（从 0 开始） */
+  correct: number[];
+};
+
+/** 小测验：题目、一个任务列表写的选项（- [x] 是正确的，- [ ] 是错的），后面可以跟解析。 */
+export function readQuiz(container: Node): { parts?: QuizParts; errors: string[] } {
+  const children = container.children ?? [];
+  const listIndex = children.findIndex((n) => n.type === "list");
+  if (listIndex === -1) return { errors: ["quiz 里要有一个选项列表：正确的写成「- [x] 选项」，错误的写成「- [ ] 选项」。"] };
+  const errors: string[] = [];
+  if (listIndex === 0) errors.push("quiz 的选项前面要先写题目。");
+  const items = children[listIndex].children ?? [];
+  if (items.length < 2 || items.length > 6) errors.push("quiz 要有 2 到 6 个选项。");
+  if (items.some((i) => i.checked === null || i.checked === undefined)) errors.push("quiz 的每个选项都要写成任务列表：正确的「- [x] 选项」，错误的「- [ ] 选项」（中括号里有空格）。");
+  const correct = items.flatMap((i, k) => (i.checked ? [k] : []));
+  if (correct.length === 0) errors.push("quiz 至少要有一个正确选项，写成「- [x] 选项」。");
+  if (correct.length === items.length && items.length > 0) errors.push("quiz 的选项不能全都正确。");
+  if (children.slice(listIndex + 1).some((n) => n.type === "list")) errors.push("一个 quiz 只放一道题。要出几道题就写几个 :::quiz。");
+  return { parts: errors.length ? undefined : { listIndex, correct }, errors };
+}
+
 export function checkStructure(name: string, node: Node, source: string): string[] {
   if (name === "steps") return readSteps(node, source).errors;
   if (name === "flow") return readFlow(node, source).errors;
   if (name === "tabs") return readTabs(node).errors;
   if (name === "code-steps") return readCodeSteps(node).errors;
+  if (name === "quiz") return readQuiz(node).errors;
   if (name === "trace") {
     const t = readTrace(node);
     if (t.errors.length || t.code === undefined) return t.errors;

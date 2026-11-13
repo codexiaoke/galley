@@ -14,19 +14,19 @@ import { unified } from "unified";
 import { BUILTIN_DIRECTIVES, getComponent } from "@/core/markup/components";
 import { isBareText, isDirective } from "@/core/markup/parse";
 import type { FlowGraph } from "@/core/markup/flow";
-import { readCodeSteps, readFlow, readSteps, readTrace, STEP_LINES_PATTERN } from "@/core/markup/structure";
+import { readCodeSteps, readFlow, readQuiz, readSteps, readTrace, STEP_LINES_PATTERN } from "@/core/markup/structure";
 import { lineIdentities } from "./code-diff";
 import { traceCache, traceKey, type TraceResult } from "@/core/algo/trace-shared";
 import type { BlockView } from "@/core/services/blocks";
 import type { PostCard } from "@/core/services/documents";
 import { CiteHover } from "./CiteHover";
 import { findTerms, termSpellings, type Term } from "@/core/markup/terms";
-import { highlightCode, languageName, parseCodeMeta } from "./highlight";
+import { highlightCode, languageName, parseCodeMeta, RUNNABLE_LANGS } from "./highlight";
 import { runAlgorithmVariants } from "@/core/algo";
 import { variantsOf } from "@/core/algo/presets";
 import { CopyButton } from "./client/copy";
 // 播放器按需加载，见 client/lazy.tsx
-import { AlgoPlayer, ChartView, CodeStepsPlayer, Compare, CountUp, FlowView, MermaidDiagram, RacePlayer, StepsController, Tabs, ZoomImage } from "./client/lazy";
+import { AlgoPlayer, ChartView, CodeStepsPlayer, CodeRunner, Compare, CountUp, FlowView, MermaidDiagram, Quiz, RacePlayer, StepsController, Tabs, ZoomImage } from "./client/lazy";
 import { headingSlugger } from "./toc";
 
 /**
@@ -47,6 +47,7 @@ type MdNode = {
   alt?: string | null;
   title?: string | null;
   depth?: number;
+  checked?: boolean | null;
   attributes?: Record<string, string | null | undefined> | null;
   children?: MdNode[];
   position?: { start: { offset?: number }; end: { offset?: number } };
@@ -243,6 +244,25 @@ function remarkGalley(options: { source: string }) {
         d.data = { hName: "galley-trace", hProperties: { attrs: JSON.stringify({ keys, code, title: t.title ?? "" }) }, hChildren: [] };
         return;
       }
+      if (d.name === "quiz") {
+        const { parts } = readQuiz(d as never);
+        if (!parts) return replace({ type: "paragraph", children: [{ type: "text", value: "" }] });
+        const kids = d.children ?? [];
+        const div = (className: string, children: MdNode[], hName = "div"): MdNode => ({ type: "galleyElement", children, data: { hName, hProperties: { className: [className] } } });
+        // 选项不再是任务列表（否则会画出勾选框），哪个对记在 data-correct 上，由脚本判断
+        const options = (kids[parts.listIndex].children ?? []).map((item, i) => ({
+          ...item,
+          checked: null,
+          data: { hName: "li", hProperties: { "data-correct": parts.correct.includes(i) ? "true" : "false" } },
+        }));
+        const explanation = kids.slice(parts.listIndex + 1);
+        d.children = [
+          div("galley-quiz-question", kids.slice(0, parts.listIndex)),
+          div("galley-quiz-options", options, "ol"),
+          ...(explanation.length ? [div("galley-quiz-explain", explanation)] : []),
+        ];
+        attrs.correct = parts.correct;
+      }
       if (d.name === "tabs") {
         const tabs = (d.children ?? []).filter((c) => c.type === "containerDirective" && c.name === "tab");
         attrs.labels = tabs.map((t) => t.attributes?.label ?? "");
@@ -346,16 +366,18 @@ function Value({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
  * 每行带 data-line 行号，分步讲解（steps）靠它找到要高亮的行。
  */
 function CodeBlock({ code, lang, meta, footer }: { code: string; lang?: string; meta?: string; footer?: ReactNode }) {
-  const { title, highlight } = parseCodeMeta(meta);
+  const { title, highlight, run } = parseCodeMeta(meta);
   const pre = highlightCode(code, lang, highlight);
   const label = title ?? languageName(lang);
+  const runnable = run && RUNNABLE_LANGS.includes((lang ?? "").toLowerCase());
   return (
-    <figure className="galley-code" data-has-highlight={highlight.size > 0 || undefined}>
+    <figure className="galley-code" data-has-highlight={highlight.size > 0 || undefined} data-runnable={runnable || undefined}>
       <figcaption className="galley-code-bar">
         <span className={title ? "galley-code-file" : "galley-code-lang"}>{label}</span>
         <CopyButton text={code.replace(/\n$/, "")} />
       </figcaption>
       {toJsxRuntime(pre, { Fragment, jsx, jsxs })}
+      {runnable && <CodeRunner code={code} />}
       {footer}
     </figure>
   );
@@ -693,6 +715,14 @@ export function Markdown({
       return <ZoomImage src={src} alt={alt} caption={title || alt} />;
     },
     "galley-steps": (props: ElementProps) => <StepsController>{props.children}</StepsController>,
+    "galley-quiz": (props: ElementProps) => {
+      const { title, correct } = attrsOf<{ title?: string; correct?: number[] }>(props);
+      return (
+        <Quiz title={title} correct={correct ?? []}>
+          {props.children}
+        </Quiz>
+      );
+    },
     "galley-flow": (props: ElementProps) => {
       const { graph } = attrsOf<{ graph: FlowGraph | null }>(props);
       return graph ? <FlowView graph={graph} /> : null;

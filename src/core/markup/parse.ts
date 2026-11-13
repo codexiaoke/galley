@@ -181,6 +181,12 @@ export function parseMarkup(body: string): ParsedMarkup {
         error(`公式写错了：${reason}。公式是「${node.value}」。正文里要写美元符号本身时，写成反斜杠加美元符号。`, node.position?.start.line);
       }
     }
+    if (node.type === "code" && /(^|\s)run(\s|$)/.test((node.meta ?? "").replace(/title=(?:"[^"]*"|'[^']*'|\S+)/, ""))) {
+      // 读者能在浏览器里运行的只有 JavaScript（在沙箱里跑，见 render/client/run-sandbox.ts）
+      if (!["js", "javascript", "mjs"].includes((node.lang ?? "").toLowerCase())) {
+        error(`只有 JavaScript 代码块可以加 run 让读者运行，这个代码块是「${node.lang ?? "没写语言"}」。去掉 run，或者改写成 JavaScript。`, node.position?.start.line);
+      }
+    }
     if (node.type === "code" && node.lang === "mermaid") {
       const first = node.value.trim().split(/\s+/)[0] ?? "";
       const checked = mermaidResults.get(node.value);

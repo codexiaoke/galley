@@ -15,6 +15,9 @@ const nextConfig: NextConfig = {
     serverActions: { bodySizeLimit: "12mb" },
   },
   turbopack: {
+    // 读者点「运行」时在浏览器里加载 QuickJS（见 render/client/run-sandbox.ts）。
+    // 它的单文件版本里有一段只在 Node.js 下才走到的 require("fs")，打包给浏览器时换成空模块。
+    resolveAlias: { fs: { browser: "./src/render/client/empty-module.ts" } },
     rules: {
       "*.css": {
         loaders: ["@tailwindcss/turbopack"],

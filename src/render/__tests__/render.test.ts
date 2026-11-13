@@ -22,6 +22,8 @@ vi.mock("../client/lazy", async () => ({
   Tabs: (await import("../client/tabs")).Tabs,
   CountUp: (await import("../client/stat")).CountUp,
   ZoomImage: (await import("../client/image")).ZoomImage,
+  Quiz: (await import("../client/quiz")).Quiz,
+  CodeRunner: (await import("../client/code-runner")).CodeRunner,
 }));
 const renderAll = async (body: string) => render(body);
 
@@ -94,5 +96,25 @@ describe("术语", () => {
 
   it("没有给术语时原样输出", () => {
     expect(render("本体")).not.toContain("galley-term");
+  });
+});
+
+describe("小测验", () => {
+  const quiz = ":::quiz\n哪个对？\n\n- [ ] 甲\n- [x] 乙\n- [ ] 丙\n\n因为乙。\n:::";
+
+  it("题目、选项、解析分开渲染，选项上记着对错，不画勾选框", async () => {
+    const html = await renderAll(quiz);
+    expect(html).toContain('class="galley-quiz-question"');
+    expect(html.match(/data-correct="true"/g)).toHaveLength(1);
+    expect(html.match(/data-correct="false"/g)).toHaveLength(2);
+    expect(html).toContain('class="galley-quiz-explain"');
+    expect(html).not.toContain('type="checkbox"');
+  });
+});
+
+describe("可以运行的代码块", () => {
+  it("加了 run 的 JavaScript 下面有运行按钮，别的代码块没有", async () => {
+    expect(await renderAll("```js run\nconsole.log(1)\n```")).toContain("galley-run-button");
+    expect(await renderAll("```js\nconsole.log(1)\n```")).not.toContain("galley-run-button");
   });
 });

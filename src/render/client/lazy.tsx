@@ -22,3 +22,5 @@ export const StepsController = dynamic(() => import("./steps").then((m) => m.Ste
 export const Tabs = dynamic(() => import("./tabs").then((m) => m.Tabs));
 export const CountUp = dynamic(() => import("./stat").then((m) => m.CountUp));
 export const ZoomImage = dynamic(() => import("./image").then((m) => m.ZoomImage));
+export const Quiz = dynamic(() => import("./quiz").then((m) => m.Quiz));
+export const CodeRunner = dynamic(() => import("./code-runner").then((m) => m.CodeRunner));

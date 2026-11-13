@@ -1639,6 +1639,186 @@ body {
 }
 
 /* 提示框：左侧一条色线，底色只比纸张深一点 */
+/* ---- 小测验：一道选择题，点选后标出对错、显示解析 ---- */
+.galley-quiz {
+  --quiz-right: #3d7558;
+  --quiz-wrong: #b5483a;
+  margin: 2.25em 0;
+  padding: 1.1em 1.3em 1em;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  font-size: 0.97em;
+}
+:root[data-reader-theme="dark"] .galley-quiz {
+  --quiz-right: #8cc4a4;
+  --quiz-wrong: #e08b7d;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-reader-theme="light"]) .galley-quiz {
+    --quiz-right: #8cc4a4;
+    --quiz-wrong: #e08b7d;
+  }
+}
+.galley-quiz-kicker {
+  display: flex;
+  gap: 0.6em;
+  align-items: baseline;
+  margin: 0 0 0.4em;
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+.galley-quiz-kicker span {
+  color: var(--ink-faint);
+}
+.galley-quiz-question {
+  font-weight: 700;
+  line-height: 1.75;
+}
+.galley-quiz-question > * + * {
+  margin-top: 0.6em;
+}
+.galley-prose .galley-quiz-options {
+  display: grid;
+  gap: 0.5em;
+  margin: 0.9em 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: quiz;
+}
+.galley-prose .galley-quiz-options > li {
+  position: relative;
+  margin: 0;
+  padding: 0.55em 0.9em 0.55em 2.6em;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  line-height: 1.7;
+  counter-increment: quiz;
+  transition: border-color var(--dur-fast), background-color var(--dur-fast);
+}
+.galley-prose .galley-quiz-options > li::before {
+  content: counter(quiz, upper-alpha);
+  position: absolute;
+  left: 0.9em;
+  top: 0.55em;
+  font-family: var(--font-ui);
+  font-size: 0.85em;
+  font-weight: 600;
+  line-height: 1.95;
+  color: var(--ink-faint);
+}
+.galley-prose .galley-quiz-options > li > p {
+  margin: 0;
+}
+.galley-quiz[data-ready] .galley-quiz-options > li {
+  cursor: pointer;
+}
+.galley-quiz[data-ready] .galley-quiz-options > li:hover,
+.galley-quiz-options > li:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--rule));
+  outline: none;
+}
+.galley-quiz-options > li[data-chosen="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.galley-quiz[data-state="revealed"] .galley-quiz-options > li {
+  cursor: default;
+}
+.galley-quiz-options > li[data-result="right"],
+.galley-quiz-options > li[data-result="missed"] {
+  border-color: var(--quiz-right);
+  background: color-mix(in srgb, var(--quiz-right) 10%, transparent);
+}
+.galley-quiz-options > li[data-result="wrong"] {
+  border-color: var(--quiz-wrong);
+  background: color-mix(in srgb, var(--quiz-wrong) 9%, transparent);
+}
+.galley-quiz-options > li[data-result="plain"] {
+  opacity: 0.6;
+}
+/* 对错不只靠颜色：选项末尾再写一个字 */
+.galley-quiz-options > li[data-result]::after {
+  position: absolute;
+  right: 0.9em;
+  top: 0.55em;
+  font-family: var(--font-ui);
+  font-size: 0.8em;
+  line-height: 2.05;
+}
+.galley-quiz-options > li[data-result="right"]::after {
+  content: "✓ 对";
+  color: var(--quiz-right);
+}
+.galley-quiz-options > li[data-result="missed"]::after {
+  content: "✓ 正确答案";
+  color: var(--quiz-right);
+}
+.galley-quiz-options > li[data-result="wrong"]::after {
+  content: "✗ 不对";
+  color: var(--quiz-wrong);
+}
+.galley-quiz-options > li[data-result] {
+  padding-right: 6.5em;
+}
+/* 解析：答完才出现 */
+.galley-quiz-explain {
+  display: none;
+  margin-top: 0.9em;
+  padding-top: 0.8em;
+  border-top: 1px dashed var(--rule);
+  color: var(--ink-soft);
+  line-height: 1.85;
+}
+.galley-quiz[data-state="revealed"] .galley-quiz-explain {
+  display: block;
+  animation: galley-quiz-in 0.35s var(--ease-out);
+}
+@keyframes galley-quiz-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.galley-quiz-footer {
+  display: flex;
+  gap: 1em;
+  align-items: center;
+  margin-top: 0.8em;
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  color: var(--ink-faint);
+}
+.galley-quiz-footer button {
+  cursor: pointer;
+  color: var(--accent);
+}
+.galley-quiz-footer button:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.galley-quiz-footer .galley-quiz-submit {
+  padding: 0.3em 1em;
+  border-radius: 5px;
+  background: var(--accent);
+  color: var(--paper);
+}
+.galley-quiz-footer .galley-quiz-submit:hover {
+  text-decoration: none;
+}
+.galley-quiz-footer .galley-quiz-submit:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+.galley-quiz-verdict {
+  font-weight: 600;
+  color: var(--quiz-wrong);
+}
+.galley-quiz-verdict[data-right="true"] {
+  color: var(--quiz-right);
+}
+
 .galley-callout {
   margin: 2em 0;
   border-left: 2px solid var(--callout-color, var(--ink-faint));
@@ -1960,6 +2140,94 @@ body {
   text-align: left;
   overflow: hidden;
 }
+/* ---- 可以运行的代码块：代码下面一条「运行」「改一改」，再下面是输出 ---- */
+.galley-code[data-editing="true"] > pre {
+  display: none;
+}
+.galley-run-editor {
+  display: block;
+  width: 100%;
+  padding: 0.9rem 1rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  line-height: 1.7;
+  tab-size: 2;
+  resize: vertical;
+  outline: none;
+}
+.galley-run-editor:focus {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.galley-run-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.9rem;
+  padding: 0.45rem 0.75rem;
+  border-top: 1px solid color-mix(in srgb, var(--rule) 75%, transparent);
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  color: var(--ink-faint);
+}
+.galley-run-bar button {
+  cursor: pointer;
+  color: var(--ink-soft);
+  transition: color var(--dur-fast);
+}
+.galley-run-bar button:hover {
+  color: var(--accent);
+}
+.galley-run-bar .galley-run-button {
+  padding: 0.2rem 0.75rem;
+  border-radius: 5px;
+  background: var(--accent);
+  color: var(--paper);
+  font-weight: 600;
+}
+.galley-run-bar .galley-run-button:hover {
+  color: var(--paper);
+  opacity: 0.9;
+}
+.galley-run-bar .galley-run-button:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+.galley-run-meta {
+  margin-left: auto;
+}
+.galley-run-output {
+  max-height: 22rem;
+  overflow: auto;
+  padding: 0.7rem 1rem 0.8rem;
+  border-top: 1px dashed color-mix(in srgb, var(--rule) 80%, transparent);
+  background: color-mix(in srgb, var(--paper) 55%, var(--code-bg));
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  animation: galley-quiz-in 0.25s var(--ease-out);
+}
+.galley-run-output p {
+  margin: 0;
+}
+.galley-run-output [data-level="warn"] {
+  color: #a67a1f;
+}
+.galley-run-output [data-level="error"] {
+  color: #b5483a;
+}
+.galley-run-output [data-level="result"] {
+  color: var(--ink-soft);
+}
+.galley-run-empty {
+  color: var(--ink-faint);
+  font-family: var(--font-ui);
+}
+
 .galley-code-bar {
   display: flex;
   align-items: center;
