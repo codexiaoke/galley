@@ -24,7 +24,15 @@ export type BuildUnit = {
   /** 状态变了，通知页面 */
   apply: (state: BuildState) => void;
 };
-export type PlayerStep = { wait?: number; caption?: string };
+export type PlayerStep = {
+  /** 这一步建议停多久再走下一步（毫秒） */
+  wait?: number;
+  caption?: string;
+  /** 这一步在讲稿清单里的名字（见 render/narration.ts）。做视频的工具给了这一拍的时长时，按那个时长停 */
+  beat?: string;
+  /** 这一步的动画放完要多久（毫秒）：给的时长再短，也要等它放完 */
+  anim?: number;
+};
 export type BuildPlayer = { type: "player"; step: (dir: number) => PlayerStep | null };
 export type BuildStop = BuildUnit | BuildPlayer;
 

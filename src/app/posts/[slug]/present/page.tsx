@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { prepareRender } from "@/core/prepare";
 import { Presentation } from "@/render/client/present";
+import { parseTiming } from "@/render/narration";
 import { presentSlides } from "@/render/present-slides";
 import { loadPublishedDocument } from "../../../data";
 import { loadSite } from "../../../site";
@@ -14,6 +15,8 @@ import { loadSite } from "../../../site";
  * - orientation=portrait：竖屏（9:16）
  * - captions=1：把讲稿当字幕显示；captions=space：不显示字幕，但每一页在底部留出字幕的位置（字幕由后期加）
  * - durations=3000,5200,…：每一页至少停留多少毫秒（按朗读的长度）
+ * - timing=p1:5200,p2:3000,1x9abc.0:4100,…：每一拍停多少毫秒。拍的名字从 narration.json 里来
+ *   （页是 p<页码>，场景的步骤是 <场景的指纹>.<第几步>），细到场景的每一步，比 durations 准
  * - print=1：所有页排好后打开打印对话框，存成 PDF
  */
 export default function PresentPage({ params, searchParams }: PageProps<"/posts/[slug]/present">) {
@@ -47,6 +50,7 @@ async function Present({ params, searchParams }: { params: Promise<{ slug: strin
         orientation={one("orientation") === "portrait" ? "portrait" : one("orientation") === "landscape" ? "landscape" : undefined}
         captions={one("captions") === "1" ? "on" : one("captions") === "space" ? "space" : "off"}
         durations={durations?.length ? durations : undefined}
+        timing={parseTiming(one("timing"))}
         print={one("print") === "1"}
         cover={{
           title: doc.title,

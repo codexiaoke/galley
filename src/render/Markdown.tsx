@@ -664,7 +664,7 @@ function SceneView({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
     // 场景里有读者能调的东西时，把代码也交给播放器：读者一动，浏览器要带着新的数值重新运行。
     // 交出去的代码先摘掉讲稿；没有可调的东西时不交代码，读者的浏览器只拿到运行结果。
     const source = result.scene.params?.length ? stripNarration(code) : undefined;
-    return <ScenePlayer key={id} scene={ctx.narration ? result.scene : withoutNarration(result.scene)} title={title || undefined} source={source} ratio={ratio} />;
+    return <ScenePlayer key={id} scene={ctx.narration ? result.scene : withoutNarration(result.scene)} title={title || undefined} source={source} ratio={ratio} beat={id} />;
   }
   return ctx.review ? <p className="galley-trace-error">{result ? `场景代码出错，${result.error}` : "场景代码还没有运行。"}</p> : null;
 }

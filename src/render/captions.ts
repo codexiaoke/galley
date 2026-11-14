@@ -82,3 +82,8 @@ export function captionParts(text: string, limit = CAPTION_LIMIT): string[] {
 export function speakingTime(text: string): number {
   return Math.max(1500, 500 + captionWidth(text.replace(/\s+/g, "")) * 210);
 }
+
+/** 一页不给时长时停多久（毫秒）：有讲稿按讲稿的字数，没有按页面文字的字数，每秒 7 个字，3.5 到 14 秒之间 */
+export function defaultPageStay(notesChars: number, textChars: number): number {
+  return Math.min(14000, Math.max(3500, ((notesChars || textChars) * 1000) / 7));
+}

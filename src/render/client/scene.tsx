@@ -418,12 +418,15 @@ export function ScenePlayer({
   title,
   source,
   ratio = "16:9",
+  beat,
 }: {
   scene: Scene;
   title?: string;
   /** 场景的代码（已经去掉讲稿）。场景里有读者能调的东西时才给：读者一动，要带着新的数值重新运行 */
   source?: string;
   ratio?: SceneRatio;
+  /** 这个场景在讲稿清单里的名字（它的指纹）。每一步的名字是 <它>.<第几步>，演示按这个名字找做视频的工具给的时长 */
+  beat?: string;
 }) {
   const ref = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -515,7 +518,7 @@ export function ScenePlayer({
     const el = ref.current;
     if (!el) return;
     const onStep = (e: Event) => {
-      const detail = (e as CustomEvent<{ dir: number; wait?: number; caption?: string }>).detail;
+      const detail = (e as CustomEvent<{ dir: number; wait?: number; caption?: string; beat?: string; anim?: number }>).detail;
       const next = index + (detail.dir > 0 ? 1 : -1);
       if (next < -1 || next > last) return;
       e.preventDefault();
@@ -527,6 +530,8 @@ export function ScenePlayer({
         // 有讲稿时：边放动画边讲，动画放完、话也说完了才走下一步；没有讲稿时：动画放完再留出读那句文字的时间
         detail.wait = (step.say ? Math.max(step.duration, speakingTime(step.say)) + 500 : step.duration + readingTime(step.text)) / rate;
         detail.caption = spoken(next);
+        detail.beat = beat ? `${beat}.${next}` : undefined;
+        detail.anim = step.duration / rate;
         go(next, true);
       } else {
         detail.caption = next >= 0 ? spoken(next) : undefined;
@@ -535,7 +540,7 @@ export function ScenePlayer({
     };
     el.addEventListener("galley-step", onStep);
     return () => el.removeEventListener("galley-step", onStep);
-  }, [index, last, current, rate, go]);
+  }, [index, last, current, rate, go, beat]);
 
   // 打印、存成 PDF：显示最后的样子
   useEffect(() => {

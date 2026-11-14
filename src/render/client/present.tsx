@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { advance, leadsOn, planBuild, type BuildState, type BuildStop } from "../build";
-import { captionParts, captionWidth, speakingTime } from "../captions";
+import { captionParts, captionWidth, defaultPageStay, speakingTime } from "../captions";
 import { download, prepareRecording, recordingSupport, type Recording, type RecordingSupport } from "./recorder";
 import { formatSpeed, PresentSpeed, SPEEDS } from "./speed";
 import { printWhenDiagramsReady } from "../print-readiness";
@@ -27,6 +27,11 @@ import { turnKind } from "../turn";
  * 幻灯片按固定的设计尺寸排版（横屏 1600×900，竖屏 900×1600），整体缩放到窗口大小，
  * 所以在什么屏幕上看、录成视频，排版都一样。内容太多放不下时整页缩小一点。
  *
+ * 按声音走：做视频的工具把每一拍配音的时长传进来（timing，名字见 render/narration.ts），
+ * 自动播放时这一页、这一步就按那个时长停。一页的讲稿说完，才开始走这一页里的步骤。
+ * 演示同时把每一拍实际开始的时刻记下来（window.__galleyTimeline，并通知外层页面），
+ * 工具可以按它把声音对到画面上；在这里录的视频，录完可以下载这份时间轴。
+ *
  * 自动播放：一步一步自己往下走，每一步停留的时间由动画告诉我们（事件里的 wait），
  * 没有动画的页按讲稿或页面文字的长短估一个时间；讲稿作为字幕显示在下面。
  *
@@ -38,7 +43,9 @@ export type PresentSlide = { title?: string; section?: string; notes: string; te
 export type Cover = { title: string; summary?: string; site: string; date?: string; url?: string };
 type Orientation = "landscape" | "portrait";
 
-type StepDetail = { dir: number; wait?: number; caption?: string };
+type StepDetail = { dir: number; wait?: number; caption?: string; beat?: string; anim?: number };
+/** 实际走过的时间轴：每一拍（见 render/narration.ts）是什么时候开始的 */
+type TimelineEntry = { id: string; at: number };
 
 type TransitionDocument = Document & { startViewTransition?: (update: () => void) => { finished: Promise<void>; ready: Promise<void> } };
 
@@ -123,6 +130,7 @@ export function Presentation({
   orientation: orientationParam,
   captions: captionsParam = "off",
   durations,
+  timing,
   print = false,
 }: {
   cover: Cover;
@@ -133,6 +141,8 @@ export function Presentation({
   captions?: CaptionMode;
   /** 每一页至少停留多久（毫秒） */
   durations?: number[];
+  /** 每一拍停多久（毫秒）：名字是 p<页码> 或者 <场景的指纹>.<第几步>，见 render/narration.ts */
+  timing?: Record<string, number>;
   /** 打印（存成 PDF）：所有页一页接一页排好，打开浏览器的打印对话框 */
   print?: boolean;
 }) {
@@ -161,6 +171,21 @@ export function Presentation({
     pageRef.current = page;
   }, [page]);
   const turnToken = useRef(0);
+  /** 自动播放时，当前这一页按计划是什么时刻开始的（见自动播放那一段） */
+  const planned = useRef<number | null>(null);
+
+  /** 记下一拍开始了，并告诉关心的人：页面上的脚本（事件 galley-beat）、把演示嵌在里面的外层页面（postMessage） */
+  const logBeat = useCallback((id: string) => {
+    const entry: TimelineEntry = { id, at: Math.round(performance.now()) };
+    const w = window as unknown as { __galleyTimeline?: TimelineEntry[] };
+    (w.__galleyTimeline ??= []).push(entry);
+    window.dispatchEvent(new CustomEvent("galley-beat", { detail: entry }));
+    // 只有名字和时刻，没有讲稿的内容
+    if (window.parent !== window) window.parent.postMessage({ source: "galley-present", type: "beat", ...entry }, "*");
+  }, []);
+  useEffect(() => {
+    if (!print) logBeat(`p${page}`);
+  }, [page, run, print, logBeat]);
 
   /** 换到第 to 页。animate 为 false 时不放转场（比如录制开始时回到封面） */
   const turnTo = useCallback(
@@ -215,7 +240,8 @@ export function Presentation({
   const [recError, setRecError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(3);
   const [elapsed, setElapsed] = useState(0);
-  const [result, setResult] = useState<{ url: string; filename: string; width: number; height: number } | null>(null);
+  const [result, setResult] = useState<{ url: string; filename: string; width: number; height: number; timeline: TimelineEntry[] } | null>(null);
+  const recStartedAt = useRef(0);
   const recording = useRef<Recording | null>(null);
   const recStarted = useRef(0);
   const recording_ = rec === "countdown" || rec === "recording";
@@ -288,9 +314,18 @@ export function Presentation({
   const pageStay = useCallback(
     (p: number) => {
       const slide = p >= 1 && p <= slides.length ? slides[p - 1] : null;
-      return (durations?.[p] ?? (slide ? Math.min(14000, Math.max(3500, ((slide.notes.length || slide.text) * 1000) / 7)) : 3500)) / speed;
+      const fallback = p >= total - 1 ? 2500 : slide ? defaultPageStay(slide.notes.length, slide.text) : 3500;
+      return (timing?.[`p${p}`] ?? durations?.[p] ?? fallback) / speed;
     },
-    [durations, slides, speed],
+    [timing, durations, slides, speed, total],
+  );
+  /** 页里的播放器走了一步，这一步停多久：工具给了这一拍的时长就按它（至少等动画放完），否则按播放器自己说的 */
+  const stepWait = useCallback(
+    (inner: StepDetail) => {
+      const given = inner.beat ? timing?.[inner.beat] : undefined;
+      return given === undefined ? inner.wait : Math.max(given / speed, inner.anim ?? 0);
+    },
+    [timing, speed],
   );
 
   const stepInside = useCallback(
@@ -325,13 +360,14 @@ export function Presentation({
     (dir: number) => {
       const inner = stepInside(dir);
       if (inner) {
-        if (inner.caption) setStepCaption({ page, text: inner.caption, wait: inner.wait });
+        if (inner.beat) logBeat(inner.beat);
+        if (inner.caption) setStepCaption({ page, text: inner.caption, wait: stepWait(inner) });
         return inner;
       }
       turnTo(page + dir);
       return null;
     },
-    [stepInside, turnTo, page],
+    [stepInside, turnTo, page, logBeat, stepWait],
   );
 
   const stopRecording = useCallback(async () => {
@@ -344,7 +380,10 @@ export function Presentation({
     const url = URL.createObjectURL(blob);
     const filename = `${cover.title}-${orientation === "portrait" ? "竖屏" : "横屏"}.${ext}`;
     download(url, filename);
-    setResult({ url, filename, width, height });
+    // 这段视频里每一拍是第几毫秒开始的：做视频的工具按它把声音对上去
+    const all = (window as unknown as { __galleyTimeline?: TimelineEntry[] }).__galleyTimeline ?? [];
+    const timeline = all.filter((e) => e.at >= recStartedAt.current).map((e) => ({ id: e.id, at: e.at - recStartedAt.current }));
+    setResult({ url, filename, width, height, timeline });
     setRec("done");
     setAuto(autoParam);
   }, [cover.title, orientation, autoParam]);
@@ -386,6 +425,8 @@ export function Presentation({
       const t = setTimeout(() => {
         recording.current?.begin();
         recStarted.current = Date.now();
+        recStartedAt.current = Math.round(performance.now());
+        logBeat("p0");
         setElapsed(0);
         setAuto(recOptions.pacing === "auto");
         setRec("recording");
@@ -394,7 +435,7 @@ export function Presentation({
     }
     const t = setTimeout(() => setCountdown((n) => n - 1), 1000);
     return () => clearTimeout(t);
-  }, [rec, countdown, recOptions.pacing]);
+  }, [rec, countdown, recOptions.pacing, logBeat]);
 
   // 录制计时
   useEffect(() => {
@@ -477,34 +518,52 @@ export function Presentation({
         w.__galleyPresentDone = true;
         if (rec === "recording") void stopRecording();
         else if (!autoParam) setAuto(false);
-      }, 2500 / speed);
+      }, pageStay(page));
       return () => clearTimeout(t);
     }
     const reading = pageStay(page);
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
-    const started = Date.now();
+    // 按计划的时刻排，不按"上一下实际发生的时刻"排：定时器每次都会晚一点点，一拍一拍累加起来，
+    // 长视频到后面画面就比声音慢了。at 是下一件事按计划该发生的时刻；这一页按计划的开始时刻接着上一页的结束时刻
+    // （差得太多说明中间暂停过、手动翻过页，就从现在重新算）。
+    const now = performance.now();
+    const pageStart = planned.current !== null && Math.abs(planned.current - now) < 250 ? planned.current : now;
+    let at = pageStart;
+    const after = (ms: number, fn: () => void) => {
+      at += ms;
+      timer = setTimeout(fn, Math.max(0, at - performance.now()));
+    };
     const tick = () => {
       if (cancelled) return;
       const inner = stepInside(1);
       if (inner) {
-        if (inner.caption) setStepCaption({ page, text: inner.caption, wait: inner.wait });
+        const wait = stepWait(inner);
+        if (inner.beat) logBeat(inner.beat);
+        if (inner.caption) setStepCaption({ page, text: inner.caption, wait });
         // 页里动画给的等待时间已经按速度算过了（它们也在用同一个速度）
-        timer = setTimeout(tick, inner.wait ?? 600);
+        after(wait ?? 600, tick);
         return;
       }
-      const left = reading - (Date.now() - started);
-      if (left > 0) timer = setTimeout(tick, left);
-      else turnTo(page + 1);
+      // 页里的东西都走完了：这一页还没停够就等够，然后翻页
+      const left = pageStart + reading - at;
+      if (left > 1) after(left, tick);
+      else {
+        planned.current = at;
+        turnTo(page + 1);
+      }
     };
     // 先让这一页显示出来、动画开始，再开始往下走。
-    // 文字一条一条出现的页：一进来就在的那几条，先留出它们那一份时间
-    timer = setTimeout(tick, Math.max(1200 / speed, reading * firstShare(slideRefs.current[page])));
+    // 文字一条一条出现的页：一进来就在的那几条，先留出它们那一份时间。
+    // 工具给了这一页的时长（这一页讲稿的配音有多长）：先把这一页的话说完，再走页里的步骤
+    const share = firstShare(slideRefs.current[page]);
+    const lead = share > 0 ? reading * share : timing?.[`p${page}`] !== undefined ? reading : 0;
+    after(Math.max(1200 / speed, lead), tick);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [auto, autoParam, speed, page, total, stepInside, turnTo, pageStay, rec, stopRecording]);
+  }, [auto, autoParam, speed, page, total, stepInside, turnTo, pageStay, stepWait, logBeat, timing, rec, stopRecording]);
 
   // 结果里的视频地址用完就释放
   useEffect(() => () => void (result && URL.revokeObjectURL(result.url)), [result]);
@@ -746,6 +805,17 @@ export function Presentation({
           <div className="galley-present-dialog-actions">
             <button type="button" onClick={() => setRec("idle")}>
               关闭
+            </button>
+            {/* 每一拍在这段视频里是第几毫秒开始的：后期配音、加字幕时按它对齐 */}
+            <button
+              type="button"
+              onClick={() => {
+                const url = URL.createObjectURL(new Blob([JSON.stringify({ video: result.filename, beats: result.timeline }, null, 2)], { type: "application/json" }));
+                download(url, result.filename.replace(/\.[a-z0-9]+$/, "") + ".timeline.json");
+                URL.revokeObjectURL(url);
+              }}
+            >
+              下载时间轴
             </button>
             <button type="button" className="galley-present-primary" onClick={() => download(result.url, result.filename)}>
               再下载一次
