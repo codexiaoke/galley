@@ -6,9 +6,10 @@ import { MATERIAL_STATUSES, type MaterialStatus } from "@/core/db/schema";
 import { listMaterials, materialOutputs } from "@/core/services/materials";
 import { changeMaterialStatus, removeMaterial, saveMaterial } from "../../actions";
 import { requireOwner } from "../../auth";
+import { FilterTabs } from "../../filter-tabs";
 import { Modal, ModalForm } from "../../modal";
 import { Select } from "../../select";
-import { Badge, Card, DetailRow, EmptyState, Field, FilterTabs, formatRelative, INPUT, PageHeader, PageSkeleton, RowActions, Table, type Tone } from "../../ui";
+import { Badge, Card, DetailRow, EmptyState, Field, formatRelative, INPUT, PageHeader, PageSkeleton, RowActions, Table, type Tone } from "../../ui";
 
 const STATUS: Record<MaterialStatus, { label: string; tone: Tone }> = {
   new: { label: "未处理", tone: "blue" },

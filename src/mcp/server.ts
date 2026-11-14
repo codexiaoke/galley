@@ -54,7 +54,7 @@ const REGISTERED = new WeakMap<McpServer, string[]>();
 export const registeredTools = (server: McpServer): string[] => REGISTERED.get(server) ?? [];
 
 const INSTRUCTIONS = [
-  "这是 Galley 博客的运营接口。你负责准备内容，站长负责审阅和批准。能不能直接上线由站长决定：工具列表里有 publish_change_set 才可以，没有就用 submit_change_set 提交等审阅。",
+  "这是 Galley 博客的运营接口。你负责准备内容，站长负责审阅和批准。publish_change_set 直接上线必须由站长单独授权；未获授权或工具未开放时，用 submit_change_set 提交等审阅。",
   "开始工作前，先调用 get_skill 读取 overview 技能，再调用 get_next_tasks 查看待办。",
   "技能按任务分开：写文章读 writing，动正文读 markup，建或改知识块读 knowledge，处理素材读 materials。用到哪个读哪个。",
 ].join("\n");
@@ -70,7 +70,7 @@ const sourceShape = z.object({
  * 为一个已认证的 Agent 创建 MCP 服务。
  *
  * 这里的每个工具都只是核心层的外壳，权限规则在核心层判断。
- * 这里没有、也不应该有：批准、发布、下线、读取留言、修改技能、修改权限。
+ * 直接上线由核心层检查站长是否单独授权该 Agent；不提供批准、下线、读取留言、直接修改技能、修改权限。
  */
 export function createMcpServer(
   db: Db,
@@ -95,7 +95,7 @@ export function createMcpServer(
     registered.push(name);
     const annotations = READ_ONLY_TOOLS.has(name)
       ? { readOnlyHint: true, openWorldHint: false }
-      : // 写入类的工具都只是在变更集里追加内容，不会删除或覆盖已上线的东西，也不访问站点以外的系统。
+      : // 写入操作保留版本或操作记录；直接上线另由核心层校验授权，不访问站点以外的系统。
         { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
     server.registerTool(name, { description, inputSchema: shape, annotations }, (async (args: z.infer<z.ZodObject<S>>) => {
       try {

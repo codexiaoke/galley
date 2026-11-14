@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type SVGProps } from "react";
-import { isBlend, readingTime, sceneFrame, type FrameValue, type NodeFrame, type SceneFrame } from "@/core/scene/frame";
+import { isBlend, readingTime, sceneFrame, sceneTargetVisible, type FrameValue, type NodeFrame, type SceneFrame } from "@/core/scene/frame";
 import type { Scene, SceneNode, SceneParam, SceneRatio } from "@/core/scene/types";
 import { speakingTime } from "../captions";
 import { arrowHead, curveDirection, curvePath, curvePoint, linkCurve, mixPoints, parsePoints, shapePath, type Curve, type End } from "../scene-geometry";
@@ -134,12 +134,14 @@ type HandleParam = Extract<SceneParam, { kind: "handle" }>;
 
 function SceneSvg({
   scene,
+  beat,
   frame,
   label,
   onDrag,
   onTip,
 }: {
   scene: Scene;
+  beat?: string;
   frame: SceneFrame;
   label: string;
   /** 读者拖动了一个点：x、y 是舞台上的位置 */
@@ -390,7 +392,7 @@ function SceneSvg({
   return (
     <svg viewBox={`0 0 ${scene.w} ${scene.h}`} role="img" aria-label={label}>
       <g ref={cameraRef} transform={view}>
-        {ordered.map(draw)}
+        {ordered.map((node) => <g key={node.id} data-galley-target={beat ? `${beat}:${node.id}` : undefined} data-guide-kind={node.kind} data-guide-visible={sceneTargetVisible(frame[node.id]) ? "true" : "false"}>{draw(node)}</g>)}
         {/* 提示读者"这里能动"：能拖的点外面一圈会呼吸的环，带说明的东西右上角一个小圆点 */}
         {ordered.map((node) => {
           const f = frame[node.id];
@@ -676,7 +678,7 @@ export function ScenePlayer({
         ))}
       </span>
       <div ref={stageRef} className="galley-scene-stage" onClick={(e) => e.target === e.currentTarget && setTip(null)}>
-        <SceneSvg scene={current} frame={frame} label={[title, note].filter(Boolean).join("：") || "场景动画"} onDrag={interactive ? onDrag : undefined} onTip={onTip} />
+        <SceneSvg scene={current} beat={beat} frame={frame} label={[title, note].filter(Boolean).join("：") || "场景动画"} onDrag={interactive ? onDrag : undefined} onTip={onTip} />
         {shownTip && (
           <p className="galley-scene-tipbox" data-below={shownTip.below || undefined} data-align={shownTip.align} style={{ left: `${shownTip.left}%`, top: `${shownTip.top}%` }} role="status">
             {shownTip.text}

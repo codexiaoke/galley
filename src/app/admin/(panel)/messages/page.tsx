@@ -6,9 +6,10 @@ import { getDb } from "@/core/db/client";
 import { listMessages } from "@/core/services/messages";
 import { changeMessage } from "../../actions";
 import { requireOwner } from "../../auth";
+import { FilterTabs } from "../../filter-tabs";
 import { Modal, ModalForm } from "../../modal";
 import { QuickAction } from "../../quick-action";
-import { Badge, Card, DetailRow, EmptyState, FilterTabs, formatRelative, formatTime, PageHeader, PageSkeleton, RowActions, Table } from "../../ui";
+import { Badge, Card, DetailRow, EmptyState, formatRelative, formatTime, PageHeader, PageSkeleton, RowActions, Table } from "../../ui";
 
 export default function MessagesPage({ searchParams }: PageProps<"/admin/messages">) {
   return (

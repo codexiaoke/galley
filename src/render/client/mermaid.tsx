@@ -118,8 +118,8 @@ export function MermaidDiagram({ code, review = false }: { code: string; review?
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    // 打印需要所有页的图，即使它们尚未滚动到视野内。
-    if (el.closest(".galley-present[data-print]")) {
+    // 打印和离线视频都先准备所有页的图，不能等播放到这一页时才加载。
+    if (el.closest(".galley-present[data-print], .galley-present[data-offline]")) {
       const frame = requestAnimationFrame(() => setNear(true));
       return () => cancelAnimationFrame(frame);
     }

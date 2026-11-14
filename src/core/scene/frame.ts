@@ -15,6 +15,9 @@ export type NodeFrame = Record<string, FrameValue>;
 /** 每个东西（按编号）当时的属性 */
 export type SceneFrame = Record<string, NodeFrame>;
 
+/** 指向目录和实际 SVG 共用可见阈值，未画出的线不能成为指向目标。 */
+export const sceneTargetVisible = (frame: NodeFrame | undefined) => Number(frame?.opacity ?? 0) > 0.2 && Number(frame?.draw ?? 1) > 0.55;
+
 const EASES: Record<Exclude<SceneEase, "type">, (t: number) => number> = {
   linear: (t) => t,
   in: (t) => t * t * t,

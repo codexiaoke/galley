@@ -1,0 +1,10 @@
+import { readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import path from "node:path";
+import { spawn } from "node:child_process";
+const directory = process.env.STUDIO_DIR ?? path.join(homedir(), "galley-studio");
+const key = readFileSync(path.join(directory, ".owner-key"), "utf8").trim();
+const url = `http://localhost:${process.env.STUDIO_PORT ?? 4321}/#session=${encodeURIComponent(key)}`;
+const command = process.platform === "darwin" ? "open" : process.platform === "win32" ? "rundll32" : "xdg-open";
+const child = spawn(command, process.platform === "win32" ? ["url.dll,FileProtocolHandler", url] : [url], { stdio: "ignore" });
+child.on("error", () => { console.error("无法打开浏览器，请在工坊登录页手动输入工作目录中的 .owner-key。"); process.exitCode = 1; });

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { prepareRender } from "@/core/prepare";
+import { presentationVersion } from "@/core/presentation-version";
 import { Presentation } from "@/render/client/present";
 import { parseTiming } from "@/render/narration";
 import { presentSlides } from "@/render/present-slides";
@@ -12,6 +13,8 @@ import { loadSite } from "../../../site";
  *
  * 网址参数（录制视频的脚本会用到，平时不用管）：
  * - auto=1：自动播放
+ * - controlled=1：等外层视频工坊收到 ready 后发 start，再从封面开始播放
+ * - offline=1：本机逐帧导出，由渲染器控制时间，跳过原生视图过渡
  * - orientation=portrait：竖屏（9:16）
  * - captions=1：把讲稿当字幕显示；captions=space：不显示字幕，但每一页在底部留出字幕的位置（字幕由后期加）
  * - durations=3000,5200,…：每一页至少停留多少毫秒（按朗读的长度）
@@ -32,6 +35,8 @@ async function Present({ params, searchParams }: { params: Promise<{ slug: strin
   const query = await searchParams;
   const [doc, site] = await Promise.all([loadPublishedDocument(slug), loadSite()]);
   if (!doc || doc.kind !== "article") notFound();
+  // 工坊审查的是明确的来源版本。上线内容改变后停止旧项目渲染，不能悄悄换成新内容。
+  if (typeof query.version === "string" && query.version !== presentationVersion(doc, site)) notFound();
   const prepared = await prepareRender(doc.body);
   const one = (k: string) => (typeof query[k] === "string" ? (query[k] as string) : undefined);
   const durations = one("durations")
@@ -47,6 +52,8 @@ async function Present({ params, searchParams }: { params: Promise<{ slug: strin
       <Presentation
         backHref={`/posts/${doc.slug}`}
         auto={one("auto") === "1"}
+        controlled={one("controlled") === "1"}
+        offline={one("offline") === "1"}
         orientation={one("orientation") === "portrait" ? "portrait" : one("orientation") === "landscape" ? "landscape" : undefined}
         captions={one("captions") === "1" ? "on" : one("captions") === "space" ? "space" : "off"}
         durations={durations?.length ? durations : undefined}

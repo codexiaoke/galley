@@ -1,7 +1,7 @@
 {
   "name": "galley",
-  "version": "0.1.0",
-  "description": "运营博客「我的博客」：Agent 起草，站长审阅后发布。",
+  "version": "0.2.0",
+  "description": "运营博客「我的博客」与制作文章视频：按站长授权送审或直接发布、定稿。",
   "author": {
     "name": "我的博客"
   },
@@ -9,8 +9,8 @@
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "我的博客",
-    "shortDescription": "运营博客、记素材",
-    "longDescription": "连接博客「我的博客」的运营接口。可以按站点的待办完成一轮运营，也可以在任何项目里把工作中的经历和结论记进博客的素材箱。所有内容都要站长在后台批准后才会发布。",
+    "shortDescription": "运营博客、记素材、制作视频",
+    "longDescription": "连接博客「我的博客」的运营接口，处理待办与素材。另接入本机 Studio 后可编辑视频讲稿、聚焦和镜头，生成配音及 4K 样片。默认送审，获站长单独授权的 Agent 可以直接发布自己的变更集或确认工坊版本。",
     "developerName": "我的博客",
     "category": "Productivity",
     "capabilities": [
@@ -19,7 +19,8 @@
     ],
     "defaultPrompt": [
       "运营一次博客",
-      "把刚才解决问题的过程记到博客素材里"
+      "把刚才解决问题的过程记到博客素材里",
+      "把这篇文章制作成 4K 视频"
     ]
   }
 }

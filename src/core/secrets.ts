@@ -13,12 +13,12 @@ import { dataDir } from "./db/client";
 
 const KEY_FILE = ".secret-key";
 
-function secretKey(): Buffer {
+function secretKey(directory: string): Buffer {
   const fromEnv = process.env.GALLEY_SECRET_KEY?.trim();
   if (fromEnv) return createHash("sha256").update(fromEnv).digest();
-  const file = path.join(dataDir(), KEY_FILE);
+  const file = path.join(directory, KEY_FILE);
   if (!fs.existsSync(file)) {
-    fs.mkdirSync(dataDir(), { recursive: true });
+    fs.mkdirSync(directory, { recursive: true });
     // wx：文件已经存在时不覆盖，避免两个进程同时启动时互相改掉对方刚生成的密钥。
     try {
       fs.writeFileSync(file, randomBytes(32).toString("base64"), { mode: 0o600, flag: "wx" });
@@ -30,19 +30,19 @@ function secretKey(): Buffer {
 }
 
 /** 加密一段文字。结果是 v1: 开头的一串字符，可以直接存进数据库。 */
-export function encryptSecret(plain: string): string {
+export function encryptSecret(plain: string, directory = dataDir()): string {
   const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", secretKey(), iv);
+  const cipher = createCipheriv("aes-256-gcm", secretKey(directory), iv);
   const data = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
   return `v1:${Buffer.concat([iv, cipher.getAuthTag(), data]).toString("base64")}`;
 }
 
 /** 解密。密钥对不上（比如备份恢复到了另一台服务器）或者内容被改过时返回 null。 */
-export function decryptSecret(stored: string): string | null {
+export function decryptSecret(stored: string, directory = dataDir()): string | null {
   if (!stored.startsWith("v1:")) return null;
   try {
     const raw = Buffer.from(stored.slice(3), "base64");
-    const decipher = createDecipheriv("aes-256-gcm", secretKey(), raw.subarray(0, 12));
+    const decipher = createDecipheriv("aes-256-gcm", secretKey(directory), raw.subarray(0, 12));
     decipher.setAuthTag(raw.subarray(12, 28));
     return Buffer.concat([decipher.update(raw.subarray(28)), decipher.final()]).toString("utf8");
   } catch {

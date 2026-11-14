@@ -4,15 +4,14 @@
  * 1. getDisplayMedia 请站长选择"这个标签页"；
  * 2. 能用 Chrome 的区域录制（CropTarget）时，只录幻灯片那一块，控制按钮、录制提示都不会录进去；
  * 3. 需要时再要一路麦克风，和画面合在一起；
- * 4. MediaRecorder 录成 MP4（Chrome 支持时），不支持时退回 WebM。
+ * 4. 画布保持固定尺寸，MediaRecorder 录成 MP4（Chrome 支持时），不支持时退回 WebM。
  *
  * 录好的视频只在自己的浏览器里，直接下载，不上传到任何地方。
  */
 
-export type RecordingSupport = { ok: boolean; crop: boolean; mp4: boolean; reason?: string };
+import { createRecorder, RECORDING_TYPES } from "../../../public/recorder.js";
 
-const MP4_TYPES = ["video/mp4;codecs=avc1.640028,mp4a.40.2", "video/mp4;codecs=avc1,mp4a.40.2", "video/mp4"];
-const WEBM_TYPES = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
+export type RecordingSupport = { ok: boolean; crop: boolean; mp4: boolean; reason?: string };
 
 type CropTargetApi = { fromElement(el: Element): Promise<unknown> };
 
@@ -23,7 +22,7 @@ export function recordingSupport(): RecordingSupport {
     return { ok: false, crop: false, mp4: false, reason: "这个浏览器不支持录制标签页。请用电脑上的 Chrome 或 Edge 打开。" };
   }
   const crop = "CropTarget" in window;
-  const mp4 = MP4_TYPES.some((t) => MediaRecorder.isTypeSupported(t));
+  const mp4 = RECORDING_TYPES.some((t) => t.startsWith("video/mp4") && MediaRecorder.isTypeSupported(t));
   return { ok: true, crop, mp4 };
 }
 
@@ -42,7 +41,7 @@ export type Recording = {
  */
 export async function prepareRecording({ region, mic, onEnded }: { region: HTMLElement; mic: boolean; onEnded: () => void }): Promise<Recording> {
   const display = await navigator.mediaDevices.getDisplayMedia({
-    video: { frameRate: { ideal: 30, max: 60 } },
+    video: { width: { ideal: 3840 }, height: { ideal: 2160 }, frameRate: { ideal: 30, max: 30 } },
     audio: false,
     // Chrome 专有的选项：默认选中当前标签页，不让中途切换到别的标签页
     preferCurrentTab: true,
@@ -50,6 +49,7 @@ export async function prepareRecording({ region, mic, onEnded }: { region: HTMLE
     surfaceSwitching: "exclude",
   } as DisplayMediaStreamOptions);
   const [video] = display.getVideoTracks();
+  video.contentHint = "detail";
   video.addEventListener("ended", onEnded);
 
   // 只录幻灯片那一块
@@ -66,10 +66,9 @@ export async function prepareRecording({ region, mic, onEnded }: { region: HTMLE
   }
 
   const tracks: MediaStreamTrack[] = [video];
-  let micStream: MediaStream | null = null;
   if (mic) {
     try {
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       tracks.push(...micStream.getAudioTracks());
     } catch (e) {
       display.getTracks().forEach((t) => t.stop());
@@ -78,31 +77,23 @@ export async function prepareRecording({ region, mic, onEnded }: { region: HTMLE
   }
   const stream = new MediaStream(tracks);
 
-  const types = [...MP4_TYPES, ...WEBM_TYPES];
-  const mimeType = types.find((t) => MediaRecorder.isTypeSupported(t)) ?? "";
+  const { recorder, size, release } = await createRecorder(stream);
+  const mimeType = recorder.mimeType;
   const ext: "mp4" | "webm" = mimeType.startsWith("video/mp4") ? "mp4" : "webm";
-  const recorder = new MediaRecorder(stream, { mimeType: mimeType || undefined, videoBitsPerSecond: 12_000_000, audioBitsPerSecond: 160_000 });
   const chunks: Blob[] = [];
   recorder.ondataavailable = (e) => {
     if (e.data.size) chunks.push(e.data);
-  };
-  const release = () => {
-    display.getTracks().forEach((t) => t.stop());
-    micStream?.getTracks().forEach((t) => t.stop());
   };
 
   return {
     cropped,
     begin: () => recorder.state === "inactive" && recorder.start(1000),
-    size: () => {
-      const s = video.getSettings();
-      return { width: s.width ?? 0, height: s.height ?? 0 };
-    },
+    size: () => size,
     stop: () =>
       new Promise((resolve) => {
         const finish = () => {
           release();
-          resolve({ blob: new Blob(chunks, { type: mimeType || `video/${ext}` }), ext });
+          resolve({ blob: new Blob(chunks, { type: mimeType }), ext });
         };
         if (recorder.state === "inactive") return finish();
         recorder.onstop = finish;

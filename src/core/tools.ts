@@ -12,6 +12,8 @@ export type ToolInfo = {
   label: string;
   /** 运营流程离不开的工具，不能关 */
   required?: boolean;
+  /** 不同入口共用清单，但只展示、注册属于自己的工具。 */
+  surface?: "studio";
 };
 
 export const TOOLS: ToolInfo[] = [
@@ -52,7 +54,25 @@ export const TOOLS: ToolInfo[] = [
   { name: "propose_topic", group: "素材和选题", label: "提出候选选题" },
   { name: "list_topics", group: "素材和选题", label: "查看选题" },
   { name: "claim_topic", group: "素材和选题", label: "领取选题开始写" },
+
+  { name: "studio_get_skill", group: "视频工坊", label: "读取当前视频制作与审查技能", required: true, surface: "studio" },
+  { name: "studio_list_articles", group: "视频工坊", label: "读取可制作的文章", surface: "studio" },
+  { name: "studio_list_projects", group: "视频工坊", label: "查看自己的项目和待办", required: true, surface: "studio" },
+  { name: "studio_get_project", group: "视频工坊", label: "读取讲稿版本、审查意见和制作状态", required: true, surface: "studio" },
+  { name: "studio_create_project", group: "视频工坊", label: "从文章创建视频项目", surface: "studio" },
+  { name: "studio_update_narration", group: "视频工坊", label: "修改逐拍讲稿、讲解指向并保存新版本", surface: "studio" },
+  { name: "studio_sync_source", group: "视频工坊", label: "同步文章来源并建立待审新版本", surface: "studio" },
+  { name: "studio_submit_review", group: "视频工坊", label: "提交讲稿或样片审查", required: true, surface: "studio" },
+  { name: "studio_withdraw_review", group: "视频工坊", label: "撤回自己的待审版本", required: true, surface: "studio" },
+  { name: "studio_reply_comment", group: "视频工坊", label: "回复审查批注", required: true, surface: "studio" },
+  { name: "studio_generate_voices", group: "视频工坊", label: "为通过审查的讲稿生成配音", surface: "studio" },
+  { name: "studio_render_video", group: "视频工坊", label: "生成当前版本的 4K 样片", surface: "studio" },
+  { name: "studio_get_export", group: "视频工坊", label: "读取导出进度和文件地址", surface: "studio" },
+  { name: "studio_cancel_export", group: "视频工坊", label: "取消自己的导出任务", surface: "studio" },
+  { name: "studio_publish_project", group: "视频工坊", label: "直接确认讲稿或定稿（需站长单独授权）", surface: "studio" },
 ];
+
+export const toolsFor = (surface: "galley" | "studio") => TOOLS.filter((tool) => (tool.surface ?? "galley") === surface);
 
 const BY_NAME = new Map(TOOLS.map((tool) => [tool.name, tool]));
 

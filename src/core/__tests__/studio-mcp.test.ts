@@ -1,0 +1,63 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { StudioRuntime } from "../../../integrations/video-studio/runtime";
+import { createStudioMcp } from "../../mcp/studio";
+import { OWNER, type Actor } from "../actor";
+import { authenticateAgent, createAgent, setAgentCanPublish, setAgentDisabledTools } from "../services/agents";
+import { getSkill, saveSkill } from "../services/skills";
+import { toolsFor } from "../tools";
+
+let dir: string, runtime: StudioRuntime, agent: Extract<Actor, { kind: "agent" }>;
+const clients: Client[] = [];
+beforeEach(() => { dir = mkdtempSync(path.join(tmpdir(), "studio-mcp-")); runtime = new StudioRuntime(dir); agent = authenticateAgent(runtime.db, createAgent(runtime.db, OWNER, "制作 Agent").token)!; });
+afterEach(async () => { for (const client of clients.splice(0)) await client.close(); runtime.close(); runtime.db.$client.close(); rmSync(dir, { recursive: true, force: true }); });
+async function connect() {
+  const client = new Client({ name: "test", version: "1" }); const server = createStudioMcp(runtime, agent);
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair(); await server.connect(serverTransport); await client.connect(clientTransport); clients.push(client); return client;
+}
+it("制作技能通过 MCP 读取当前内容，站长修订后不继续返回旧指南", async () => {
+  const client = await connect();
+  const tool = (await client.listTools()).tools.find((item) => item.name === "studio_get_skill");
+  expect(tool?.annotations?.readOnlyHint).toBe(true);
+  const initial = await client.callTool({ name: "studio_get_skill", arguments: {} });
+  expect(initial.isError).not.toBe(true);
+  expect(JSON.parse((initial.content as { text: string }[])[0].text).content).toBe(getSkill(runtime.db, "studio")!.content);
+  saveSkill(runtime.db, OWNER, { name: "studio", description: "本站制作规范", body: "重点段落使用聚焦镜头。" });
+  const revised = await client.callTool({ name: "studio_get_skill", arguments: {} });
+  expect(JSON.parse((revised.content as { text: string }[])[0].text)).toEqual({ name: "studio", description: "本站制作规范", content: "重点段落使用聚焦镜头。" });
+});
+it("真实 MCP 协议提供完整工具流程，开关和直接定稿权限按请求生效", async () => {
+  const client = await connect();
+  const names = (await client.listTools()).tools.map((tool) => tool.name);
+  expect(names).toEqual(toolsFor("studio").filter((tool) => tool.name !== "studio_publish_project").map((tool) => tool.name));
+  expect(names.some((name) => /approve|permission|agent_create/.test(name))).toBe(false);
+  vi.spyOn(runtime, "source").mockResolvedValue({ galley: "https://blog.example.com", slug: "demo", title: "演示", present: "/posts/demo/present", version: "a".repeat(64), revisedAt: null, beats: [{ id: "cover", kind: "cover", page: 0, title: "演示", section: null, text: "", minMs: 100, suggestedMs: 1000, targets: [{ id: "cover:title", label: "标题" }] }] });
+  const created = await client.callTool({ name: "studio_create_project", arguments: { slug: "demo", name: "MCP 项目" } });
+  expect(created.isError).not.toBe(true);
+  const data = JSON.parse((created.content as { text: string }[])[0].text);
+  expect(data.assignedAgentId).toBe(agent.id);
+  const revised = await client.callTool({ name: "studio_update_narration", arguments: { projectId: data.id, revisionId: data.currentRevisionId, edits: [{ id: "cover", text: "新讲稿", guides: [{ targetId: "cover:title", phrase: "新讲稿", emphasis: "zoom" }] }], note: "补充开头与指向" } });
+  const updated = JSON.parse((revised.content as { text: string }[])[0].text);
+  expect(updated.revision.number).toBe(2);
+  expect(updated.revision.beats[0].guides).toEqual([{ targetId: "cover:title", phrase: "新讲稿", emphasis: "zoom" }]);
+  const badGuide = await client.callTool({ name: "studio_update_narration", arguments: { projectId: data.id, revisionId: updated.currentRevisionId, edits: [{ id: "cover", guides: [{ targetId: "missing", phrase: "新讲稿" }] }], note: "无效目标" } });
+  expect(badGuide.isError).toBe(true);
+  expect(runtime.projects.get(OWNER, data.id).revision.number).toBe(2);
+  const args = { projectId: data.id, revisionId: updated.currentRevisionId, stage: "script" };
+  const premature = await client.callTool({ name: "studio_generate_voices", arguments: args }); expect(premature.isError).toBe(true);
+  expect((await client.callTool({ name: "studio_submit_review", arguments: args })).isError).not.toBe(true);
+  expect(runtime.projects.get(OWNER, data.id).revision.scriptStatus).toBe("in_review");
+  setAgentCanPublish(runtime.db, OWNER, agent.id, true); setAgentDisabledTools(runtime.db, OWNER, agent.id, ["studio_render_video"]);
+  const allowed = await connect();
+  const enabled = (await allowed.listTools()).tools.map((tool) => tool.name);
+  expect(enabled).toContain("studio_publish_project"); expect(enabled).not.toContain("studio_render_video");
+  setAgentCanPublish(runtime.db, OWNER, agent.id, false);
+  expect((await allowed.callTool({ name: "studio_publish_project", arguments: { ...args, note: "已撤权" } })).isError).toBe(true);
+  setAgentCanPublish(runtime.db, OWNER, agent.id, true);
+  expect((await allowed.callTool({ name: "studio_publish_project", arguments: { ...args, note: "确认" } })).isError).not.toBe(true);
+  expect(runtime.projects.get(OWNER, data.id).revision.scriptDirect).toBe(true);
+});

@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { getDb } from "@/core/db/client";
 import { listAgents, recentAgentCalls } from "@/core/services/agents";
 import { getSiteSettings } from "@/core/services/settings";
-import { TOOLS } from "@/core/tools";
+import { toolsFor } from "@/core/tools";
 import { addAgent, resetAgentToken, saveAgentTools, setAgentPublish, setAgentStatus } from "../../actions";
 import { requireOwner } from "../../auth";
 import { CopyBlock } from "../../copy";
@@ -25,7 +25,8 @@ async function Agents() {
   const codexConfig = `[mcp_servers.galley]\nurl = "${mcpUrl}"\nbearer_token_env_var = "GALLEY_TOKEN"\ndefault_tools_approval_mode = "approve"`;
   const db = getDb();
   const agents = listAgents(db);
-  const groups = [...new Set(TOOLS.map((tool) => tool.group))];
+  const tools = toolsFor("galley");
+  const groups = [...new Set(tools.map((tool) => tool.group))];
   const calls = recentAgentCalls(db, 50);
   const now = new Date();
 
@@ -149,7 +150,7 @@ async function Agents() {
                         <fieldset key={group}>
                           <legend className="mb-1.5 text-xs text-a-muted">{group}</legend>
                           <div className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
-                            {TOOLS.filter((tool) => tool.group === group).map((tool) => (
+                            {tools.filter((tool) => tool.group === group).map((tool) => (
                               <label key={tool.name} className={`flex items-start gap-2 ${tool.required ? "text-a-muted" : ""}`}>
                                 <input
                                   type="checkbox"

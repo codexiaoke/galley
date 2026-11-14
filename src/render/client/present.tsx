@@ -8,6 +8,7 @@ import { download, prepareRecording, recordingSupport, type Recording, type Reco
 import { formatSpeed, PresentSpeed, SPEEDS } from "./speed";
 import { printWhenDiagramsReady } from "../print-readiness";
 import { turnKind } from "../turn";
+import { GuideFocus } from "./guide-focus";
 
 /**
  * 演示模式：文章变成全屏的幻灯片。
@@ -127,6 +128,8 @@ export function Presentation({
   slides,
   backHref,
   auto: autoParam = false,
+  controlled = false,
+  offline = false,
   orientation: orientationParam,
   captions: captionsParam = "off",
   durations,
@@ -137,6 +140,10 @@ export function Presentation({
   slides: PresentSlide[];
   backHref: string;
   auto?: boolean;
+  /** 视频工坊先准备封面，录制就绪后通过消息开始播放。 */
+  controlled?: boolean;
+  /** 本机逐帧导出：时间由渲染器推进，不使用依赖屏幕时钟的视图过渡。 */
+  offline?: boolean;
   orientation?: Orientation;
   captions?: CaptionMode;
   /** 每一页至少停留多久（毫秒） */
@@ -149,7 +156,8 @@ export function Presentation({
   // 第 0 页是封面，最后一页是结尾
   const total = slides.length + 2;
   const [page, setPage] = useState(0);
-  const [auto, setAuto] = useState(autoParam);
+  const [auto, setAuto] = useState(autoParam && !controlled);
+  const [started, setStarted] = useState(!controlled);
   const [orientation, setOrientation] = useState<Orientation>(orientationParam ?? "landscape");
   const [captions, setCaptions] = useState<CaptionMode>(captionsParam);
   const [run, setRun] = useState(0); // 变了就把所有页重新挂载，动画回到开头
@@ -184,8 +192,37 @@ export function Presentation({
     if (window.parent !== window) window.parent.postMessage({ source: "galley-present", type: "beat", ...entry }, "*");
   }, []);
   useEffect(() => {
-    if (!print) logBeat(`p${page}`);
-  }, [page, run, print, logBeat]);
+    if (!print && started) logBeat(`p${page}`);
+  }, [page, run, print, started, logBeat]);
+
+  // 外层先拿到已排好版的封面，再启动录制；收到 start 才推进时间轴和配音。
+  useEffect(() => {
+    if (!controlled || print) return;
+    let cancelled = false;
+    let frame = 0;
+    const start = (event: MessageEvent) => {
+      if (event.source !== window.parent || event.data?.source !== "galley-studio" || event.data.type !== "start") return;
+      flushSync(() => {
+        setStarted(true);
+        setAuto(true);
+      });
+    };
+    window.addEventListener("message", start);
+    void document.fonts.ready.then(() => {
+      if (cancelled) return;
+      frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(() => {
+          if (stageRef.current) stageRef.current.dataset.ready = "true";
+          window.parent.postMessage({ source: "galley-present", type: "ready" }, "*");
+        });
+      });
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+      window.removeEventListener("message", start);
+    };
+  }, [controlled, print]);
 
   /** 换到第 to 页。animate 为 false 时不放转场（比如录制开始时回到封面） */
   const turnTo = useCallback(
@@ -200,7 +237,7 @@ export function Presentation({
       document.querySelectorAll("[data-slide-hero]").forEach((el) => el.removeAttribute("data-slide-hero"));
       const doc = document as TransitionDocument;
       // 页面在后台时浏览器不出画面，视图过渡会一直等着：直接换页
-      if (!animate || print || !doc.startViewTransition || document.hidden || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      if (!animate || print || offline || controlled || !doc.startViewTransition || document.hidden || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         setPage(next);
         return;
       }
@@ -230,7 +267,7 @@ export function Presentation({
       // 连着翻页时上一次转场会被新的顶掉，浏览器用一个被拒绝的 Promise 通知这件事：这是正常情况，不算出错
       transition.ready.catch(() => {});
     },
-    [total, print, slides],
+    [total, print, offline, controlled, slides],
   );
 
   // ---- 录制 ----
@@ -453,7 +490,7 @@ export function Presentation({
 
   // 键盘（打印模式下不翻页）
   useEffect(() => {
-    if (print) return;
+    if (print || controlled) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (document.querySelector(".galley-diagram-dialog[open]")) return;
@@ -489,11 +526,11 @@ export function Presentation({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [auto, move, turnTo, total, backHref, rec, stopRecording, print]);
+  }, [auto, move, turnTo, total, backHref, rec, stopRecording, print, controlled]);
 
   // 控制条：鼠标不动两秒后隐藏
   useEffect(() => {
-    if (autoParam && rec === "idle") return;
+    if ((autoParam || controlled) && rec === "idle") return;
     let t: ReturnType<typeof setTimeout>;
     const wake = () => {
       setChrome(true);
@@ -506,7 +543,7 @@ export function Presentation({
       clearTimeout(t);
       window.removeEventListener("mousemove", wake);
     };
-  }, [autoParam, rec]);
+  }, [autoParam, controlled, rec]);
 
   // 自动播放
   useEffect(() => {
@@ -584,8 +621,10 @@ export function Presentation({
       data-chrome={chrome || undefined}
       data-recording={recording_ || undefined}
       data-print={print || undefined}
+      data-offline={offline || undefined}
+      data-controlled={controlled || undefined}
       style={print ? ({ "--slide-w": `${size.w}px`, "--slide-h": `${size.h}px` } as CSSProperties) : undefined}
-      onClick={(e) => idle && !auto && e.target === e.currentTarget && move(1)}
+      onClick={(e) => idle && !auto && !controlled && e.target === e.currentTarget && move(1)}
     >
       <div
         ref={stageRef}
@@ -600,7 +639,7 @@ export function Presentation({
         <div key={run} className="galley-present-slides">
           <section ref={(el) => void (slideRefs.current[0] = el)} className="galley-slide galley-slide-cover" data-current={page === 0 || undefined} hidden={!print && page !== 0}>
             <p className="galley-slide-site">{cover.site}</p>
-            <h1>{cover.title}</h1>
+            <h1 data-galley-target="p0:title">{cover.title}</h1>
             {cover.summary && <p className="galley-slide-summary">{cover.summary}</p>}
             {cover.date && <p className="galley-slide-date">{cover.date}</p>}
           </section>
@@ -613,12 +652,13 @@ export function Presentation({
             </section>
           ))}
           <section ref={(el) => void (slideRefs.current[total - 1] = el)} className="galley-slide galley-slide-cover" data-current={page === total - 1 || undefined} hidden={!print && page !== total - 1}>
-            <h1>{cover.title}</h1>
+            <h1 data-galley-target={`p${total - 1}:title`}>{cover.title}</h1>
             <p className="galley-slide-site">{cover.site}</p>
             {cover.url && <p className="galley-slide-date">{cover.url.replace(/^https?:\/\//, "")}</p>}
           </section>
         </div>
         </PresentSpeed.Provider>
+        {controlled && !print && <GuideFocus />}
         {captions === "on" && caption && <Caption key={`${page}:${caption}`} text={caption} span={captionSpan} />}
       </div>
 
@@ -632,7 +672,7 @@ export function Presentation({
         </>
       )}
 
-      {idle && !autoParam && !print && (
+      {idle && !autoParam && !controlled && !print && (
         <>
           <div className="galley-present-progress" aria-hidden="true">
             <i style={{ width: `${(page / (total - 1)) * 100}%` }} />

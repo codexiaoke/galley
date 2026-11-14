@@ -30,6 +30,7 @@ import { CopyButton } from "./client/copy";
 // 播放器按需加载，见 client/lazy.tsx
 import { AlgoPlayer, ChartView, CodeStepsPlayer, CodeRunner, Compare, CountUp, FlowView, MermaidDiagram, Quiz, RacePlayer, ScenePlayer, StepsController, Tabs, ZoomImage } from "./client/lazy";
 import { headingSlugger } from "./toc";
+import { proseGuideTargets } from "./guide-targets";
 
 /**
  * 把正文渲染成页面。只有已登记的标记和组件会被渲染成对应的界面，
@@ -687,6 +688,7 @@ export function Markdown({
   scenes = {},
   narration = false,
   terms = [],
+  guidePage,
 }: {
   body: string;
   blocks: Record<string, BlockView>;
@@ -702,6 +704,7 @@ export function Markdown({
   narration?: boolean;
   /** 站点上的术语（见 core/services/knowledge.ts 的 listTerms）。给了才标，正文里每个术语只标第一次出现 */
   terms?: Term[];
+  guidePage?: number;
 }) {
   const ctx: Ctx = { blocks, posts, review, traces, scenes, narration, terms: new Map(terms.map((t) => [t.id, t])) };
   const processor = unified()
@@ -710,6 +713,12 @@ export function Markdown({
     .use(remarkMath)
     .use(remarkDirective)
     .use(remarkGalley, { source: body })
+    .use(() => (tree: MdastRoot) => {
+      if (guidePage === undefined) return;
+      for (const { node, target } of proseGuideTargets(tree, guidePage)) {
+        node.data = { ...node.data, hProperties: { ...node.data?.hProperties, "data-galley-target": target.id } };
+      }
+    })
     .use(remarkTerms, { terms })
     .use(remarkRehype, {
       footnoteLabel: "注释",

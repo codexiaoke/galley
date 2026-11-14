@@ -24,7 +24,7 @@ describe("Codex 插件", () => {
     const mcp = JSON.parse(files.get(`plugins/${PLUGIN_NAME}/.mcp.json`)!);
     expect(mcp.mcpServers.galley).toEqual({ url: "https://blog.example.com/mcp", bearer_token_env_var: "GALLEY_TOKEN", default_tools_approval_mode: "approve" });
 
-    for (const name of ["galley-start", "galley-run", "galley-note"]) {
+    for (const name of ["galley-start", "galley-run", "galley-note", "galley-studio"]) {
       const skill = files.get(`plugins/${PLUGIN_NAME}/skills/${name}/SKILL.md`)!;
       expect(skill).toMatch(new RegExp(`^---\\nname: ${name}\\ndescription: .+\\n---\\n`));
     }

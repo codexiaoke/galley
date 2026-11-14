@@ -4870,6 +4870,14 @@ body {
   left: 50%;
   transform-origin: center;
 }
+.galley-present[data-controlled] .galley-present-stage {
+  overflow: hidden;
+}
+.galley-present:not([data-print]) .galley-present-slides {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+}
 .galley-slide {
   position: absolute;
   inset: 0;
@@ -5116,6 +5124,7 @@ html[data-slide-turn="cover"][data-slide-dir="back"] {
 /* 字幕：导出视频时显示讲稿 */
 .galley-present-caption {
   position: absolute;
+  z-index: 6;
   left: 0;
   right: 0;
   bottom: 40px;

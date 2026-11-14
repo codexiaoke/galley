@@ -6,8 +6,9 @@ import { TOPIC_STATUSES, type TopicStatus } from "@/core/db/schema";
 import { listTopics, type Topic } from "@/core/services/topics";
 import { decideOnTopic, saveTopic } from "../../actions";
 import { requireOwner } from "../../auth";
+import { FilterTabs } from "../../filter-tabs";
 import { ModalForm } from "../../modal";
-import { Badge, Card, EmptyState, Field, FilterTabs, formatRelative, INPUT, PageHeader, PageSkeleton, ROW_LINK, RowActions, Table, type Tone } from "../../ui";
+import { Badge, Card, EmptyState, Field, formatRelative, INPUT, PageHeader, PageSkeleton, ROW_LINK, RowActions, Table, type Tone } from "../../ui";
 
 const STATUS: Record<TopicStatus, { label: string; tone: Tone }> = {
   proposed: { label: "候选", tone: "amber" },

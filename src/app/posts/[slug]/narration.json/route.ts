@@ -1,5 +1,7 @@
 import { runScenes } from "@/core/scene/run";
 import { narrationBeats } from "@/render/narration";
+import { presentationVersion } from "@/core/presentation-version";
+import { loadSite } from "../../../site";
 import { loadPublishedDocument } from "../../../data";
 import { canReadNarration, NARRATION_CORS, narrationDenied, narrationPreflight } from "../../../narration-access";
 
@@ -15,7 +17,7 @@ export const OPTIONS = narrationPreflight;
 export async function GET(request: Request, { params }: { params: Promise<{ slug: string }> }) {
   if (!(await canReadNarration(request))) return narrationDenied();
   const { slug } = await params;
-  const doc = await loadPublishedDocument(slug);
+  const [doc, site] = await Promise.all([loadPublishedDocument(slug), loadSite()]);
   if (!doc || doc.kind !== "article") return Response.json({ error: "没有这篇文章。" }, { status: 404, headers: NARRATION_CORS });
   const beats = narrationBeats(doc.body, await runScenes(doc.body));
   return Response.json(
@@ -23,6 +25,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
       slug: doc.slug,
       title: doc.title,
       revisedAt: doc.revisedAt,
+      version: presentationVersion(doc, site),
       /** 演示页的地址。把每一拍的时长拼成 timing=名字:毫秒,名字:毫秒 加在后面 */
       present: `/posts/${doc.slug}/present`,
       beats,

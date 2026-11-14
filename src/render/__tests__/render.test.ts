@@ -3,6 +3,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { Markdown } from "../Markdown";
 import { extractToc } from "../toc";
+import { narrationBeats } from "../narration";
+import { splitSlides } from "../slides";
 
 const render = (body: string) => renderToStaticMarkup(createElement(Markdown, { body, blocks: {} }));
 
@@ -40,6 +42,15 @@ vi.mock("../client/lazy", async () => ({
 const renderAll = async (body: string) => render(body);
 
 describe("正文渲染", () => {
+  it("讲稿清单的正文目标都有准确渲染锚点，不把讲稿本身列为目标", () => {
+    const body = "## 页面标题\n\n解释 **线程**。\n\n- 第一项\n- 第二项\n\n:::notes\n这里是私有讲稿\n:::";
+    const page = narrationBeats(body, {})[1];
+    const html = renderToStaticMarkup(createElement(Markdown, { body: splitSlides(body)[0].source, blocks: {}, guidePage: 1 }));
+    expect(page.targets).toHaveLength(4);
+    for (const target of page.targets!) expect(html).toContain(`data-galley-target="${target.id}"`);
+    expect(page.targets?.some((target) => target.label.includes("私有讲稿"))).toBe(false);
+    expect(render(body)).not.toContain("data-galley-target");
+  });
   it("小节标题的编号和目录一致，重名的依次加序号", () => {
     const body = "## 为什么\n\n文字\n\n### Step One\n\n## 为什么\n";
     const toc = extractToc(body);

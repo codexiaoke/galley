@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // 本地也会把演示页录成视频，不把开发按钮录进成片。
+  devIndicators: false,
   cacheComponents: true,
   partialPrefetching: true,
   // 设了 GALLEY_STANDALONE 时生成可以独立运行的产物，Docker 镜像用它。平时不开，否则 pnpm start 用不了。

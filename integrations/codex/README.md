@@ -1,10 +1,11 @@
 # 「我的博客」的 Codex 插件
 
-装上之后，Codex 会自动连接博客的运营接口，并多出三个技能：
+装上之后，Codex 会自动连接博客的运营接口，并多出四个技能：
 
 - **galley-run**：运营一次博客。
 - **galley-note**：在任何项目里，把工作中的经历和结论记进博客的素材箱。
 - **galley-start**：入门说明。
+- **galley-studio**：文章视频制作入口，需另接入本机 Studio MCP；支持讲稿、聚焦、配音、4K 样片和审查。
 
 ## 安装
 
@@ -28,4 +29,5 @@
 
 - 服务地址：http://localhost:3000/mcp
 - 插件里的技能只是入口，完整的运营要求在站点上，由站长在后台维护。
-- 工具调用默认不逐次询问：这些工具里没有发布的能力，内容仍然要站长批准才会上线。想逐次确认，在 Codex 的配置里把这个服务的 `default_tools_approval_mode` 改成 `prompt`。
+- 视频工坊单独运行并配置，插件不会自动连接你的本机端口。将工坊 Agent 密钥放入 `STUDIO_AGENT_TOKEN` 后，可运行 `codex mcp add galley-studio --url http://localhost:4321/mcp --bearer-token-env-var STUDIO_AGENT_TOKEN`；端口以实际工坊为准。接入后通过 `studio_get_skill` 读取制作要求。
+- 工具调用默认不逐次询问；未获直接上线授权的 Agent 仍须提交站长审阅。站长可以单独授权 Agent 发布自己的变更集，操作会标明未经人工审阅。想逐次确认，在 Codex 的配置里把这个服务的 `default_tools_approval_mode` 改成 `prompt`。

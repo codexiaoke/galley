@@ -95,6 +95,7 @@ export function Modal({ triggerLabel, triggerVariant = "link", title, wide, chil
 }
 
 type ModalFormProps = TriggerProps & {
+  tokenHint?: ReactNode;
   action: (prev: FormState, formData: FormData) => Promise<FormState>;
   /** 随表单一起提交的隐藏值，比如要操作的对象的编号 */
   hidden?: Record<string, string>;
@@ -126,6 +127,7 @@ function ModalFormBody({
   submitLabel = "保存",
   submitVariant = "primary",
   successMessage = "操作成功",
+  tokenHint,
   children,
   onClose,
 }: ModalFormProps & { onClose: () => void }) {
@@ -158,7 +160,7 @@ function ModalFormBody({
             「{state.agentName}」的访问密钥<strong>只显示这一次</strong>，请现在保存：
           </p>
           <pre className="overflow-x-auto rounded-md bg-a-subtle p-3 text-xs select-all">{state.token}</pre>
-          <p className="text-a-muted">把它放进环境变量 GALLEY_TOKEN，Agent 的配置片段见本页的「连接信息」。</p>
+          <p className="text-a-muted">{tokenHint ?? "把它放进环境变量 GALLEY_TOKEN，Agent 的配置片段见本页的「连接信息」。"}</p>
         </div>
         <footer className="flex justify-end border-t border-a-border px-5 py-3">
           <button type="button" onClick={onClose} className={buttonClass("primary")}>
