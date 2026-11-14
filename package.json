@@ -12,7 +12,8 @@
     "db:generate": "drizzle-kit generate",
     "agent:create": "tsx scripts/create-agent.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
-    "codex-plugin": "tsx scripts/codex-plugin.ts"
+    "codex-plugin": "tsx scripts/codex-plugin.ts",
+    "studio": "tsx integrations/video-studio/server.ts"
   },
   "dependencies": {
     "@jitl/quickjs-singlefile-cjs-release-sync": "^0.32.0",

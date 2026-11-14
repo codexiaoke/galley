@@ -516,6 +516,8 @@ export function Presentation({
     if (page >= total - 1) {
       const t = setTimeout(() => {
         w.__galleyPresentDone = true;
+        // 嵌在别的页面里时（比如做视频的工具），告诉外层：播完了
+        if (window.parent !== window) window.parent.postMessage({ source: "galley-present", type: "done", at: Math.round(performance.now()) }, "*");
         if (rec === "recording") void stopRecording();
         else if (!autoParam) setAuto(false);
       }, pageStay(page));
