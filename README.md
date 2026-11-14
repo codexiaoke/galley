@@ -202,11 +202,15 @@ shipping to the server, environment variables and day-to-day commands.
 
 ### Deploy Studio on your computer
 
+Studio connects to your **online blog**. It does not default to a local development site. Set its local login password in `.env.studio` (`STUDIO_ADMIN_PASSWORD`, 8–200 characters); this does not change the online blog password. Rebuild after changing it; existing sessions expire. The file is excluded from Git and image builds. Without a password, use `pnpm studio:docker open`. Existing site connections must be changed in Studio settings; `GALLEY_URL` only initializes a new data volume.
+
 On **your Mac**, prepare Docker Desktop / OrbStack, Node.js 22, pnpm and a
 [configured voice service](integrations/video-studio/voice-setup.md). In a local clone of this repository:
 
 ```bash
 pnpm install --frozen-lockfile
+cp .env.studio.example .env.studio
+# Edit .env.studio: set STUDIO_ADMIN_PASSWORD and your online GALLEY_URL
 pnpm studio:docker up
 pnpm studio:docker open
 ```

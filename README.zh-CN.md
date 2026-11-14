@@ -181,6 +181,8 @@ git clone https://github.com/codexiaoke/galley.git && cd galley
 
 ```bash
 pnpm install --frozen-lockfile
+cp .env.studio.example .env.studio
+# 编辑 .env.studio，填写工坊登录密码 STUDIO_ADMIN_PASSWORD 与线上 GALLEY_URL
 pnpm studio:docker up
 pnpm studio:docker open
 ```
@@ -190,7 +192,9 @@ pnpm studio:docker open
 当前自动配置配音的脚本面向 macOS。还没准备配音时，可按[工坊手动部署说明](integrations/video-studio/README.md#手动运行容器)先启动管理与预览界面。
 
 打开工坊后，在「工坊设置 → 配置站点」填写**已有博客的根地址**（例如 `https://blog.example.com`），
-以及博客后台创建的访问密钥，测试并保存。工坊无需再起一个博客容器，也不需要复制线上数据库。
+以及博客后台创建的访问密钥，测试并保存。未配置时不会自动连接本地调试站点。已有连接也要在这里切换，修改环境变量不会覆盖已保存的站点。工坊无需再起一个博客容器，也不需要复制线上数据库。
+
+工坊登录密码只在本机 `.env.studio` 设置（8–200 个字符），不影响线上博客密码。修改后重建容器生效，旧会话失效；文件不会提交或打进镜像。未设置密码时用 `pnpm studio:docker open` 自动登录。
 
 ```bash
 pnpm studio:docker status # 查看运行状态

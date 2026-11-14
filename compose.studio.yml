@@ -11,10 +11,11 @@ services:
     shm_size: 1gb
     ports:
       - "127.0.0.1:${STUDIO_PORT:-4321}:${STUDIO_PORT:-4321}"
+    env_file:
+      - path: .env.studio
+        required: false
     environment:
       STUDIO_PORT: ${STUDIO_PORT:-4321}
-      GALLEY_URL: ${GALLEY_URL:-http://localhost:3000}
-      STUDIO_LOCAL_SITE_HOST: host.docker.internal
       STUDIO_TTS_SERVER: ${STUDIO_TTS_SERVER:-my-voice-tts}
       STUDIO_TTS_URL: ${STUDIO_TTS_URL:-}
       STUDIO_TTS_TOKEN_FILE: /data/.tts-token

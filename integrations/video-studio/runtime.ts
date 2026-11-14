@@ -25,7 +25,7 @@ export class StudioRuntime {
     this.projects = new StudioProjects(this.db); this.projects.recover();
     this.exports = new StudioExports(directory);
     const tokenFile = process.env.GALLEY_TOKEN_FILE;
-    this.connection = new StudioConnection(this.db, directory, { url: process.env.GALLEY_URL ?? "http://localhost:3000", token: process.env.GALLEY_TOKEN?.trim() || (tokenFile && existsSync(tokenFile) ? readFileSync(tokenFile, "utf8").trim() : "") });
+    this.connection = new StudioConnection(this.db, directory, { url: process.env.GALLEY_URL ?? "", token: process.env.GALLEY_TOKEN?.trim() || (tokenFile && existsSync(tokenFile) ? readFileSync(tokenFile, "utf8").trim() : "") });
     this.voice = new StudioVoice(directory, process.env.STUDIO_TTS_SERVER ?? "my-voice-tts", process.env.STUDIO_TTS_URL ? {
       url: process.env.STUDIO_TTS_URL, tokenFile: process.env.STUDIO_TTS_TOKEN_FILE ?? path.join(directory, ".tts-token"),
     } : undefined);

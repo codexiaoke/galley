@@ -12,6 +12,8 @@ Mac 上已安装 Docker Desktop / OrbStack、Node 22、pnpm，并按[配音说�
 
 ```bash
 pnpm install --frozen-lockfile
+cp .env.studio.example .env.studio
+# 编辑 .env.studio，填写 STUDIO_ADMIN_PASSWORD 与线上 GALLEY_URL
 pnpm studio:docker up
 pnpm studio:docker open
 ```
@@ -32,7 +34,9 @@ pnpm studio:docker stop   # 停止容器和本次登录的配音服务，保留�
 pnpm studio:docker up     # 更新代码后重建并启动
 ```
 
-首次打开后在「工坊设置」连接线上博客。Studio 项目、审查、Agent、密钥、配音和导出都保存在 Docker 卷 `galley-studio_studio-data`（容器内 `/data`），重建容器不清空数据。**不要使用 `docker compose down -v`，它会删除数据卷。** Codex 仍连接 `http://localhost:4321/mcp`，使用 Studio Agent 密钥。
+`.env.studio` 由 Compose 载入，只保存在本机，已排除出 Git 和镜像构建。`STUDIO_ADMIN_PASSWORD` 设置工坊登录密码（8–200 个字符），与线上博客管理员密码、站点访问密钥和 Studio Agent 密钥相互独立；修改后重新运行 `pnpm studio:docker up`，旧登录会话失效。密码留空时使用 `pnpm studio:docker open` 自动登录。
+
+首次打开后在「工坊设置」连接线上博客。未配置站点时显示「未连接」，不再默认连接 localhost 调试服务。Studio 项目、审查、Agent、密钥、配音和导出都保存在 Docker 卷 `galley-studio_studio-data`（容器内 `/data`），重建容器不清空数据。**不要使用 `docker compose down -v`，它会删除数据卷。** Codex 仍连接 `http://localhost:4321/mcp`，使用 Studio Agent 密钥。
 
 更新已有工坊时先等配音和导出结束，再更新代码与宿主机依赖：
 
@@ -70,7 +74,7 @@ docker compose -f compose.studio.yml start studio
 
 ### 手动运行容器
 
-只需要管理、预览或使用已有配音时，可直接 `docker compose -f compose.studio.yml up -d --build`。管理登录密钥可用 `docker compose -f compose.studio.yml exec studio cat /data/.owner-key` 读取，只在本机登录页输入。
+只需要管理、预览或使用已有配音时，可直接 `docker compose -f compose.studio.yml up -d --build`。设置了 `.env.studio` 中的 `STUDIO_ADMIN_PASSWORD` 后可以直接用密码登录；未设置时，管理登录密钥可用 `docker compose -f compose.studio.yml exec studio cat /data/.owner-key` 读取，只在本机登录页输入。
 
 手动接配音时，宿主机运行 `pnpm studio:tts`，将 `~/.galley-studio-tts/.token` 安全复制为容器 `/data/.tts-token`，然后设置 `STUDIO_TTS_URL=http://host.docker.internal:4322` 重建容器。自动部署入口负责这些步骤。当前宿主机配音连接针对 Mac Docker Desktop / OrbStack 的网络；Linux 宿主机需要另行配置可达的服务地址，不能直接假设它能访问宿主机回环端口。
 
@@ -78,7 +82,7 @@ docker compose -f compose.studio.yml start studio
 
 打开「工坊设置 → 配置站点」，填写已有博客的根地址（如 `https://blog.example.com`）和该站点后台「MCP 管理」生成的访问密钥，点「测试并保存」。不需要重新部署博客，也不用复制线上数据库。
 
-线上 Galley 需要包含当前版本的讲稿指纹接口。连接密钥加密保存在工坊数据目录中，不返回网页；切换站点需填写新站点的密钥。现有项目仍属于原站点。Docker 方式推荐在界面配置，重建容器后沿用已保存的连接。
+线上 Galley 需要包含当前版本的讲稿指纹接口。连接密钥加密保存在工坊数据目录中，不返回网页；切换站点需填写新站点的密钥。现有项目仍属于原站点。Docker 方式推荐在界面配置，重建容器后沿用已保存的连接。`GALLEY_URL` 只初始化新数据卷，不能覆盖已有连接；已有工坊须在界面测试并保存新站点。若确实需要本地开发，可在 `.env.studio` 显式设置 `STUDIO_LOCAL_SITE_HOST=host.docker.internal`；连接线上站点不需要这项。
 
 ## 从源码启动
 
@@ -90,13 +94,16 @@ pnpm studio
 
 在同一终端环境运行 `pnpm studio:open`，浏览器自动登录工坊。使用自定义 `STUDIO_DIR` / `STUDIO_PORT` 时，两条命令使用相同环境变量。也可在登录页输入 `STUDIO_DIR/.owner-key` 的内容。该密钥只用于本机站长管理，不要交给 Agent；浏览器用 HttpOnly 会话保存登录状态。
 
+源码运行可通过环境变量 `STUDIO_ADMIN_PASSWORD` 设置相同的密码登录；它不会自动读取 `.env.studio`。
+
 首次启动也可以用 `GALLEY_URL` 和 `GALLEY_TOKEN` / `GALLEY_TOKEN_FILE` 初始化连接；数据库已有连接后，以界面保存的配置为准。密钥不要写进会提交的文件。
 
-以下是 Studio 进程使用的运行时变量。Compose 只映射 `compose.studio.yml` 明确列出的变量；例如宿主机的 `GALLEY_TOKEN` 不会自动进入容器，Docker 用户应在工坊设置保存站点密钥。
+以下是 Studio 进程使用的运行时变量。Docker 通过 `.env.studio` 载入工坊密码和初始站点地址；端口、配音连接等仍由 Compose 和部署脚本设置。宿主机未映射的环境变量不会自动进入容器，Docker 用户应在工坊设置保存站点密钥。
 
 | 环境变量 | 作用 | 默认 |
 |---|---|---|
-| `GALLEY_URL` | 首次连接站点 | `http://localhost:3000` |
+| `GALLEY_URL` | 首次连接线上站点 | 未连接，在工坊设置填写 |
+| `STUDIO_ADMIN_PASSWORD` | 本机工坊登录密码，8–200 个字符 | 未设置，使用 `open` 命令登录 |
 | `GALLEY_TOKEN` / `GALLEY_TOKEN_FILE` | 首次连接密钥或密钥文件 | 无 |
 | `STUDIO_PORT` | 本机监听端口 | `4321` |
 | `STUDIO_HOST` | 监听地址；容器内使用 `0.0.0.0`，端口仍只发布给本机 | `127.0.0.1` |
@@ -106,7 +113,7 @@ pnpm studio
 | `STUDIO_TTS_URL` | 宿主机配音连接地址；未配置时直接调用 stdio MCP | 无 |
 | `STUDIO_TTS_TOKEN_FILE` | 配音连接密钥文件 | `STUDIO_DIR/.tts-token` |
 | `STUDIO_TTS_PORT` / `STUDIO_TTS_DIR` | 宿主机配音端口与密钥、日志目录 | `4322` / `~/.galley-studio-tts` |
-| `STUDIO_LOCAL_SITE_HOST` | 容器后台访问本机博客时替换的主机名 | Compose 中为 `host.docker.internal` |
+| `STUDIO_LOCAL_SITE_HOST` | 仅本地开发：容器后台访问本机博客时替换的主机名 | 未设置，线上连接不需要 |
 
 配音服务提供 `generate_voiceover` 与 `unload_voice_model`。完整的服务配置、返回格式、试听、重配与排错见[配音配置与使用](voice-setup.md)。
 

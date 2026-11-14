@@ -141,4 +141,29 @@ describe("Studio 管理身份与连接配置", () => {
     const candidate = connection.candidate(OWNER, "https://other.example.com", "new-secret"); connection.save(OWNER, candidate);
     expect(new StudioConnection(db, dir, { url: source.galley, token: "old-env" }).read()).toEqual(candidate);
   });
+  it("密码登录保留本机快捷入口，修改密码后旧会话失效", () => {
+    const password = "studio-test-password", access = new StudioAccess(dir, password);
+    const key = readFileSync(path.join(dir, ".owner-key"), "utf8");
+    expect(access.passwordEnabled).toBe(true);
+    expect(access.login("wrong-password")).toBeNull();
+    expect(access.login(agent.id)).toBeNull();
+    expect(access.login("")).toBeNull();
+    expect(access.login(key)).not.toBeNull();
+    const cookie = `${STUDIO_COOKIE}=${access.login(password)}`;
+    expect(new StudioAccess(dir, password).isOwner(cookie)).toBe(true);
+    const changed = new StudioAccess(dir, "changed-test-password");
+    expect(changed.isOwner(cookie)).toBe(false);
+    expect(changed.login(password)).toBeNull();
+    expect(new StudioAccess(dir).isOwner(cookie)).toBe(false);
+    expect(readFileSync(path.join(dir, ".owner-key"), "utf8")).toBe(key);
+    expect(() => new StudioAccess(dir, "short")).toThrow("8–200");
+  });
+  it("未配置时不连接本地调试站点，可从界面保存线上连接", () => {
+    expect(() => new StudioConnection(db, dir, { url: "", token: "orphan-token" })).toThrow("站点根地址");
+    const connection = new StudioConnection(db, dir, { url: "", token: "" });
+    expect(connection.public()).toEqual({ galley: "", hasToken: false });
+    const candidate = connection.candidate(OWNER, "https://blog.example.com", "online-token");
+    connection.save(OWNER, candidate);
+    expect(new StudioConnection(db, dir, { url: "", token: "" }).read()).toEqual(candidate);
+  });
 });

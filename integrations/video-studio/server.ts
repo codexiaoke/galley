@@ -21,7 +21,7 @@ const HOST = z.enum(["127.0.0.1", "0.0.0.0"]).parse(process.env.STUDIO_HOST ?? "
 const WORK_DIR = process.env.STUDIO_DIR ?? path.join(homedir(), "galley-studio");
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const runtime = new StudioRuntime(WORK_DIR);
-const access = new StudioAccess(WORK_DIR);
+const access = new StudioAccess(WORK_DIR, process.env.STUDIO_ADMIN_PASSWORD);
 let assets: ReturnType<typeof buildStudio> | undefined;
 const json = (res: ServerResponse, status: number, body: unknown) => {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
@@ -78,11 +78,11 @@ const server = createServer(async (req, res) => {
     }
     if (route === "/favicon.ico") return void res.writeHead(204).end();
     if (route === "/api/session") {
-      if (req.method === "GET") return json(res, 200, { authenticated: access.isOwner(req.headers.cookie ?? "") });
+      if (req.method === "GET") return json(res, 200, { authenticated: access.isOwner(req.headers.cookie ?? ""), passwordEnabled: access.passwordEnabled });
       if (req.method === "POST") {
         const { token } = await input(req, z.object({ token: z.string().max(200) }));
         const cookie = access.login(token);
-        if (!cookie) return json(res, 401, { error: "管理密钥无效，请运行 pnpm studio:open 打开管理入口。" });
+        if (!cookie) return json(res, 401, { error: access.passwordEnabled ? "工坊密码不正确，请重新输入。" : "管理密钥无效，请使用工坊的 open 命令打开管理入口。" });
         res.setHeader("Set-Cookie", `${STUDIO_COOKIE}=${cookie}; HttpOnly; SameSite=Strict; Path=/; Max-Age=1209600`);
         return json(res, 200, { authenticated: true });
       }

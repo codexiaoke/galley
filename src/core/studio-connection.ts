@@ -14,7 +14,11 @@ export function studioSiteUrl(value: string) {
 
 export class StudioConnection {
   constructor(private db: Db, private directory: string, initial: { url: string; token: string }) {
-    if (!db.select().from(studioConnection).get()) db.insert(studioConnection).values({ id: 1, url: studioSiteUrl(initial.url), token: encryptSecret(initial.token, directory) }).run();
+    if (!db.select().from(studioConnection).get()) {
+      const url = initial.url.trim() ? studioSiteUrl(initial.url) : "";
+      if (!url && initial.token) throw invalid("配置站点访问密钥时，请同时填写站点根地址。");
+      db.insert(studioConnection).values({ id: 1, url, token: encryptSecret(initial.token, directory) }).run();
+    }
   }
   read() {
     const row = this.db.select().from(studioConnection).where(eq(studioConnection.id, 1)).get()!;

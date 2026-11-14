@@ -81,6 +81,7 @@ async function main() {
   stop    停止工坊和本次登录的配音连接，保留数据卷
 
 先准备 Docker、Node 22、pnpm 和本机配音 MCP。
+复制 .env.studio.example 为 .env.studio，设置工坊密码与线上站点地址；站点访问密钥在界面保存。
 配音配置：integrations/video-studio/voice-setup.md
 部署、迁移与备份：integrations/video-studio/README.md
 自定义端口时，每条命令使用相同的 STUDIO_PORT。`);
