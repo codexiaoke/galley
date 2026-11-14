@@ -153,8 +153,21 @@ const server = createServer(async (req, res) => {
       return void res.end(readFileSync(path.join(HERE, "index.html")));
     }
 
+    // 浏览器会自己来要图标：没有，安静地告诉它
+    if (url.pathname === "/favicon.ico") return void res.writeHead(204).end();
+
     if (req.method === "GET" && url.pathname === "/api/config") {
       return json(res, 200, { galley: GALLEY_URL, hasToken: !!galleyToken(), ttsServer: TTS_SERVER, ttsFound: !!ttsLaunch(), dir: WORK_DIR });
+    }
+
+    // 有哪些文章可以选：向 Galley 要已发布文章的清单（每篇标着写了几处讲稿）
+    if (req.method === "GET" && url.pathname === "/api/articles") {
+      const token = galleyToken();
+      if (!token) return json(res, 400, { error: "还没有接入密钥。启动时用 GALLEY_TOKEN 或 GALLEY_TOKEN_FILE 给出（在 Galley 后台的「MCP 管理」里建一个）。" });
+      const reply = await fetch(`${GALLEY_URL}/narration.json`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = (await reply.json().catch(() => ({}))) as { error?: string; articles?: unknown[] };
+      if (!reply.ok || !data.articles) return json(res, reply.status === 200 ? 502 : reply.status, { error: data.error ?? `Galley 返回了 ${reply.status}。` });
+      return json(res, 200, { articles: data.articles });
     }
 
     // 讲稿清单：带着密钥向 Galley 要，顺便带上以前生成过的配音

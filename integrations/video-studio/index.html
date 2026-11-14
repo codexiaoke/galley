@@ -44,16 +44,81 @@
         font-size: 12px;
         color: var(--faint);
       }
-      input[type="text"] {
-        height: 30px;
-        width: 220px;
+      /* 选文章的下拉：一个按钮，点开是一个清单 */
+      .picker {
+        position: relative;
+      }
+      .pick {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        width: min(420px, 56vw);
+        text-align: left;
+      }
+      .pick span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .pick svg {
+        flex: none;
+        color: var(--faint);
+      }
+      .options {
+        position: absolute;
+        z-index: 10;
+        top: calc(100% + 4px);
+        left: 0;
+        width: min(520px, 90vw);
+        max-height: min(60vh, 460px);
+        margin: 0;
+        padding: 4px;
+        overflow-y: auto;
+        list-style: none;
         border: 1px solid var(--rule);
-        border-radius: 6px;
-        padding: 0 9px;
-        font: inherit;
-        font-size: 13px;
+        border-radius: 8px;
         background: var(--panel);
-        color: var(--ink);
+        box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.25);
+      }
+      .options li {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 2px 12px;
+        padding: 7px 10px;
+        border-radius: 6px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .options li:hover,
+      .options li[aria-selected="true"] {
+        background: color-mix(in srgb, var(--ink) 6%, transparent);
+      }
+      .options .name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .options .meta {
+        grid-column: 1;
+        font-size: 11px;
+        color: var(--faint);
+      }
+      .options .mark {
+        grid-row: 1 / 3;
+        grid-column: 2;
+        align-self: center;
+        font-size: 11px;
+        color: var(--faint);
+      }
+      .options .mark[data-yes] {
+        color: var(--good);
+      }
+      .options .none {
+        padding: 12px 10px;
+        font-size: 12px;
+        color: var(--soft);
+        cursor: default;
       }
       button {
         height: 30px;
@@ -231,8 +296,28 @@
           height: auto;
           min-height: 100vh;
         }
+        /* 清单按整个标题栏的宽度铺开，不伸到窗口外面去 */
         header {
+          position: relative;
           flex-wrap: wrap;
+        }
+        .picker {
+          position: static;
+          flex: 1;
+          min-width: 0;
+        }
+        .pick {
+          width: 100%;
+        }
+        /* 站点和配音服务那行小字另起一行，把这一行让给下拉 */
+        header .site {
+          flex-basis: 100%;
+        }
+        .options {
+          top: 46px;
+          left: 12px;
+          right: 12px;
+          width: auto;
         }
         header h1 {
           white-space: nowrap;
@@ -266,17 +351,23 @@
   <body>
     <header>
       <h1>Galley 视频工坊</h1>
-      <input id="slug" type="text" placeholder="文章的别名，例如 scene-demo" spellcheck="false" />
-      <button id="load" class="primary">读取讲稿</button>
+      <div id="picker" class="picker">
+        <button id="pick" type="button" class="pick" aria-haspopup="listbox" aria-expanded="false">
+          <span id="picked">正在读取文章…</span>
+          <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+        </button>
+        <ul id="options" class="options" role="listbox" hidden></ul>
+      </div>
+      <button id="load" title="文章改过讲稿以后，重新读一遍">重新读取</button>
       <span id="site" class="site"></span>
     </header>
     <main>
       <section id="beats" class="beats">
-        <p class="empty">填上文章的别名，点「读取讲稿」。<br />讲稿按播放的顺序一拍一拍列在这里：每一页的 <code>:::notes</code>、场景每一步的 <code>say</code>。</p>
+        <p class="empty">在上面选一篇文章。<br />讲稿按播放的顺序一拍一拍列在这里：每一页的 <code>:::notes</code>、场景每一步的 <code>say</code>。</p>
       </section>
       <section class="preview">
         <div id="stage" class="stage">
-          <p id="hint" class="hint">读取讲稿、生成配音之后，点「预览」。</p>
+          <p id="hint" class="hint">选一篇文章、生成配音之后，点「预览」。</p>
           <iframe id="frame" title="演示" allow="autoplay; fullscreen" hidden></iframe>
           <p id="subtitle" class="subtitle"></p>
         </div>
@@ -308,6 +399,8 @@
       const GAP_MS = 350;
 
       let config = null;
+      let articles = []; // 可以选的文章
+      let slug = ""; // 选中的那一篇
       let data = null; // 讲稿清单
       const voices = {}; // 拍的名字 -> { audio, durationMs, cues }
       const players = {}; // 拍的名字 -> 预先加载好的 Audio
@@ -422,16 +515,80 @@
           `按现在的时长，视频大约 ${clock(total)}${selfPaced ? "（有的页里的播放器自己走节奏，实际会再长一些）" : ""}。` +
           `音频存在 ${config.dir}/${data.slug}。`;
         $("voice").disabled = generating || done.length === spoken.length;
-        $("voice").textContent = generating ? "正在生成…" : done.length === spoken.length ? "配音已齐" : `生成配音（还差 ${spoken.length - done.length} 拍）`;
+        $("voice").textContent = generating ? "正在生成…" : spoken.length === 0 ? "这篇没写讲稿" : done.length === spoken.length ? "配音已齐" : `生成配音（还差 ${spoken.length - done.length} 拍）`;
         $("play").disabled = previewing;
         $("stop").disabled = !previewing;
         $("record").disabled = previewing || !!recorder;
         $("srt").disabled = done.length === 0;
       }
 
+      /* ---------- 选文章 ---------- */
+      function renderOptions() {
+        const list = $("options");
+        list.textContent = "";
+        if (!articles.length) {
+          const none = document.createElement("li");
+          none.className = "none";
+          none.textContent = "站点上还没有已发布的文章。";
+          list.append(none);
+          return;
+        }
+        for (const article of articles) {
+          const item = document.createElement("li");
+          item.setAttribute("role", "option");
+          item.setAttribute("aria-selected", String(article.slug === slug));
+          const name = document.createElement("span");
+          name.className = "name";
+          name.textContent = article.title;
+          const meta = document.createElement("span");
+          meta.className = "meta";
+          meta.textContent = [article.publishedAt ? new Date(article.publishedAt).toLocaleDateString("zh-CN") : "", article.slug].filter(Boolean).join(" · ");
+          const mark = document.createElement("span");
+          mark.className = "mark";
+          if (article.narrated) mark.dataset.yes = "true";
+          mark.textContent = article.narrated ? `讲稿 ${article.narrated} 处` : "没写讲稿";
+          item.append(name, meta, mark);
+          item.onclick = () => choose(article.slug);
+          list.append(item);
+        }
+      }
+
+      function toggleOptions(open) {
+        $("options").hidden = !open;
+        $("pick").setAttribute("aria-expanded", String(open));
+        if (open) $("options").querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+      }
+
+      function choose(next) {
+        slug = next;
+        $("picked").textContent = articles.find((a) => a.slug === slug)?.title ?? "选一篇文章";
+        toggleOptions(false);
+        renderOptions();
+        load();
+      }
+
+      async function loadArticles() {
+        try {
+          const reply = await fetch("/api/articles");
+          const body = await reply.json();
+          if (!reply.ok) {
+            $("picked").textContent = "读不到文章";
+            return say(body.error || "读不到文章的清单。");
+          }
+          articles = body.articles;
+          renderOptions();
+          // 上次选的那一篇还在：接着用
+          const last = localStorage.getItem("studio-slug");
+          if (articles.some((a) => a.slug === last)) choose(last);
+          else $("picked").textContent = "选一篇文章";
+        } catch (e) {
+          $("picked").textContent = "读不到文章";
+          say(`读不到文章的清单：${e.message}`);
+        }
+      }
+
       async function load() {
-        const slug = $("slug").value.trim();
-        if (!slug) return say("先填文章的别名。");
+        if (!slug) return say("先选一篇文章。");
         say("");
         $("load").disabled = true;
         try {
@@ -647,7 +804,9 @@
 
       /* ---------- 开始 ---------- */
       $("load").onclick = load;
-      $("slug").onkeydown = (e) => e.key === "Enter" && load();
+      $("pick").onclick = () => toggleOptions($("options").hidden);
+      document.addEventListener("click", (e) => !$("picker").contains(e.target) && toggleOptions(false));
+      document.addEventListener("keydown", (e) => e.key === "Escape" && toggleOptions(false));
       $("voice").onclick = generateAll;
       $("play").onclick = play;
       $("stop").onclick = stop;
@@ -665,8 +824,9 @@
         if (!config.hasToken) problems.push("还没有接入密钥：在 Galley 后台的「MCP 管理」里建一个，启动这个工具时用 GALLEY_TOKEN 或 GALLEY_TOKEN_FILE 给出。");
         if (!config.ttsFound) problems.push(`没有找到配音服务「${config.ttsServer}」：在 ~/.claude.json 的 mcpServers 里登记它，或者用 STUDIO_TTS_COMMAND 给出启动命令。`);
         say(problems.join(" "));
-        $("slug").value = localStorage.getItem("studio-slug") || "";
         requestAnimationFrame(tick);
+        if (config.hasToken) loadArticles();
+        else $("picked").textContent = "还没有接入密钥";
       })();
     </script>
   </body>
