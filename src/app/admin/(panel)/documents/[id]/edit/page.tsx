@@ -35,7 +35,7 @@ function Blocked({ title, children, href, linkLabel }: { title: string; children
 }
 
 type Loaded =
-  | { kind: "editor"; document: ReturnType<typeof getDocumentForEditing>; preview: ReturnType<typeof previewDocumentBody> & { traces: Awaited<ReturnType<typeof prepareBody>>["traces"] }; changeSetId?: string }
+  | { kind: "editor"; document: ReturnType<typeof getDocumentForEditing>; preview: ReturnType<typeof previewDocumentBody> & Awaited<ReturnType<typeof prepareBody>>; changeSetId?: string }
   /** 待审的改动已经不在待审状态了 */
   | { kind: "not-in-review"; changeSetId: string }
   /** 文章正在另一个还没结束的改动里 */
@@ -51,8 +51,8 @@ async function load(id: string, changeSetId: string | undefined): Promise<Loaded
       if (findChangeSet(db, changeSetId).status !== "in_review") return { kind: "not-in-review", changeSetId };
       const document = getDocumentForEditing(db, { documentId: id }, changeSetId);
       if (!document.isDraft) return { kind: "missing" };
-      const { traces } = await prepareBody(document.body);
-      return { kind: "editor", document, changeSetId, preview: { ...previewDocumentBody(db, document.body, changeSetId), traces } };
+      const prepared = await prepareBody(document.body);
+      return { kind: "editor", document, changeSetId, preview: { ...previewDocumentBody(db, document.body, changeSetId), ...prepared } };
     }
     const document = getDocumentForEditing(db, { documentId: id });
     // 文章正在某个还没结束的改动里时，不能绕过它直接改，否则两边的修改会互相覆盖。
@@ -62,8 +62,8 @@ async function load(id: string, changeSetId: string | undefined): Promise<Loaded
       if (e instanceof GalleyError && e.code === "conflict") return { kind: "locked", title: document.title, other: e.details as { id: string; title: string } };
       throw e;
     }
-    const { traces } = await prepareBody(document.body);
-    return { kind: "editor", document, preview: { ...previewDocumentBody(db, document.body), traces } };
+    const prepared = await prepareBody(document.body);
+    return { kind: "editor", document, preview: { ...previewDocumentBody(db, document.body), ...prepared } };
   } catch (e) {
     if (e instanceof GalleyError && e.code === "not_found") return { kind: "missing" };
     throw e;

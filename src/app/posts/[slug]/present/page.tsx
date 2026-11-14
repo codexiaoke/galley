@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { runTraces } from "@/core/algo/trace";
+import { prepareRender } from "@/core/prepare";
 import { Presentation } from "@/render/client/present";
 import { presentSlides } from "@/render/present-slides";
 import { loadPublishedDocument } from "../../../data";
@@ -29,7 +29,7 @@ async function Present({ params, searchParams }: { params: Promise<{ slug: strin
   const query = await searchParams;
   const [doc, site] = await Promise.all([loadPublishedDocument(slug), loadSite()]);
   if (!doc || doc.kind !== "article") notFound();
-  const traces = await runTraces(doc.body);
+  const prepared = await prepareRender(doc.body);
   const one = (k: string) => (typeof query[k] === "string" ? (query[k] as string) : undefined);
   const durations = one("durations")
     ?.split(",")
@@ -55,7 +55,7 @@ async function Present({ params, searchParams }: { params: Promise<{ slug: strin
           date: date ? `${date.getFullYear()} 年 ${date.getMonth() + 1} 月 ${date.getDate()} 日` : undefined,
           url: site.url ?? undefined,
         }}
-        slides={presentSlides(doc, traces)}
+        slides={presentSlides(doc, prepared)}
       />
     </>
   );

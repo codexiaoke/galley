@@ -14,9 +14,11 @@ import { unified } from "unified";
 import { BUILTIN_DIRECTIVES, getComponent } from "@/core/markup/components";
 import { isBareText, isDirective } from "@/core/markup/parse";
 import type { FlowGraph } from "@/core/markup/flow";
-import { readCodeSteps, readFlow, readQuiz, readSteps, readTrace, STEP_LINES_PATTERN } from "@/core/markup/structure";
+import { readCodeSteps, readFlow, readQuiz, readScene, readSteps, readTrace, STEP_LINES_PATTERN } from "@/core/markup/structure";
 import { lineIdentities } from "./code-diff";
 import { traceCache, traceKey, type TraceResult } from "@/core/algo/trace-shared";
+import { sceneCache, sceneKey } from "@/core/scene/shared";
+import type { SceneResult } from "@/core/scene/types";
 import type { BlockView } from "@/core/services/blocks";
 import type { PostCard } from "@/core/services/documents";
 import { CiteHover } from "./CiteHover";
@@ -26,7 +28,7 @@ import { runAlgorithmVariants } from "@/core/algo";
 import { variantsOf } from "@/core/algo/presets";
 import { CopyButton } from "./client/copy";
 // 播放器按需加载，见 client/lazy.tsx
-import { AlgoPlayer, ChartView, CodeStepsPlayer, CodeRunner, Compare, CountUp, FlowView, MermaidDiagram, Quiz, RacePlayer, StepsController, Tabs, ZoomImage } from "./client/lazy";
+import { AlgoPlayer, ChartView, CodeStepsPlayer, CodeRunner, Compare, CountUp, FlowView, MermaidDiagram, Quiz, RacePlayer, ScenePlayer, StepsController, Tabs, ZoomImage } from "./client/lazy";
 import { headingSlugger } from "./toc";
 
 /**
@@ -97,7 +99,7 @@ function remarkTerms(options: { terms: Term[] }) {
     const visit = (node: MdNode) => {
       if (!node.children || NO_TERMS.has(node.type)) return;
       // 讲稿、算法动画这类容器里也不标
-      if (node.type === "containerDirective" && ["notes", "code-steps", "trace", "algo", "race", "chart", "timeline"].includes(node.name ?? "")) return;
+      if (node.type === "containerDirective" && ["notes", "code-steps", "trace", "scene", "algo", "race", "chart", "timeline"].includes(node.name ?? "")) return;
       const out: MdNode[] = [];
       for (const child of node.children) {
         if (child.type !== "text" || !child.value) {
@@ -244,6 +246,12 @@ function remarkGalley(options: { source: string }) {
         d.data = { hName: "galley-trace", hProperties: { attrs: JSON.stringify({ keys, code, title: t.title ?? "" }) }, hChildren: [] };
         return;
       }
+      if (d.name === "scene") {
+        const sc = readScene(d as never);
+        const code = sc.code ?? "";
+        d.data = { hName: "galley-scene", hProperties: { attrs: JSON.stringify({ id: sceneKey(code, sc.ratio), title: sc.title ?? "" }) }, hChildren: [] };
+        return;
+      }
       if (d.name === "quiz") {
         const { parts } = readQuiz(d as never);
         if (!parts) return replace({ type: "paragraph", children: [{ type: "text", value: "" }] });
@@ -283,7 +291,7 @@ const formatDate = (d: Date) => new Date(d).toISOString().slice(0, 10);
  * 正文里只保留读者关心的东西（内容本身和数据的出处）。
  * 这些系统信息只在后台的审阅预览里显示，由 Markdown 的 review 参数打开。
  */
-type Ctx = { blocks: Record<string, BlockView>; posts: Record<string, PostCard>; review: boolean; traces: Record<string, TraceResult>; terms: Map<string, Term> };
+type Ctx = { blocks: Record<string, BlockView>; posts: Record<string, PostCard>; review: boolean; traces: Record<string, TraceResult>; scenes: Record<string, SceneResult>; terms: Map<string, Term> };
 
 function Sources({ block }: { block: BlockView }) {
   if (block.sources.length === 0) return null;
@@ -641,6 +649,17 @@ function Trace({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
   );
 }
 
+/**
+ * 场景动画：代码已经在服务端的沙箱里跑过（页面渲染前调用 prepareRender），这里取结果交给播放器。
+ * 读者的浏览器只拿到运行结果，不执行作者的代码。代码出错时读者什么都看不到，审阅预览里显示错误。
+ */
+function SceneView({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
+  const { id, title } = attrsOf<{ id: string; title: string }>(props);
+  const result = ctx.scenes[id] ?? sceneCache.get(id);
+  if (result?.ok) return <ScenePlayer scene={result.scene} title={title || undefined} />;
+  return ctx.review ? <p className="galley-trace-error">{result ? `场景代码出错，${result.error}` : "场景代码还没有运行。"}</p> : null;
+}
+
 function Fold({ props }: { props: ElementProps }) {
   return (
     <details className="galley-fold">
@@ -656,6 +675,7 @@ export function Markdown({
   posts = {},
   review = false,
   traces = {},
+  scenes = {},
   terms = [],
 }: {
   body: string;
@@ -666,10 +686,12 @@ export function Markdown({
   review?: boolean;
   /** 演示代码的运行结果（runTraces 的返回值）。服务端渲染时也可以省略，直接从缓存取。 */
   traces?: Record<string, TraceResult>;
+  /** 场景代码的运行结果（prepareRender 的返回值）。服务端渲染时也可以省略，直接从缓存取。 */
+  scenes?: Record<string, SceneResult>;
   /** 站点上的术语（见 core/services/knowledge.ts 的 listTerms）。给了才标，正文里每个术语只标第一次出现 */
   terms?: Term[];
 }) {
-  const ctx: Ctx = { blocks, posts, review, traces, terms: new Map(terms.map((t) => [t.id, t])) };
+  const ctx: Ctx = { blocks, posts, review, traces, scenes, terms: new Map(terms.map((t) => [t.id, t])) };
   const processor = unified()
     .use(remarkParse)
     .use(remarkGfm)
@@ -702,6 +724,7 @@ export function Markdown({
     "galley-algo": (props: ElementProps) => <Algo ctx={ctx} props={props} />,
     "galley-trace": (props: ElementProps) => <Trace ctx={ctx} props={props} />,
     "galley-race": (props: ElementProps) => <Race ctx={ctx} props={props} />,
+    "galley-scene": (props: ElementProps) => <SceneView ctx={ctx} props={props} />,
     "galley-code-steps": (props: ElementProps) => <CodeSteps props={props} />,
     // 讲稿只在演示模式和视频里用（见 render/slides.ts），文章里不显示
     "galley-notes": () => null,

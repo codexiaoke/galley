@@ -2,6 +2,8 @@ import { z } from "zod";
 import { ALGORITHM_NAMES, checkAlgorithmParams, describeAlgorithms, getAlgorithm } from "../algo";
 import { parsePresets } from "../algo/presets";
 import { TRACE_API_DOC } from "../algo/trace-doc";
+import { SCENE_API_DOC } from "../scene/doc";
+import { SCENE_RATIO_NAMES } from "../scene/types";
 import type { BlockType } from "../db/schema";
 
 /**
@@ -217,6 +219,16 @@ export const COMPONENTS: ComponentDef[] = [
     params: z.object({ input: z.string().optional(), presets: z.string().optional(), title: z.string().optional() }),
     validate: (p) => parsePresets(p.presets as string | undefined).errors,
     details: () => TRACE_API_DOC,
+  },
+  {
+    name: "scene",
+    form: "container",
+    description:
+      "场景动画：用一段 JavaScript 摆出画面上的东西（方块、圆、文字、代码、箭头、边界框），再写若干步，每一步里让它们出现、移动、变色、沿着连线发消息，配一句讲解。页面上是一个可以播放的动画：滚动到眼前自动播放，读者可以暂停、单步前进后退；演示模式里每按一下方向键走一步，讲解变成字幕；做视频时每一步的讲解就是配音稿。讲一个系统怎么运转、几样东西之间怎么来回、一件事的结构是怎么一步步搭起来的时候用——这类内容用文字要写好几段，用动画读者一眼就明白。只是「谁到谁」的静态流程用 flow 就够了；讲算法用 algo 或 trace。可以调用的函数见下面的说明。",
+    example:
+      ':::scene{title="页面和 Worker 之间怎么通信"}\n```js\nconst page = box("页面", { sub: "主线程", tone: "c2" })\nconst worker = box("Worker", { sub: "后台线程", tone: "c5" })\nrow([page, worker], { gap: 220 })\nconst ask = arrow(page, worker, { label: "postMessage", bend: -40 })\nconst answer = arrow(worker, page, { label: "结果", bend: -40 })\n\nstep("页面运行在主线程上，它一忙，界面就卡住。", () => {\n  show(page)\n})\nstep("所以把费时间的计算交给 Worker：一个独立的后台线程。", () => {\n  show(worker, { from: "right" })\n})\nstep("两边不共享内存，只能互相发消息。页面把任务发过去。", () => {\n  show(ask)\n  send(ask, { label: "任务" })\n  highlight(worker)\n})\nstep("Worker 算完，再把结果发回来。这期间页面一直能响应操作。", () => {\n  reset(worker)\n  show(answer)\n  send(answer, { label: "结果", tone: "c5" })\n  pulse(page)\n})\n```\n:::',
+    params: z.object({ title: z.string().optional(), ratio: z.enum(SCENE_RATIO_NAMES).default("16:9") }),
+    details: () => SCENE_API_DOC,
   },
   {
     name: "fold",

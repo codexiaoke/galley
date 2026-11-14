@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { runTraces } from "@/core/algo/trace";
+import { prepareRender } from "@/core/prepare";
 import { getDb } from "@/core/db/client";
 import { getDocumentRevision } from "@/core/services/documents";
 import { Presentation } from "@/render/client/present";
@@ -25,13 +25,13 @@ async function Preview({ params, searchParams }: { params: Promise<{ revisionId:
   const query = await searchParams;
   const doc = getDocumentRevision(getDb(), revisionId);
   if (!doc || doc.kind !== "article") notFound();
-  const traces = await runTraces(doc.body);
+  const prepared = await prepareRender(doc.body);
   const back = typeof query.from === "string" && /^[a-z0-9]+$/i.test(query.from) ? `/admin/change-sets/${query.from}` : "/admin";
 
   return (
     <>
       <title>{`${doc.title} · 演示预览`}</title>
-      <Presentation backHref={back} print={query.print === "1"} orientation={query.orientation === "portrait" ? "portrait" : "landscape"} cover={{ title: doc.title, summary: doc.summary || undefined, site: "演示预览（还没有上线）" }} slides={presentSlides(doc, traces)} />
+      <Presentation backHref={back} print={query.print === "1"} orientation={query.orientation === "portrait" ? "portrait" : "landscape"} cover={{ title: doc.title, summary: doc.summary || undefined, site: "演示预览（还没有上线）" }} slides={presentSlides(doc, prepared)} />
     </>
   );
 }

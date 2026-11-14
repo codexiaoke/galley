@@ -49,7 +49,7 @@ export function splitSlides(body: string): Slide[] {
   flush();
 
   // 一页里有好几个大块（代码演变、算法动画、图、表格……）时，一个大块一页
-  const pages = slides.flatMap((d) => splitHeavy(d, body)).flatMap(splitMermaid);
+  const pages = slides.flatMap((d) => splitHeavy(d, body)).flatMap(splitSolo);
 
   const slice = (n: Node) => body.slice(n.position?.start.offset ?? 0, n.position?.end.offset ?? 0);
   return pages.map((s) => {
@@ -106,9 +106,12 @@ function splitHeavy(d: DraftPage, body: string): DraftPage[] {
   return pages.map((parts, i) => (i === 0 ? { ...d, parts } : { title: undefined, section: kicker, parts }));
 }
 
-/** Mermaid 独占演示页，前后说明保留在相邻页，避免图与长文互相挤占可用高度。 */
-function splitMermaid(d: DraftPage): DraftPage[] {
-  if (!d.parts.some((n) => n.type === "code" && n.lang === "mermaid")) return [d];
+/** 独占一页的东西：Mermaid 图和场景动画。它们要尽量大，和成段的文字挤在一页里两边都看不清。 */
+const isSolo = (n: Node) => (n.type === "code" && n.lang === "mermaid") || (n.type === "containerDirective" && n.name === "scene");
+
+/** 图和场景动画独占演示页，前后的说明留在相邻的页上，上方用小字标出这一节的标题。 */
+function splitSolo(d: DraftPage): DraftPage[] {
+  if (!d.parts.some(isSolo)) return [d];
   const pages: DraftPage[] = [];
   let pending: Node[] = [];
   const section = d.title ?? d.section;
@@ -119,7 +122,7 @@ function splitMermaid(d: DraftPage): DraftPage[] {
     pending = [];
   };
   for (const node of d.parts) {
-    if (node.type === "code" && node.lang === "mermaid") {
+    if (isSolo(node)) {
       flushText();
       pages.push({ section, parts: [...pending.filter(isNotes), node] });
       pending = [];

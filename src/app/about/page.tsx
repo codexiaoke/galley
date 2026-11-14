@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { Markdown } from "@/render/Markdown";
-import { runTraces } from "@/core/algo/trace";
+import { prepareRender } from "@/core/prepare";
 import { loadPublishedDocument } from "../data";
 import { SiteFooter } from "../site-footer";
 import { SiteHeader } from "../site-header";
@@ -25,7 +25,7 @@ export default function AboutPage() {
 async function About() {
   const [doc, site] = await Promise.all([loadPublishedDocument("about"), loadSite()]);
   if (!doc || doc.kind !== "page") notFound();
-  const traces = await runTraces(doc.body);
+  const { traces, scenes } = await prepareRender(doc.body);
   return (
     <>
       <SiteHeader />
@@ -34,7 +34,7 @@ async function About() {
         <header className="galley-article-header">
           <h1 className="galley-title">{doc.title}</h1>
         </header>
-        <Markdown body={doc.body} blocks={doc.blocks} posts={doc.posts} traces={traces} />
+        <Markdown body={doc.body} blocks={doc.blocks} posts={doc.posts} traces={traces} scenes={scenes} />
       </article>
       <SiteFooter from="/about" />
       <TrackView path="/about" />

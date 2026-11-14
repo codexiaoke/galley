@@ -64,6 +64,26 @@ describe("Mermaid 演示分页", () => {
   });
 });
 
+describe("场景动画演示分页", () => {
+  const scene = ':::scene{title="通信"}\n```js\nconst a = box("甲")\nstep("出现。", () => show(a))\n```\n:::';
+  it("场景独占一页，前后的说明留在相邻的页上", () => {
+    const slides = splitSlides(`## 三道墙\n\n先看一个动画。\n\n${scene}\n\n三道墙各管一件事。`);
+    expect(slides).toHaveLength(3);
+    expect(slides[0].title).toBe("三道墙");
+    expect(slides[0].source).toContain("先看一个动画。");
+    expect(slides[1].source).toBe(scene);
+    expect(slides[1].section).toBe("三道墙");
+    expect(slides[2].source).toBe("三道墙各管一件事。");
+  });
+  it("标题下面直接是场景时不留空页，场景后的讲稿跟着场景", () => {
+    const slides = splitSlides(`## 三道墙\n\n${scene}\n\n:::notes\n讲到沙箱时停一下\n:::`);
+    expect(slides).toHaveLength(1);
+    expect(slides[0].source).toBe(scene);
+    expect(slides[0].section).toBe("三道墙");
+    expect(slides[0].notes).toBe("讲到沙箱时停一下");
+  });
+});
+
 describe("讲稿和正文分开", () => {
   it("讲稿从页面内容里摘出来，不留在 source 里", () => {
     const slides = splitSlides(`## 一节\n\n正文一句。\n\n:::notes\n这是我演讲时自己看的提词\n:::\n\n正文第二句。`);

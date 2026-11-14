@@ -9,12 +9,13 @@ import type { BlockView } from "@/core/services/blocks";
 import type { PostCard } from "@/core/services/documents";
 import { Markdown } from "@/render/Markdown";
 import type { TraceResult } from "@/core/algo/trace-shared";
+import type { SceneResult } from "@/core/scene/types";
 import { previewBody, saveDocumentEdit } from "../../../../actions";
 import { Select } from "../../../../select";
 import { useToast } from "../../../../toast";
 import { Badge, buttonClass } from "../../../../ui";
 
-type Preview = { body: string; issues: MarkupIssue[]; blocks: Record<string, BlockView>; posts: Record<string, PostCard>; traces: Record<string, TraceResult> };
+type Preview = { body: string; issues: MarkupIssue[]; blocks: Record<string, BlockView>; posts: Record<string, PostCard>; traces: Record<string, TraceResult>; scenes: Record<string, SceneResult> };
 
 /** 正文写到一半时可能出现渲染不了的内容。预览出错不应该让整个编辑器跟着崩掉。 */
 class PreviewBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
@@ -305,7 +306,7 @@ export function DocumentEditor({
           {/* 预览按前台的样子显示：纸张底色和宋体，和读者看到的一致 */}
           <div className="galley-site rounded-lg border border-a-border bg-paper px-6 py-7 text-ink xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto">
             <PreviewBoundary key={preview.body}>
-              <Markdown body={preview.body} blocks={preview.blocks} posts={preview.posts} traces={preview.traces} review />
+              <Markdown body={preview.body} blocks={preview.blocks} posts={preview.posts} traces={preview.traces} scenes={preview.scenes} review />
             </PreviewBoundary>
           </div>
         </div>

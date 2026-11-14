@@ -4599,6 +4599,37 @@ body {
   }
 }
 
+/* ---- 场景动画 -------------------------------------------------------------- */
+/* 外框、标题栏、进度、讲解沿用代码演变（galley-codesteps）的样式，这里只管中间的画面 */
+
+.galley-scene .galley-codesteps-file {
+  font-family: inherit;
+}
+.galley-scene-stage {
+  /* 画面的底色：线上的字用它描一圈边，压在线上也看得清 */
+  --scene-bg: var(--paper-raised);
+  background: var(--scene-bg);
+  border-top: 1px solid color-mix(in srgb, var(--rule) 70%, transparent);
+}
+.galley-scene-stage svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+}
+.galley-scene-stage text {
+  font-family: var(--font-ui);
+}
+.galley-scene-stage text[data-mono] {
+  font-family: var(--font-geist-mono), "SF Mono", Menlo, Consolas, monospace;
+}
+.galley-scene-halo {
+  paint-order: stroke;
+  stroke: var(--scene-bg);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
 /* ---- 演示模式 -------------------------------------------------------------- */
 /* 幻灯片按设计尺寸（横屏 1600×900，竖屏 900×1600）排版，整体缩放到窗口大小 */
 
@@ -5239,3 +5270,30 @@ body {
   font-size: 3px;
   fill: var(--ink-faint);
 }
+
+/* ---- 幻灯片里的场景动画 ---------------------------------------------------- */
+/*
+ * 场景在演示里独占一页（见 render/slides.ts），画面尽量大：宽度按"一页放得下的高度"反推，
+ * 不放大整个播放器。控制按钮收起来（演示用方向键推进），只留一条进度线和下面的讲解。
+ */
+.galley-present .galley-slide .galley-codesteps.galley-scene {
+  zoom: 1;
+  width: min(100%, calc(590px * var(--scene-ratio, 1.78)));
+  margin: 0.3em auto 0;
+}
+.galley-slide .galley-scene .galley-codesteps-head {
+  display: none;
+}
+.galley-slide .galley-scene .galley-codesteps-progress {
+  padding: 0;
+}
+.galley-slide .galley-scene .galley-scene-stage {
+  border-top: 0;
+}
+.galley-slide .galley-scene .galley-codesteps-note {
+  min-height: 3.9em;
+  padding: 0.7em 1.2em 0.8em;
+  font-size: 25px;
+  line-height: 1.6;
+}
+

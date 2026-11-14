@@ -1,5 +1,4 @@
-import variant from "@jitl/quickjs-singlefile-cjs-release-sync";
-import { newQuickJSWASMModuleFromVariant, type QuickJSContext, type QuickJSWASMModule } from "quickjs-emscripten-core";
+import { evaluate, loadQuickJS, type Dumped } from "../quickjs";
 import { parseToTree } from "../markup/parse";
 import { readTrace } from "../markup/structure";
 import { visit } from "unist-util-visit";
@@ -22,9 +21,6 @@ const TIME_LIMIT_MS = 2000;
 const MEMORY_LIMIT = 48 * 1024 * 1024;
 const STACK_LIMIT = 1024 * 1024;
 
-let quickjs: Promise<QuickJSWASMModule> | undefined;
-const loadQuickJS = () => (quickjs ??= newQuickJSWASMModuleFromVariant(variant as never));
-
 /** input 参数：逗号分隔的数字变成数组；能按 JSON 解析的按 JSON；其余原样作为字符串。 */
 export function parseTraceInput(input: string | undefined): unknown {
   if (input === undefined || input.trim() === "") return null;
@@ -37,8 +33,6 @@ export function parseTraceInput(input: string | undefined): unknown {
   }
 }
 
-type Dumped = { name?: string; message?: string; stack?: string } | string | undefined;
-
 function describeError(e: Dumped): { error: string; line?: number } {
   const obj = typeof e === "object" && e ? e : { message: String(e) };
   const m = /algo\.js:(\d+)/.exec(obj.stack ?? "");
@@ -48,18 +42,6 @@ function describeError(e: Dumped): { error: string; line?: number } {
   else if (/out of memory/i.test(message)) message = "代码用的内存太多了。换一个小一点的输入。";
   else if (obj.name && obj.name !== "Error") message = `${obj.name}: ${message}`;
   return { error: line !== undefined ? `第 ${line + 1} 行：${message}` : message, line };
-}
-
-function evaluate(vm: QuickJSContext, code: string, filename: string): { ok: true; value: unknown } | { ok: false; error: Dumped } {
-  const r = vm.evalCode(code, filename);
-  if (r.error) {
-    const error = vm.dump(r.error) as Dumped;
-    r.error.dispose();
-    return { ok: false, error };
-  }
-  const value = vm.dump(r.value);
-  r.value.dispose();
-  return { ok: true, value };
 }
 
 export async function runTrace(code: string, input?: string): Promise<TraceResult> {

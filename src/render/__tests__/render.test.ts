@@ -24,6 +24,7 @@ vi.mock("../client/lazy", async () => ({
   ZoomImage: (await import("../client/image")).ZoomImage,
   Quiz: (await import("../client/quiz")).Quiz,
   CodeRunner: (await import("../client/code-runner")).CodeRunner,
+  ScenePlayer: (await import("../client/scene")).ScenePlayer,
 }));
 const renderAll = async (body: string) => render(body);
 
@@ -116,5 +117,31 @@ describe("可以运行的代码块", () => {
   it("加了 run 的 JavaScript 下面有运行按钮，别的代码块没有", async () => {
     expect(await renderAll("```js run\nconsole.log(1)\n```")).toContain("galley-run-button");
     expect(await renderAll("```js\nconsole.log(1)\n```")).not.toContain("galley-run-button");
+  });
+});
+
+describe("场景动画", () => {
+  const body = ':::scene{title="页面和 Worker"}\n```js\nconst a = box("页面", { tone: "c2" })\nconst b = box("Worker", { rightOf: a })\nconst link = arrow(a, b, { label: "消息" })\nshow(a)\nstep("把任务发过去。", () => { show(b); show(link); send(link) })\n```\n:::';
+
+  it("页面上是播放器：一开始的画面已经画好，作者的代码不出现在页面里", async () => {
+    const { runScenes } = await import("@/core/scene/run");
+    const scenes = await runScenes(body);
+    const html = renderToStaticMarkup(createElement(Markdown, { body, blocks: {}, scenes }));
+    expect(html).toContain("galley-scene");
+    expect(html).toContain("页面和 Worker");
+    // 第一步之前就 show 出来的东西在第一帧里，还没出现的不画
+    expect(html).toContain(">页面</text>");
+    expect(html).not.toContain(">Worker</text>");
+    // 颜色是主题变量，不是写死的值
+    expect(html).toContain("var(--chart-2)");
+    expect(html).not.toContain("const a = box");
+  });
+
+  it("代码出错时读者什么都看不到，审阅预览里显示错误", async () => {
+    const bad = ':::scene\n```js\nshow(nothing)\n```\n:::';
+    const { runScenes } = await import("@/core/scene/run");
+    const scenes = await runScenes(bad);
+    expect(renderToStaticMarkup(createElement(Markdown, { body: bad, blocks: {}, scenes }))).not.toContain("galley-scene");
+    expect(renderToStaticMarkup(createElement(Markdown, { body: bad, blocks: {}, scenes, review: true }))).toMatch(/场景代码出错，第 1 行/);
   });
 });
