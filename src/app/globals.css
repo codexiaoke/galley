@@ -5288,8 +5288,18 @@ body {
  */
 .galley-present .galley-slide .galley-codesteps.galley-scene {
   zoom: 1;
-  width: min(100%, calc(590px * var(--scene-ratio, 1.78)));
-  margin: 0.3em auto 0;
+  width: min(100%, calc(660px * var(--scene-ratio, 1.78)));
+  margin: 0.2em auto 0;
+}
+/* 有场景的那一页四周少留白：这一页上只有画面，留白越多画面越小、字越看不清 */
+.galley-present .galley-slide:has(.galley-scene) {
+  padding: 26px 40px 40px;
+}
+.galley-present[data-orientation="portrait"] .galley-slide:has(.galley-scene) {
+  padding: 120px 24px 220px;
+}
+.galley-slide:has(.galley-scene) .galley-slide-section {
+  margin-bottom: 0.3em;
 }
 .galley-slide .galley-scene .galley-codesteps-head {
   display: none;

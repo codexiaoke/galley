@@ -93,10 +93,54 @@ step("回到全景。", () => { zoomOut() })`);
     expect(node(scene, "丙").props).toMatchObject({ x: 200, y: 200 + 25 + 36 + 25 });
     const f = node(scene, "沙箱").props;
     expect(f.w).toBe(100 + 60 + 100 + 40);
-    const camera = scene.nodes.find((n) => n.kind === "camera")!.id;
-    expect(sceneFrame(scene, 0, Infinity)[camera]).toMatchObject({ x: 200, y: 200 });
-    expect(sceneFrame(scene, 0, Infinity)[camera].zoom).toBeGreaterThan(1);
-    expect(sceneFrame(scene, 1, Infinity)[camera]).toMatchObject({ x: 400, y: 225, zoom: 1 });
+    const camera = scene.nodes.find((n) => n.kind === "camera")!;
+    expect(sceneFrame(scene, 0, Infinity)[camera.id]).toMatchObject({ x: 200, y: 200 });
+    expect(sceneFrame(scene, 0, Infinity)[camera.id].zoom).toBeGreaterThan(1);
+    // zoomOut 回到的全景，就是一开始的镜头
+    expect(sceneFrame(scene, 1, Infinity)[camera.id]).toEqual(camera.props);
+  });
+
+  it("全景自动对准所有东西：摆得偏、摆得小、摆出舞台外面，都正好装下", async () => {
+    const view = async (code: string) => {
+      const scene = await ok(code);
+      const { x, y, zoom } = scene.nodes.find((n) => n.kind === "camera")!.props as Record<string, number>;
+      // 镜头里看得到的范围
+      return { zoom, left: x - 400 / zoom, right: x + 400 / zoom, top: y - 225 / zoom, bottom: y + 225 / zoom };
+    };
+    // 只用到左上角一小块：镜头对过去并放大
+    const corner = await view(`const a = box("甲", { x: 120, y: 80, w: 100, h: 50 })
+const b = box("乙", { x: 420, y: 80, w: 100, h: 50 })
+const c = box("丙", { x: 120, y: 240, w: 100, h: 50 })
+step("出现。", () => show(a, b, c))`);
+    expect(corner.zoom).toBeGreaterThan(1.3);
+    expect(corner.left).toBeLessThan(70);
+    expect(corner.right).toBeGreaterThan(470);
+    expect(corner.top).toBeLessThan(55);
+    expect(corner.bottom).toBeGreaterThan(265);
+
+    // 后面的步骤里挪到了舞台外面：镜头退后，把挪过去的位置也装进来
+    const moved = await view(`const a = box("甲", { x: 100, y: 225, w: 100, h: 50 })
+step("出现。", () => show(a))
+step("挪走。", () => move(a, { x: 1000 }))`);
+    expect(moved.zoom).toBeLessThan(1);
+    expect(moved.left).toBeLessThan(50);
+    expect(moved.right).toBeGreaterThan(1050);
+
+    // 只有两个小东西：最多放大到 1.8 倍
+    const tiny = await view(`const a = box("甲", { w: 60, h: 40 })\nstep("出现。", () => show(a))`);
+    expect(tiny.zoom).toBe(1.8);
+
+    // 从没出现过的东西不算
+    const hidden = await view(`const a = box("甲", { x: 400, y: 225, w: 700, h: 380 })
+const never = box("没出现", { x: 3000, y: 3000 })
+step("出现。", () => show(a))`);
+    expect(hidden.zoom).toBe(1);
+
+    // 第一步之前自己摆过镜头：按作者的来
+    const own = await view(`const a = box("甲", { x: 120, y: 80 })
+camera({ x: 300, y: 200, zoom: 1.2 })
+step("出现。", () => show(a))`);
+    expect(own).toMatchObject({ zoom: 1.2 });
   });
 
   it("focus 只留下给出的几个，不给参数时全部恢复", async () => {

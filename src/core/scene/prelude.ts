@@ -32,6 +32,8 @@ var __cur = null;
 var __t = 0;
 var __group = null;
 var __seq = 0;
+var __homeTweens = [];
+var __cameraSet = false;
 
 function __fail(msg) { throw new Error(msg); }
 function __isNode(v) { return v instanceof __Node; }
@@ -492,16 +494,21 @@ function send(link, o) {
   __done(at + dur + 160, at + dur);
 }
 /** 镜头：看向哪里、放大多少 */
-function camera(to, o) {
+function __cam(to, o, fn) {
   o = o || {};
-  if (!__plain(to)) __fail("camera() 的第一个参数是 { x, y, zoom }。");
-  __known(to, ["x", "y", "zoom"], "camera");
-  __known(o, ["dur", "delay", "ease"], "camera");
-  var dur = __dur(o, 900, "camera"), at = __at(o, "camera"), ease = __ease(o.ease, "inOut", "camera");
-  if (to.x !== undefined) __tw(__camera, "x", __num(to.x, "x", "camera"), at, dur, ease);
-  if (to.y !== undefined) __tw(__camera, "y", __num(to.y, "y", "camera"), at, dur, ease);
-  if (to.zoom !== undefined) __tw(__camera, "zoom", Math.min(6, Math.max(0.4, __num(to.zoom, "zoom", "camera"))), at, dur, ease);
+  if (!__plain(to)) __fail(fn + "() 的第一个参数是 { x, y, zoom }。");
+  __known(to, ["x", "y", "zoom"], fn);
+  __known(o, ["dur", "delay", "ease"], fn);
+  var dur = __dur(o, 900, fn), at = __at(o, fn), ease = __ease(o.ease, "inOut", fn);
+  if (to.x !== undefined) __tw(__camera, "x", __num(to.x, "x", fn), at, dur, ease);
+  if (to.y !== undefined) __tw(__camera, "y", __num(to.y, "y", fn), at, dur, ease);
+  if (to.zoom !== undefined) __tw(__camera, "zoom", Math.min(6, Math.max(0.4, __num(to.zoom, "zoom", fn))), at, dur, ease);
   __done(at + dur, at + dur * 0.8);
+}
+function camera(to, o) {
+  // 第一步之前自己摆过镜头：全景就按作者摆的来，不再自动贴合（见 __home）
+  if (!__cur) __cameraSet = true;
+  __cam(to, o, "camera");
 }
 /** 镜头推近到这几个东西 */
 function zoomTo() {
@@ -512,11 +519,16 @@ function zoomTo() {
   var l = Infinity, r = -Infinity, t = Infinity, b = -Infinity;
   a.els.forEach(function (n) { __ref(n, "zoomTo", "参数"); l = Math.min(l, n.left); r = Math.max(r, n.right); t = Math.min(t, n.top); b = Math.max(b, n.bottom); });
   var zoom = Math.min(W / (r - l + pad * 2), H / (b - t + pad * 2));
-  camera({ x: (l + r) / 2, y: (t + b) / 2, zoom: Math.min(4, Math.max(1, zoom)) }, { dur: o.dur, delay: o.delay });
+  if (!__cur) __cameraSet = true;
+  __cam({ x: (l + r) / 2, y: (t + b) / 2, zoom: Math.min(4, Math.max(1, zoom)) }, { dur: o.dur, delay: o.delay }, "zoomTo");
 }
+/** 回到全景。全景是什么要等所有步骤都记完才知道（见 __home），这里先记下是哪几个动作，最后再填 */
 function zoomOut(o) {
   o = o || {};
-  camera({ x: W / 2, y: H / 2, zoom: 1 }, { dur: o.dur, delay: o.delay });
+  __known(o, ["dur", "delay"], "zoomOut");
+  var from = __cur ? __cur.tweens.length : 0;
+  __cam({ x: W / 2, y: H / 2, zoom: 1 }, { dur: o.dur, delay: o.delay }, "zoomOut");
+  if (__cur) for (var i = from; i < __cur.tweens.length; i++) __homeTweens.push(__cur.tweens[i]);
 }
 
 /* ---------- 排版 ---------- */
@@ -568,8 +580,66 @@ function grid(els, o) {
   return els;
 }
 
+/**
+ * 全景：正好装下所有东西的镜头。
+ *
+ * 作者摆东西时常常只用到舞台中间的一块，四周空着，画面上的字就小得看不清；
+ * 也有摆到舞台外面去的。所以不按舞台的大小取景，而是把整个过程里出现过的东西都走一遍，
+ * 量出它们一共占了多大地方，镜头对准这一块、放大到正好装下（四周留一点边）。
+ * 东西很少时最多放大到 1.8 倍，免得两个方块撑满整个画面。
+ */
+function __home() {
+  var l = Infinity, r = -Infinity, t = Infinity, b = -Infinity;
+  var cur = {};
+  __nodes.forEach(function (rec) { cur[rec.id] = Object.assign({}, rec.props); });
+  function point(x, y) { if (x < l) l = x; if (x > r) r = x; if (y < t) t = y; if (y > b) b = y; }
+  function center(end) { return Array.isArray(end) ? { x: end[0], y: end[1] } : { x: cur[end].x, y: cur[end].y }; }
+  function grow(rec) {
+    var s = cur[rec.id];
+    if (rec.kind === "camera" || rec.kind === "packet" || !(s.opacity > 0)) return;
+    if (rec.kind === "link") {
+      // 连线：两端固定的点、弯出去的顶点、线上的字
+      var a = center(rec.from), c = center(rec.to);
+      var len = Math.hypot(c.x - a.x, c.y - a.y) || 1;
+      var mx = (a.x + c.x) / 2 - ((c.y - a.y) / len) * s.bend, my = (a.y + c.y) / 2 + ((c.x - a.x) / len) * s.bend;
+      var half = s.text ? __measure(s.text, s.size) / 2 + 6 : 4;
+      point(mx - half, my - (s.text ? 22 : 4));
+      point(mx + half, my + (s.text ? 22 : 4));
+      if (Array.isArray(rec.from)) point(a.x, a.y);
+      if (Array.isArray(rec.to)) point(c.x, c.y);
+      return;
+    }
+    var sc = s.scale === undefined ? 1 : s.scale;
+    var hw = (rec.kind === "circle" ? s.r : s.w / 2) * sc, hh = (rec.kind === "circle" ? s.r : s.h / 2) * sc;
+    var cx = rec.kind === "text" && s.align === "start" ? s.x + hw : rec.kind === "text" && s.align === "end" ? s.x - hw : s.x;
+    point(cx - hw, s.y - hh);
+    point(cx + hw, s.y + hh);
+  }
+  __nodes.forEach(grow);
+  __steps.forEach(function (step) {
+    step.tweens.forEach(function (tw) {
+      cur[tw.id][tw.prop] = tw.to;
+      grow(__byId[tw.id]);
+    });
+  });
+  if (l === Infinity) return null;
+  var pad = 34;
+  var zoom = Math.min(1.8, Math.max(0.5, Math.min(W / (r - l + pad * 2), H / (b - t + pad * 2))));
+  var x = (l + r) / 2, y = (t + b) / 2;
+  // 本来就差不多摆满了舞台：不动
+  if (Math.abs(zoom - 1) < 0.04 && Math.abs(x - W / 2) < 12 && Math.abs(y - H / 2) < 12) return null;
+  return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, zoom: Math.round(zoom * 1000) / 1000 };
+}
+
 function __finish() {
   if (!__steps.length) __fail("场景里至少要有一步：step(\"这一步讲什么\", () => { show(a) })。");
+  if (!__cameraSet) {
+    var home = __home();
+    if (home) {
+      ["x", "y", "zoom"].forEach(function (k) { __byId[__camera.id].props[k] = home[k]; });
+      __homeTweens.forEach(function (tw) { tw.to = home[tw.prop]; });
+    }
+  }
   return JSON.stringify({ w: W, h: H, nodes: __nodes, steps: __steps });
 }
 `;

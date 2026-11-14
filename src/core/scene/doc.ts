@@ -15,7 +15,7 @@ export const SCENE_API_DOC = `**scene 里可以用的函数**
 | \`arrow(a, b, { label, bend, dashed, both })\` | 从 a 到 b 的箭头，跟着两端走。两端可以是东西，也可以是一个点 [x, y]。bend 是弯多少（正负决定往哪边弯）；both: true 两头都有箭头 |
 | \`line(a, b, { label, bend, dashed })\` | 没有箭头的连线 |
 
-位置：\`{ x, y }\` 直接给中心点；或者相对另一个东西：\`{ rightOf: a }\`、\`{ leftOf: a }\`、\`{ below: a }\`、\`{ above: a }\`，间距用 gap 调。不写位置时在舞台正中。几个东西一起排：\`row([a, b, c], { y, gap })\` 排成一行，\`column([a, b, c], { x, gap })\` 排成一列，\`grid([...], { cols })\` 排成网格，都整体居中。把手上可以读 \`a.x\`、\`a.y\`、\`a.w\`、\`a.h\`、\`a.left\`、\`a.right\`、\`a.top\`、\`a.bottom\`，用来算别的东西的位置。**优先用 row、column 和相对位置，少手算坐标。**
+位置：\`{ x, y }\` 直接给中心点；或者相对另一个东西：\`{ rightOf: a }\`、\`{ leftOf: a }\`、\`{ below: a }\`、\`{ above: a }\`，间距用 gap 调。不写位置时在舞台正中。几个东西一起排：\`row([a, b, c], { y, gap })\` 排成一行，\`column([a, b, c], { x, gap })\` 排成一列，\`grid([...], { cols })\` 排成网格，都整体居中。把手上可以读 \`a.x\`、\`a.y\`、\`a.w\`、\`a.h\`、\`a.left\`、\`a.right\`、\`a.top\`、\`a.bottom\`，用来算别的东西的位置。**优先用 row、column 和相对位置，少手算坐标。** 不用费心把东西摆满舞台：镜头会自动对准所有东西、放大到正好装下，摆得紧凑一点、相互关系清楚就行。
 
 颜色只能用名字：\`ink\`（正文色）、\`soft\`、\`faint\`（更淡）、\`accent\`（强调色）、\`paper\`、\`raised\`、\`sunken\`、\`rule\`、\`code\`（底色类）、\`c1\` 到 \`c5\`（五种区分色）、\`none\`。名字后面加 \`/数字\` 是浓度，比如 \`"accent/15"\` 是很淡的强调色。最省事的是 \`tone\`：\`box("Worker", { tone: "c2" })\` 一次定下边框和淡底色。不能写 #ff0000 这种颜色，否则换主题、换深色模式时画面不会跟着变。
 
@@ -41,8 +41,8 @@ export const SCENE_API_DOC = `**scene 里可以用的函数**
 | \`dim(a, ...)\` / \`undim(a, ...)\` | 单独淡下去 / 恢复 |
 | \`pulse(a, ...)\` | 轻轻跳一下，提醒读者看这里 |
 | \`send(连线, { label, tone, reverse })\` | 一个小圆点沿着连线走过去，表示一条消息、一次请求。label 是它带着的字。reverse: true 是反着走。它走到了，下一个动作才开始 |
-| \`zoomTo(a, b, ..., { pad })\` / \`zoomOut()\` | 镜头推近到这几个东西 / 回到全景 |
-| \`camera({ x, y, zoom })\` | 直接控制镜头 |
+| \`zoomTo(a, b, ..., { pad })\` / \`zoomOut()\` | 镜头推近到这几个东西 / 回到全景（全景就是正好装下所有东西的那个镜头） |
+| \`camera({ x, y, zoom })\` | 直接控制镜头。写在第一个 step 之前时，全景就按你摆的来，不再自动贴合 |
 
 要点：
 - 一个场景只讲一件事，四到八步最合适，最多 24 步；画面上的东西最多 80 个。
