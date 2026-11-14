@@ -12,7 +12,7 @@ import { loadSite } from "../../../site";
  * 网址参数（录制视频的脚本会用到，平时不用管）：
  * - auto=1：自动播放
  * - orientation=portrait：竖屏（9:16）
- * - captions=1：把讲稿当字幕显示
+ * - captions=1：把讲稿当字幕显示；captions=space：不显示字幕，但每一页在底部留出字幕的位置（字幕由后期加）
  * - durations=3000,5200,…：每一页至少停留多少毫秒（按朗读的长度）
  * - print=1：所有页排好后打开打印对话框，存成 PDF
  */
@@ -45,7 +45,7 @@ async function Present({ params, searchParams }: { params: Promise<{ slug: strin
         backHref={`/posts/${doc.slug}`}
         auto={one("auto") === "1"}
         orientation={one("orientation") === "portrait" ? "portrait" : one("orientation") === "landscape" ? "landscape" : undefined}
-        captions={one("captions") === "1"}
+        captions={one("captions") === "1" ? "on" : one("captions") === "space" ? "space" : "off"}
         durations={durations?.length ? durations : undefined}
         print={one("print") === "1"}
         cover={{

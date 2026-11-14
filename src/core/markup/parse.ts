@@ -11,7 +11,8 @@ import type { RefMode } from "../db/schema";
 import { BLOCK_ID_PATTERN } from "../ids";
 import { getComponent } from "./components";
 import { mermaidResults } from "./mermaid-cache";
-import { checkStructure } from "./structure";
+import { checkStructure, readScene } from "./structure";
+import { sceneCache, sceneKey } from "../scene/shared";
 
 export type ParsedRef = {
   mode: RefMode;
@@ -166,6 +167,17 @@ export function parseMarkup(body: string): ParsedMarkup {
       addRef({ mode: valueKey !== undefined ? "value" : "embed", blockId, valueKey, directive: component.name, param, line });
     }
     for (const message of checkStructure(component.name, d as never, body)) error(message, line);
+    if (component.name === "scene") {
+      // 场景里用到的图片也算这篇文章引用的图片：和正文里的图片一样检查在不在媒体库、记录用到了哪些
+      const sc = readScene(d as never);
+      const result = sc.code === undefined ? undefined : sceneCache.get(sceneKey(sc.code, sc.ratio));
+      if (result?.ok) {
+        for (const node of result.scene.nodes) {
+          const match = node.kind === "image" ? MEDIA_URL_PATTERN.exec(String(node.props.src ?? "")) : null;
+          if (match) images.push({ name: match[1], line });
+        }
+      }
+    }
     for (const message of component.validate?.(data) ?? []) error(message, line);
   };
 

@@ -2,7 +2,8 @@
  * 在沙箱里、作者的场景代码之前运行的一段 JavaScript：定义作者可以调用的函数。
  *
  * 作者的代码做两件事：
- * 1. 摆东西：box、circle、text、code、frame、arrow、line 各建一个东西，返回它的"把手"；
+ * 1. 摆东西：box、circle、text、code、frame、arrow、line、image、path（以及 axes 画出来的坐标系和函数图像）
+ *    各建一个东西，返回它的"把手"；
  * 2. 写步骤：step(写给读者的一句话, () => { say(讲的时候说的话); show(a); move(b, { x: 300 }); send(link) })。
  *
  * 这里不画任何东西，只记账：每个东西一开始的属性，以及每一步里
@@ -18,7 +19,7 @@
  */
 export const SCENE_PRELUDE = String.raw`
 "use strict";
-var __LIMITS = { nodes: 80, steps: 24, tweens: 400, codeLines: 16 };
+var __LIMITS = { nodes: 120, steps: 24, tweens: 900, codeLines: 16 };
 var __COLORS = ["ink", "soft", "faint", "accent", "paper", "raised", "sunken", "rule", "code", "c1", "c2", "c3", "c4", "c5", "none"];
 var __EASES = ["out", "in", "inOut", "linear", "back"];
 var __nodes = [];
@@ -225,6 +226,263 @@ function __link(a, b, o, head, fn) {
 function arrow(a, b, o) { return __link(a, b, o, "end", "arrow"); }
 function line(a, b, o) { return __link(a, b, o, "none", "line"); }
 
+/* ---------- 图片 ---------- */
+function image(src, o) {
+  o = o || {};
+  __known(o, __PLACE.concat(["w", "h", "radius"]), "image");
+  if (typeof src !== "string" || !/^\/media\/[a-z0-9]+\.[a-z0-9]+$/.test(src)) __fail("image() 只能用媒体库里的图片，地址以 /media/ 开头（用 list_media 查）。");
+  if (o.w === undefined || o.h === undefined) __fail("image() 要给出 w 和 h（在画面上占多大），按图片本身的宽高比给。");
+  var w = __num(o.w, "w", "image"), h = __num(o.h, "h", "image");
+  var p = __shape("image", { w: w, h: h, src: src, radius: o.radius === undefined ? 8 : __num(o.radius, "radius", "image") });
+  __position(p, w / 2, h / 2, o, "image");
+  return __add("image", p);
+}
+/** 图片上的一块：位置按占图片的比例给（0 到 1），返回一个框，用来圈出截图上的某个地方 */
+function spot(img, area, o) {
+  o = o || {};
+  if (!__isNode(img) || img.kind !== "image") __fail("spot() 的第一个参数要是一张图片（image 返回的值）。");
+  if (!__plain(area)) __fail("spot() 的第二个参数是圈出哪一块：{ x, y, w, h }，都是占图片的比例（0 到 1）。");
+  __known(area, ["x", "y", "w", "h"], "spot");
+  __known(o, ["tone", "pad", "dashed"], "spot");
+  ["x", "y", "w", "h"].forEach(function (k) {
+    var v = __num(area[k], k, "spot");
+    if (v < 0 || v > 1) __fail("spot() 的 x、y、w、h 是占图片的比例，写 0 到 1 之间的数。");
+  });
+  var pad = o.pad === undefined ? 3 : __num(o.pad, "pad", "spot");
+  var w = img.w * area.w, h = img.h * area.h;
+  return frame("", { x: img.left + img.w * area.x + w / 2, y: img.top + img.h * area.y + h / 2, w: w + pad * 2, h: h + pad * 2, tone: o.tone === undefined ? "accent" : o.tone, dashed: !!o.dashed, radius: 6 });
+}
+
+/* ---------- 自由绘图：任意的线和形状 ---------- */
+var __MAX_POINTS = 400;
+function __pts(list, fn) {
+  if (!Array.isArray(list) || list.length < 2) __fail(fn + "() 需要至少两个点：[[x1, y1], [x2, y2], ...]。");
+  if (list.length > __MAX_POINTS) __fail(fn + "() 的点太多了（超过 " + __MAX_POINTS + " 个）。曲线取几十个点就够平滑了。");
+  return list.map(function (p) {
+    if (__plain(p)) p = [p.x, p.y];
+    if (!Array.isArray(p) || p.length !== 2 || typeof p[0] !== "number" || typeof p[1] !== "number" || !isFinite(p[0]) || !isFinite(p[1])) {
+      __fail(fn + "() 的每个点写成 [x, y]，两个都是数字。");
+    }
+    return [p[0], p[1]];
+  });
+}
+function __bbox(subs) {
+  var l = Infinity, r = -Infinity, t = Infinity, b = -Infinity;
+  subs.forEach(function (s) { s.forEach(function (p) { l = Math.min(l, p[0]); r = Math.max(r, p[0]); t = Math.min(t, p[1]); b = Math.max(b, p[1]); }); });
+  return { l: l, r: r, t: t, b: b };
+}
+function __r1(v) { return Math.round(v * 10) / 10; }
+/** 点存成相对于中心的坐标：整条线挪动时只改中心 */
+function __encode(subs, cx, cy) {
+  return subs.map(function (s) { return s.map(function (p) { return __r1(p[0] - cx) + "," + __r1(p[1] - cy); }).join(" "); }).join(";");
+}
+function __decode(str) {
+  return String(str).split(";").map(function (s) { return s.split(" ").map(function (p) { var xy = p.split(","); return [Number(xy[0]), Number(xy[1])]; }); });
+}
+function __path(subs, o, fn) {
+  __known(o, ["closed", "smooth", "fill", "stroke", "tone", "width", "dashed"], fn);
+  var b = __bbox(subs), cx = (b.l + b.r) / 2, cy = (b.t + b.b) / 2;
+  var p = { x: cx, y: cy, w: Math.max(1, b.r - b.l), h: Math.max(1, b.b - b.t), opacity: 0, scale: 1, rotate: 0, ox: 0, oy: 0, draw: 0, points: __encode(subs, cx, cy), closed: o.closed ? 1 : 0, smooth: o.smooth ? 1 : 0, width: o.width === undefined ? 1.8 : __num(o.width, "width", fn), fill: "none", stroke: "ink", dashed: o.dashed ? 1 : 0 };
+  __paint(p, "path", o, fn);
+  return __add("path", p);
+}
+/** 一条任意的线：折线、曲线（smooth）、封闭的形状（closed）。点是代码算出来的，想画什么都行 */
+function path(points, o) { return __path([__pts(points, "path")], o || {}, "path"); }
+
+/** 给点数少的那条线在最长的线段上加点，直到两条线点数一样。原来的顶点一个不动，形状不变 */
+function __densify(points, count, closed) {
+  var out = points.slice();
+  while (out.length < count) {
+    var best = 0, longest = -1, n = closed ? out.length : out.length - 1;
+    for (var i = 0; i < n; i++) {
+      var a = out[i], b = out[(i + 1) % out.length];
+      var d = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (d > longest) { longest = d; best = i; }
+    }
+    var p = out[best], q = out[(best + 1) % out.length];
+    out.splice(best + 1, 0, [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2]);
+  }
+  return out;
+}
+/** 一条线变成另一个形状 */
+function morph(n, points, o) {
+  o = o || {};
+  if (!__isNode(n) || n.kind !== "path") __fail("morph() 的第一个参数要是一条线（path 或 plot 返回的值）。");
+  __known(o, ["dur", "delay", "ease"], "morph");
+  var s = __state[n.id], cur = __decode(s.points);
+  if (cur.length !== 1) __fail("morph() 只能用在一条连续的线上（断开的函数图像、坐标系的刻度不行）。");
+  var to = __pts(points, "morph");
+  var from = cur[0].map(function (p) { return [p[0] + s.x, p[1] + s.y]; });
+  var dur = __dur(o, 900, "morph"), at = __at(o, "morph"), ease = __ease(o.ease, "inOut", "morph");
+  if (from.length !== to.length) {
+    var count = Math.max(from.length, to.length);
+    from = __densify(from, count, !!s.closed);
+    to = __densify(to, count, !!s.closed);
+    // 先换成点数一样的同一条线（看起来没有变化），两边才能一个点对一个点地过渡
+    __tw(n, "points", __encode([from], s.x, s.y), at, 0);
+  }
+  var b = __bbox([to]), cx = (b.l + b.r) / 2, cy = (b.t + b.b) / 2;
+  __tw(n, "points", __encode([to], cx, cy), at, dur, ease);
+  __tw(n, "x", cx, at, dur, ease);
+  __tw(n, "y", cy, at, dur, ease);
+  __tw(n, "w", Math.max(1, b.r - b.l), at, dur, ease);
+  __tw(n, "h", Math.max(1, b.b - b.t), at, dur, ease);
+  __done(at + dur, at + dur * 0.8);
+}
+
+var __EASE_FN = {
+  linear: function (t) { return t; },
+  "in": function (t) { return t * t * t; },
+  out: function (t) { return 1 - Math.pow(1 - t, 3); },
+  inOut: function (t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; },
+  back: function (t) { return 1 + 2.70158 * Math.pow(t - 1, 3) + 1.70158 * Math.pow(t - 1, 2); },
+};
+var __NUMERIC = {
+  box: ["x", "y", "w", "h", "radius", "opacity", "scale", "rotate", "size"],
+  circle: ["x", "y", "r", "opacity", "scale", "rotate", "size"],
+  text: ["x", "y", "opacity", "scale", "rotate", "size"],
+  code: ["x", "y", "opacity", "scale"],
+  frame: ["x", "y", "w", "h", "radius", "opacity"],
+  link: ["opacity", "bend", "width", "draw"],
+  image: ["x", "y", "w", "h", "radius", "opacity", "scale", "rotate"],
+  path: ["x", "y", "opacity", "scale", "rotate", "width", "draw"],
+};
+/** 按函数取样：把"随进度变化的值"变成一串很短的匀速动作，播放时连起来就是这条轨迹 */
+function __sample(n, fns, o, fn) {
+  var dur = __dur(o, 1000, fn), at = __at(o, fn);
+  var steps = Math.min(50, Math.max(2, Math.ceil(dur / 40)));
+  Object.keys(fns).forEach(function (k) {
+    if (typeof fns[k] !== "function") __fail(fn + "() 里每个属性给一个函数：进度 p 从 0 到 1，返回这个属性当时的值。");
+    if (__NUMERIC[n.kind].indexOf(k) === -1) __fail(fn + "() 不能改" + n.kind + "的「" + k + "」，可以改的有：" + __NUMERIC[n.kind].join("、") + "。");
+    for (var i = 0; i <= steps; i++) {
+      var v = fns[k](i / steps);
+      if (typeof v !== "number" || !isFinite(v)) __fail(fn + "() 里「" + k + "」的函数在进度 " + i / steps + " 时没有返回一个数字。");
+      if (i === 0) __tw(n, k, v, at, 0);
+      else __tw(n, k, __r1(v * 100) / 100, at + (dur * (i - 1)) / steps, dur / steps, "linear");
+    }
+  });
+  __done(at + dur, at + dur);
+}
+/** 属性按你给的函数变化：animate(dot, { x: p => 100 + 300 * p, y: p => 200 - 80 * Math.sin(p * Math.PI) }) */
+function animate(n, fns, o) {
+  o = o || {};
+  if (!__isNode(n) || !__NUMERIC[n.kind]) __fail("animate() 的第一个参数要是画面上的东西。");
+  if (!__plain(fns)) __fail("animate() 的第二个参数是 { 属性: 函数 }，函数拿到进度 p（0 到 1），返回这个属性当时的值。");
+  __known(o, ["dur", "delay"], "animate");
+  __sample(n, fns, o, "animate");
+}
+/** 平滑曲线（smooth）实际走的路线：每两个点之间再细分几段 */
+function __trace(points, closed, smooth) {
+  if (!smooth || points.length < 3) return closed ? points.concat([points[0]]) : points;
+  var n = points.length, out = [], last = closed ? n : n - 1;
+  for (var i = 0; i < last; i++) {
+    var p0 = points[closed ? (i - 1 + n) % n : Math.max(0, i - 1)], p1 = points[i], p2 = points[(i + 1) % n], p3 = points[closed ? (i + 2) % n : Math.min(n - 1, i + 2)];
+    for (var k = 0; k < 8; k++) {
+      var t = k / 8, t2 = t * t, t3 = t2 * t;
+      out.push([
+        0.5 * (2 * p1[0] + (p2[0] - p0[0]) * t + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 + (3 * p1[0] - p0[0] - 3 * p2[0] + p3[0]) * t3),
+        0.5 * (2 * p1[1] + (p2[1] - p0[1]) * t + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 + (3 * p1[1] - p0[1] - 3 * p2[1] + p3[1]) * t3),
+      ]);
+    }
+  }
+  out.push(closed ? points[0] : points[n - 1]);
+  return out;
+}
+/** 沿着一条折线走到全长的 f 处（0 到 1）是哪个点 */
+function __pointAt(line, f) {
+  var total = 0, lens = [];
+  for (var i = 1; i < line.length; i++) { var d = Math.hypot(line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1]); lens.push(d); total += d; }
+  var want = Math.min(1, Math.max(0, f)) * total;
+  for (var j = 0; j < lens.length; j++) {
+    if (want <= lens[j] || j === lens.length - 1) {
+      var t = lens[j] ? Math.min(1, want / lens[j]) : 0;
+      return [line[j][0] + (line[j + 1][0] - line[j][0]) * t, line[j][1] + (line[j + 1][1] - line[j][1]) * t];
+    }
+    want -= lens[j];
+  }
+  return line[line.length - 1];
+}
+/** 让一个东西沿着一条线走 */
+function along(n, track, o) {
+  o = o || {};
+  __ref(n, "along", "第一个参数");
+  if (!__isNode(track) || track.kind !== "path") __fail("along() 的第二个参数要是一条线（path 或 plot 返回的值）。");
+  __known(o, ["dur", "delay", "ease", "from", "to"], "along");
+  var s = __state[track.id], subs = __decode(s.points);
+  if (subs.length !== 1) __fail("along() 只能沿着一条连续的线走。");
+  var line = __trace(subs[0].map(function (p) { return [p[0] + s.x, p[1] + s.y]; }), !!s.closed, !!s.smooth);
+  var ease = __EASE_FN[__ease(o.ease, "inOut", "along")];
+  var a = o.from === undefined ? 0 : __num(o.from, "from", "along"), b = o.to === undefined ? 1 : __num(o.to, "to", "along");
+  __sample(n, {
+    x: function (p) { return __pointAt(line, a + (b - a) * ease(p))[0]; },
+    y: function (p) { return __pointAt(line, a + (b - a) * ease(p))[1]; },
+  }, { dur: o.dur === undefined ? 1400 : o.dur, delay: o.delay }, "along");
+}
+
+/* ---------- 坐标系和函数图像 ---------- */
+function __niceStep(span) {
+  var raw = span / 5, pow = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10)), f = raw / pow;
+  return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * pow;
+}
+function __range(v, name) {
+  if (!Array.isArray(v) || v.length !== 2 || typeof v[0] !== "number" || typeof v[1] !== "number" || !(v[1] > v[0])) __fail("axes() 的 " + name + " 写成 [最小值, 最大值]。");
+  return v;
+}
+function axes(o) {
+  o = o || {};
+  __known(o, ["x", "y", "w", "h", "at", "step", "labels"], "axes");
+  var xr = __range(o.x, "x"), yr = __range(o.y, "y");
+  var w = o.w === undefined ? 420 : __num(o.w, "w", "axes"), h = o.h === undefined ? 280 : __num(o.h, "h", "axes");
+  var at = o.at === undefined ? [W / 2, H / 2] : o.at;
+  if (!Array.isArray(at) || at.length !== 2) __fail("axes() 的 at 是坐标系中心在舞台上的位置：[x, y]。");
+  var left = at[0] - w / 2, bottom = at[1] + h / 2;
+  var X = function (v) { return left + ((v - xr[0]) / (xr[1] - xr[0])) * w; };
+  var Y = function (v) { return bottom - ((v - yr[0]) / (yr[1] - yr[0])) * h; };
+  // 轴画在 0 的位置；范围里没有 0 时画在边上
+  var y0 = Y(Math.min(yr[1], Math.max(yr[0], 0))), x0 = X(Math.min(xr[1], Math.max(xr[0], 0)));
+  var steps = Array.isArray(o.step) ? o.step : [o.step, o.step];
+  var sx = steps[0] === undefined ? __niceStep(xr[1] - xr[0]) : __num(steps[0], "step", "axes");
+  var sy = steps[1] === undefined ? __niceStep(yr[1] - yr[0]) : __num(steps[1], "step", "axes");
+  if (!(sx > 0) || !(sy > 0) || (xr[1] - xr[0]) / sx > 24 || (yr[1] - yr[0]) / sy > 24) __fail("axes() 的 step 太小了：一条轴上最多 24 个刻度。");
+  var parts = [arrow([left - 6, y0], [left + w + 16, y0], { stroke: "soft" }), arrow([x0, bottom + 6], [x0, bottom - h - 16], { stroke: "soft" })];
+  var ticks = [], labels = [];
+  var fmt = function (v) { return String(Math.round(v * 1000) / 1000); };
+  for (var vx = Math.ceil(xr[0] / sx) * sx; vx <= xr[1] + 1e-9; vx += sx) {
+    if (Math.abs(vx) < 1e-9) continue;
+    ticks.push([[X(vx), y0 - 3], [X(vx), y0 + 3]]);
+    if (o.labels !== false) labels.push(text(fmt(vx), { x: X(vx), y: y0 + 14, size: 10, color: "faint" }));
+  }
+  for (var vy = Math.ceil(yr[0] / sy) * sy; vy <= yr[1] + 1e-9; vy += sy) {
+    if (Math.abs(vy) < 1e-9) continue;
+    ticks.push([[x0 - 3, Y(vy)], [x0 + 3, Y(vy)]]);
+    if (o.labels !== false) labels.push(text(fmt(vy), { x: x0 - 9, y: Y(vy), size: 10, color: "faint", align: "end" }));
+  }
+  if (ticks.length) parts.push(__path(ticks, { stroke: "soft", width: 1.2 }, "axes"));
+  return {
+    /** 坐标系的所有零件：show(ax.parts) */
+    parts: parts.concat(labels),
+    /** 数学坐标换成舞台上的位置：circle("", { r: 5, ...ax.at(1, 2) }) */
+    at: function (x, y) { return { x: X(__num(x, "x", "at")), y: Y(__num(y, "y", "at")) }; },
+    /** 画出 y = f(x)。超出 y 范围、没有值的地方断开 */
+    plot: function (f, opts) {
+      opts = opts || {};
+      __known(opts, ["from", "to", "samples", "tone", "stroke", "width", "dashed"], "plot");
+      if (typeof f !== "function") __fail("plot() 的第一个参数是一个函数：x => x * x。");
+      var a = opts.from === undefined ? xr[0] : __num(opts.from, "from", "plot"), b = opts.to === undefined ? xr[1] : __num(opts.to, "to", "plot");
+      var count = opts.samples === undefined ? 80 : Math.min(300, Math.max(2, __num(opts.samples, "samples", "plot")));
+      var subs = [], run = [];
+      for (var i = 0; i <= count; i++) {
+        var x = a + ((b - a) * i) / count, y = f(x);
+        if (typeof y === "number" && isFinite(y) && y >= yr[0] - 1e-9 && y <= yr[1] + 1e-9) run.push([X(x), Y(y)]);
+        else { if (run.length > 1) subs.push(run); run = []; }
+      }
+      if (run.length > 1) subs.push(run);
+      if (!subs.length) __fail("plot() 的函数在这个范围里没有落在坐标系里的点。检查 x、y 的范围。");
+      return __path(subs, { tone: opts.tone === undefined && opts.stroke === undefined ? "accent" : opts.tone, stroke: opts.stroke, width: opts.width === undefined ? 2.2 : opts.width, dashed: opts.dashed }, "plot");
+    },
+  };
+}
+
 var __camera = __add("camera", { x: W / 2, y: H / 2, zoom: 1 });
 
 /* ---------- 时间 ---------- */
@@ -311,9 +569,15 @@ function show() {
   var end = at0;
   a.els.forEach(function (n, i) {
     var at = at0 + i * stagger, s = __state[n.id];
-    if (n.kind === "link") {
+    if (n.kind === "link" || (n.kind === "path" && from !== "fade")) {
+      // 线是画出来的；线上的字、箭头跟着长出来
+      var draw = n.kind === "path" ? Math.max(dur, 700) : dur;
       __tw(n, "opacity", 1, at, Math.min(160, dur));
-      __tw(n, "draw", 1, at, dur, __ease(o.ease, "inOut", "show"));
+      __tw(n, "draw", 1, at, draw, __ease(o.ease, "inOut", "show"));
+      end = Math.max(end, at + draw);
+    } else if (n.kind === "path") {
+      __tw(n, "draw", 1, at, 0);
+      __tw(n, "opacity", 1, at, dur * 0.8);
     } else {
       if (enter.ox) { __tw(n, "ox", enter.ox, at, 0); __tw(n, "ox", 0, at, dur, __ease(o.ease, "out", "show")); }
       if (enter.oy) { __tw(n, "oy", enter.oy, at, 0); __tw(n, "oy", 0, at, dur, __ease(o.ease, "out", "show")); }
@@ -331,7 +595,7 @@ function hide() {
   var dur = __dur(o, 320, "hide"), at = __at(o, "hide");
   a.els.forEach(function (n) {
     __tw(n, "opacity", 0, at, dur);
-    if (n.kind === "link") __tw(n, "draw", 0, at + dur, 0);
+    if (n.kind === "link" || n.kind === "path") __tw(n, "draw", 0, at + dur, 0);
     delete __dimmed[n.id];
   });
   __done(at + dur, at + dur * 0.6);
@@ -370,6 +634,8 @@ var __SETTABLE = {
   code: ["x", "y", "opacity", "scale", "stroke", "text", "lines"],
   frame: ["x", "y", "w", "h", "radius", "opacity", "fill", "stroke", "color", "text"],
   link: ["opacity", "bend", "width", "stroke", "color", "text", "draw"],
+  image: ["x", "y", "w", "h", "radius", "opacity", "scale", "rotate"],
+  path: ["x", "y", "opacity", "scale", "rotate", "fill", "stroke", "width", "draw"],
 };
 function set(target, props, o) {
   var els = Array.isArray(target) ? target : [target];

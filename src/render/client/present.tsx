@@ -40,7 +40,7 @@ type Orientation = "landscape" | "portrait";
 
 type StepDetail = { dir: number; wait?: number; caption?: string };
 
-type TransitionDocument = Document & { startViewTransition?: (update: () => void) => { finished: Promise<void> } };
+type TransitionDocument = Document & { startViewTransition?: (update: () => void) => { finished: Promise<void>; ready: Promise<void> } };
 
 /** 一页里能一条一条出现的文字：段落、引文、表格、提示框，以及列表的每一项 */
 const BUILD_BLOCKS = "p, blockquote, .galley-table-wrap, .galley-callout";
@@ -98,7 +98,13 @@ function firstShare(slide: HTMLElement | null): number {
   return units.filter((unit) => unit.dataset.build === "first").reduce((sum, unit) => sum + charsOf(unit), 0) / total;
 }
 type RecState = "idle" | "setup" | "countdown" | "recording" | "saving" | "done";
-type RecOptions = { orientation: Orientation; captions: boolean; mic: boolean; pacing: "auto" | "manual"; speed: number };
+/**
+ * 字幕：off 不显示；on 显示讲稿；space 不显示、但每一页在底部留出字幕的位置。
+ * space 是给"字幕由做视频的工具后期加上去"用的：画面本身不带字幕，底部那一条空着，
+ * 工具把字幕压上去时不会盖住内容，也不用给视频另加黑边。
+ */
+export type CaptionMode = "off" | "on" | "space";
+type RecOptions = { orientation: Orientation; captions: CaptionMode; mic: boolean; pacing: "auto" | "manual"; speed: number };
 
 const DESIGN = { landscape: { w: 1600, h: 900 }, portrait: { w: 900, h: 1600 } };
 /** 录制时，幻灯片下面留出一条放录制提示，这条不在录制区域里 */
@@ -115,7 +121,7 @@ export function Presentation({
   backHref,
   auto: autoParam = false,
   orientation: orientationParam,
-  captions: captionsParam = false,
+  captions: captionsParam = "off",
   durations,
   print = false,
 }: {
@@ -124,7 +130,7 @@ export function Presentation({
   backHref: string;
   auto?: boolean;
   orientation?: Orientation;
-  captions?: boolean;
+  captions?: CaptionMode;
   /** 每一页至少停留多久（毫秒） */
   durations?: number[];
   /** 打印（存成 PDF）：所有页一页接一页排好，打开浏览器的打印对话框 */
@@ -135,7 +141,7 @@ export function Presentation({
   const [page, setPage] = useState(0);
   const [auto, setAuto] = useState(autoParam);
   const [orientation, setOrientation] = useState<Orientation>(orientationParam ?? "landscape");
-  const [captions, setCaptions] = useState(captionsParam);
+  const [captions, setCaptions] = useState<CaptionMode>(captionsParam);
   const [run, setRun] = useState(0); // 变了就把所有页重新挂载，动画回到开头
   // 自动播放的速度：翻页的停留时间和页里的动画一起按这个速度走（见 speed.ts）
   const [speed, setSpeed] = useState(1);
@@ -196,13 +202,15 @@ export function Presentation({
         delete root.dataset.slideDir;
       };
       transition.finished.then(clear, clear);
+      // 连着翻页时上一次转场会被新的顶掉，浏览器用一个被拒绝的 Promise 通知这件事：这是正常情况，不算出错
+      transition.ready.catch(() => {});
     },
     [total, print, slides],
   );
 
   // ---- 录制 ----
   const [rec, setRec] = useState<RecState>("idle");
-  const [recOptions, setRecOptions] = useState<RecOptions>({ orientation: orientationParam ?? "landscape", captions: true, mic: false, pacing: "auto", speed: 1 });
+  const [recOptions, setRecOptions] = useState<RecOptions>({ orientation: orientationParam ?? "landscape", captions: "space", mic: false, pacing: "auto", speed: 1 });
   const [support, setSupport] = useState<RecordingSupport | null>(null);
   const [recError, setRecError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(3);
@@ -435,6 +443,7 @@ export function Presentation({
           if (document.fullscreenElement) void document.exitFullscreen();
           else void document.documentElement.requestFullscreen?.();
         } else if (e.key === "n" || e.key === "N") setShowNotes((v) => !v);
+        else if (e.key === "c" || e.key === "C") setCaptions((v) => (v === "on" ? "off" : "on"));
       }
     };
     window.addEventListener("keydown", onKey);
@@ -510,7 +519,7 @@ export function Presentation({
     <div
       className="galley-present"
       data-orientation={orientation}
-      data-captions={captions || undefined}
+      data-captions={captions === "off" ? undefined : captions}
       data-chrome={chrome || undefined}
       data-recording={recording_ || undefined}
       data-print={print || undefined}
@@ -549,7 +558,7 @@ export function Presentation({
           </section>
         </div>
         </PresentSpeed.Provider>
-        {captions && caption && <Caption key={`${page}:${caption}`} text={caption} span={captionSpan} />}
+        {captions === "on" && caption && <Caption key={`${page}:${caption}`} text={caption} span={captionSpan} />}
       </div>
 
       {print && (
@@ -594,6 +603,9 @@ export function Presentation({
             </span>
             <button type="button" onClick={() => setShowNotes((v) => !v)} aria-pressed={showNotes} title="讲稿（N）">
               讲稿
+            </button>
+            <button type="button" onClick={() => setCaptions((v) => (v === "on" ? "off" : "on"))} aria-pressed={captions === "on"} title="把讲稿显示成字幕（C）">
+              字幕
             </button>
             <button
               type="button"
@@ -664,10 +676,16 @@ export function Presentation({
                   <span>翻页和动画一起变快或变慢</span>
                 </fieldset>
               )}
-              <label className="galley-present-check">
-                <input type="checkbox" checked={recOptions.captions} onChange={(e) => setRecOptions((o) => ({ ...o, captions: e.target.checked }))} />
-                显示字幕（讲稿和每一步的讲解）
-              </label>
+              <Choice
+                label="字幕"
+                value={recOptions.captions}
+                options={[
+                  { value: "space", label: "留出位置", hint: "画面不带字幕，底部空出一条，后期用工具加" },
+                  { value: "on", label: "直接显示", hint: "把讲稿录进画面里" },
+                  { value: "off", label: "不要", hint: "内容用满整个画面" },
+                ]}
+                onChange={(captions) => setRecOptions((o) => ({ ...o, captions }))}
+              />
               <label className="galley-present-check">
                 <input type="checkbox" checked={recOptions.mic} onChange={(e) => setRecOptions((o) => ({ ...o, mic: e.target.checked }))} />
                 同时录麦克风（用自己的声音讲）

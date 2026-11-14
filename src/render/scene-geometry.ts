@@ -67,3 +67,41 @@ export function arrowHead(tip: Pt, dir: Pt, size = 9): string {
   const w = size * 0.46;
   return `M${n(tip.x)} ${n(tip.y)}L${n(bx - dir.y * w)} ${n(by + dir.x * w)}L${n(bx + dir.y * w)} ${n(by - dir.x * w)}Z`;
 }
+
+/** 场景里自由画的线：点的清单写成 "x,y x,y;x,y x,y"，分号隔开互不相连的几段 */
+export function parsePoints(text: string): number[][][] {
+  return text
+    .split(";")
+    .map((segment) => segment.split(" ").map((p) => p.split(",").map(Number)).filter((p) => p.length === 2 && p.every(Number.isFinite)))
+    .filter((segment) => segment.length > 1);
+}
+
+/** 一个形状变成另一个形状的中间样子：一个点对一个点地挪过去。点数对不上时不过渡，过半就换 */
+export function mixPoints(a: number[][][], b: number[][][], p: number): number[][][] {
+  if (a.length !== b.length || a.some((segment, i) => segment.length !== b[i].length)) return p < 0.5 ? a : b;
+  return a.map((segment, i) => segment.map((point, j) => [point[0] + (b[i][j][0] - point[0]) * p, point[1] + (b[i][j][1] - point[1]) * p]));
+}
+
+/** 把几段点连成路径。smooth 时用穿过每个点的平滑曲线（Catmull-Rom），否则是折线 */
+export function shapePath(segments: number[][][], closed: boolean, smooth: boolean): string {
+  return segments
+    .map((points) => {
+      const count = points.length;
+      let d = `M${n(points[0][0])} ${n(points[0][1])}`;
+      if (!smooth || count < 3) {
+        for (let i = 1; i < count; i++) d += `L${n(points[i][0])} ${n(points[i][1])}`;
+        return closed ? `${d}Z` : d;
+      }
+      const at = (i: number) => (closed ? points[(i + count) % count] : points[Math.min(count - 1, Math.max(0, i))]);
+      const last = closed ? count : count - 1;
+      for (let i = 0; i < last; i++) {
+        const p0 = at(i - 1);
+        const p1 = at(i);
+        const p2 = at(i + 1);
+        const p3 = at(i + 2);
+        d += `C${n(p1[0] + (p2[0] - p0[0]) / 6)} ${n(p1[1] + (p2[1] - p0[1]) / 6)} ${n(p2[0] - (p3[0] - p1[0]) / 6)} ${n(p2[1] - (p3[1] - p1[1]) / 6)} ${n(p2[0])} ${n(p2[1])}`;
+      }
+      return closed ? `${d}Z` : d;
+    })
+    .join("");
+}

@@ -56,7 +56,8 @@ function valueAt(tw: SceneTween, p: number): FrameValue {
   const a = String(tw.from);
   const b = String(tw.to);
   if (a === b) return b;
-  return tw.ease === "type" ? { a, b, p, type: true } : { a, b, p };
+  // 颜色、形状的过渡也按缓动走；打字是匀速的
+  return tw.ease === "type" ? { a, b, p, type: true } : { a, b, p: EASES[tw.ease](p) };
 }
 
 /**

@@ -222,6 +222,101 @@ step("这一步没有讲稿。", () => { pulse(a) })`);
     expect(parseMarkup(body).issues.map((i) => i.message).join()).toMatch(/say\(\) 的括号里要直接写一句话/);
   });
 
+  it("自由画的线：点由代码算，画出来、变形时一个点对一个点地过渡", async () => {
+    const scene = await ok(`const square = path([[100, 100], [200, 100], [200, 200], [100, 200]], { closed: true, tone: "c2" })
+const circlePoints = []
+for (let i = 0; i < 24; i++) circlePoints.push([400 + 60 * Math.cos(i * Math.PI / 12), 225 + 60 * Math.sin(i * Math.PI / 12)])
+step("画出一个正方形。", () => show(square))
+step("它变成一个圆。", () => morph(square, circlePoints))`);
+    const shape = scene.nodes.find((n) => n.kind === "path")!;
+    // 点存成相对于中心的坐标
+    expect(shape.props).toMatchObject({ x: 150, y: 150, w: 100, h: 100, closed: 1, stroke: "c2", draw: 0 });
+    expect(shape.props.points).toBe("-50,-50 50,-50 50,50 -50,50");
+    // 画出来：draw 从 0 到 1
+    expect(sceneFrame(scene, 0, Infinity)[shape.id]).toMatchObject({ draw: 1, opacity: 1 });
+    // 变形前先补成和目标一样多的点（原来的四个角都还在），再过渡
+    const morphing = scene.steps[1].tweens.filter((t) => t.prop === "points");
+    expect(morphing).toHaveLength(2);
+    const padded = String(morphing[0].to).split(" ");
+    expect(padded).toHaveLength(24);
+    for (const corner of ["-50,-50", "50,-50", "50,50", "-50,50"]) expect(padded).toContain(corner);
+    expect(String(morphing[1].to).split(" ")).toHaveLength(24);
+    // 中心跟着挪到新形状的中心
+    expect(sceneFrame(scene, 1, Infinity)[shape.id]).toMatchObject({ x: 400, y: 225 });
+    const mid = sceneFrame(scene, 1, 450)[shape.id];
+    expect(isBlend(mid.points)).toBe(true);
+    expect(mid.x).toBeGreaterThan(150);
+    expect(mid.x).toBeLessThan(400);
+  });
+
+  it("沿着一条线走、按函数变化：轨迹在沙箱里取好样，播放时只是连起来", async () => {
+    const scene = await ok(`const track = path([[100, 200], [300, 200], [300, 400]])
+const dot = circle("", { r: 6, x: 100, y: 200 })
+show(track, dot)
+step("沿着线走到头。", () => along(dot, track, { dur: 1000, ease: "linear" }))
+step("再按函数画一道弧。", () => animate(dot, { x: (p) => 300 + 100 * p, y: (p) => 400 - 50 * Math.sin(p * Math.PI) }, { dur: 800 }))`);
+    const dot = scene.nodes.find((n) => n.kind === "circle")!.id;
+    // 线全长 400，匀速走：走到 48% 时还在第一段上，一半时间时在拐角附近（轨迹是取样连起来的，拐角处差几个像素）
+    expect(sceneFrame(scene, 0, 480)[dot]).toMatchObject({ x: 292, y: 200 });
+    expect(Math.abs((sceneFrame(scene, 0, 500)[dot].x as number) - 300)).toBeLessThan(5);
+    expect(sceneFrame(scene, 0, 760)[dot]).toMatchObject({ x: 300, y: 304 });
+    expect(sceneFrame(scene, 0, Infinity)[dot]).toMatchObject({ x: 300, y: 400 });
+    // 弧线的最高点在中间
+    expect(sceneFrame(scene, 1, 400)[dot].x).toBeCloseTo(350, 0);
+    expect(sceneFrame(scene, 1, 400)[dot].y).toBeCloseTo(350, 0);
+    expect(sceneFrame(scene, 1, Infinity)[dot]).toMatchObject({ x: 400, y: 400 });
+
+    const wrong = await runScene(`const d = circle("")\nstep("一", () => animate(d, { fill: (p) => p }))`);
+    expect(!wrong.ok && wrong.error).toMatch(/animate\(\) 不能改circle的「fill」/);
+  });
+
+  it("坐标系：数学坐标换成舞台位置，函数图像超出范围的地方断开", async () => {
+    const scene = await ok(`const ax = axes({ x: [-2, 2], y: [0, 4], w: 400, h: 200, at: [400, 225] })
+const parabola = ax.plot((x) => x * x)
+const far = ax.plot((x) => 1 / x, { tone: "c2" })
+const p = ax.at(1, 1)
+const dot = circle("", { r: 5, ...p })
+show(ax.parts)
+step("画出抛物线。", () => { show(parabola, far, dot) })`);
+    const dot = scene.nodes.find((n) => n.kind === "circle")!.props;
+    // x 从 -2 到 2 占 400 宽：1 在中心右边 100；y 从 0 到 4 占 200 高：1 在底边上面 50
+    expect(dot).toMatchObject({ x: 500, y: 275 });
+    const paths = scene.nodes.filter((n) => n.kind === "path");
+    const [ticks, parabola, far] = paths;
+    expect(String(ticks.props.points).split(";").length).toBeGreaterThan(4); // 刻度是一条线里互不相连的几段
+    expect(String(parabola.props.points)).not.toContain(";"); // 抛物线整条都在范围里
+    expect(parabola.props.stroke).toBe("accent");
+    expect(parabola.props).toMatchObject({ x: 400, w: 400, h: 200 });
+    expect(String(far.props.points)).not.toContain("NaN");
+    // 1/x 在 0 附近冲出范围，负的一半也不在范围里：只剩右边一段
+    expect(far.props.stroke).toBe("c2");
+    expect(Number(far.props.x)).toBeGreaterThan(400);
+    // 刻度上的数字
+    expect(scene.nodes.filter((n) => n.kind === "text").map((n) => n.props.text)).toEqual(expect.arrayContaining(["-2", "-1", "1", "2", "4"]));
+
+    const morphBroken = await runScene(`const ax = axes({ x: [-2, 2], y: [-4, 4] })\nconst f = ax.plot((x) => 1 / x)\nstep("一", () => { show(f); morph(f, [[0, 0], [10, 10]]) })`);
+    expect(!morphBroken.ok && morphBroken.error).toMatch(/morph\(\) 只能用在一条连续的线上/);
+  });
+
+  it("图片只能用媒体库里的，圈出图上的一块按比例算", async () => {
+    const scene = await ok(`const shot = image("/media/abc123.png", { w: 400, h: 200, x: 400, y: 225 })
+const button = spot(shot, { x: 0.5, y: 0.5, w: 0.25, h: 0.5 }, { pad: 0 })
+step("看这个按钮。", () => { show(shot); show(button); zoomTo(button) })`);
+    expect(scene.nodes.find((n) => n.kind === "image")!.props).toMatchObject({ src: "/media/abc123.png", w: 400, h: 200 });
+    // 图片左上角在 (200, 125)：这一块从图片正中开始，宽 100 高 100
+    expect(scene.nodes.find((n) => n.kind === "frame")!.props).toMatchObject({ x: 450, y: 275, w: 100, h: 100, stroke: "accent", dashed: 0 });
+
+    const outside = await runScene(`const a = image("https://example.com/a.png", { w: 100, h: 100 })\nstep("一", () => show(a))`);
+    expect(!outside.ok && outside.error).toMatch(/只能用媒体库里的图片/);
+    const noSize = await runScene(`const a = image("/media/abc123.png")\nstep("一", () => show(a))`);
+    expect(!noSize.ok && noSize.error).toMatch(/要给出 w 和 h/);
+
+    // 场景里用到的图片算这篇文章引用的图片
+    const body = ':::scene\n```js\nconst shot = image("/media/abc123.png", { w: 400, h: 200 })\nstep("出现。", () => show(shot))\n```\n:::';
+    await runScenes(body);
+    expect(parseMarkup(body).images.map((i) => i.name)).toEqual(["abc123.png"]);
+  });
+
   it("组件清单里的例子本身能跑通", async () => {
     const example = getComponent("scene")!.example;
     const [result] = Object.values(await runScenes(example));

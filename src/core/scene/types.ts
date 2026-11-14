@@ -19,7 +19,7 @@ export const SCENE_RATIOS = {
 export type SceneRatio = keyof typeof SCENE_RATIOS;
 export const SCENE_RATIO_NAMES = Object.keys(SCENE_RATIOS) as [SceneRatio, ...SceneRatio[]];
 
-export const SCENE_KINDS = ["box", "frame", "circle", "text", "code", "link", "packet", "camera"] as const;
+export const SCENE_KINDS = ["box", "frame", "circle", "text", "code", "link", "packet", "camera", "image", "path"] as const;
 export type SceneKind = (typeof SCENE_KINDS)[number];
 
 /** 颜色只能用这些名字，对应主题里的变量：换主题、换深色模式时画面跟着变 */
@@ -72,4 +72,4 @@ export type Scene = { w: number; h: number; nodes: SceneNode[]; steps: SceneStep
 
 export type SceneResult = { ok: true; scene: Scene } | { ok: false; error: string; line?: number };
 
-export const SCENE_LIMITS = { nodes: 80, steps: 24, tweens: 400, codeLines: 16, bytes: 200_000 };
+export const SCENE_LIMITS = { nodes: 120, steps: 24, tweens: 900, codeLines: 16, bytes: 500_000 };

@@ -23,7 +23,7 @@ const TIME_LIMIT_MS = 2000;
 const MEMORY_LIMIT = 48 * 1024 * 1024;
 const STACK_LIMIT = 1024 * 1024;
 
-const value = z.union([z.number().refine(Number.isFinite), z.string().max(4000)]);
+const value = z.union([z.number().refine(Number.isFinite), z.string().max(8000)]);
 const point = z.tuple([z.number(), z.number()]);
 const id = z.string().min(1).max(12);
 const sceneSchema = z.object({

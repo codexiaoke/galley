@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { isBlend, readingTime, sceneFrame, type FrameValue, type NodeFrame, type SceneFrame } from "@/core/scene/frame";
 import type { Scene, SceneNode } from "@/core/scene/types";
 import { speakingTime } from "../captions";
-import { arrowHead, curveDirection, curvePath, curvePoint, linkCurve, type Curve, type End } from "../scene-geometry";
+import { arrowHead, curveDirection, curvePath, curvePoint, linkCurve, mixPoints, parsePoints, shapePath, type Curve, type End } from "../scene-geometry";
 import { prefersReducedMotion, useInView, useVisible } from "./in-view";
 import { SPEEDS, usePresentSpeed } from "./speed";
 
@@ -72,6 +72,15 @@ const pick = (v: FrameValue | undefined) => (v === undefined ? "" : isBlend(v) ?
 
 const MONO = { "data-mono": true } as const;
 
+/** 图片只能是媒体库里的：沙箱交出来的地址不直接相信，这里再认一遍 */
+const MEDIA_URL = /^\/media\/[a-z0-9]+\.[a-z0-9]+$/;
+
+/** 自由画的线当时的形状：正在变形时是两个形状之间的样子 */
+function pointsOf(v: FrameValue | undefined): number[][][] {
+  if (v === undefined || typeof v === "number") return [];
+  return isBlend(v) ? mixPoints(parsePoints(v.a), parsePoints(v.b), v.p) : parsePoints(v);
+}
+
 /** 东西在画面上占的位置，连线靠它找到边缘 */
 function endOf(node: SceneNode, f: NodeFrame): End {
   const cx = num(f.x, 0) + num(f.ox, 0);
@@ -111,11 +120,12 @@ function labelSide(curve: Curve, bend: number, t: number): { x: number; y: numbe
   return { x, y: ny * sign, anchor: Math.abs(dir.y) > 0.8 ? (x > 0 ? "start" : "end") : "middle" };
 }
 
-const LAYER: Record<string, number> = { frame: 0, link: 1, box: 2, circle: 2, text: 2, code: 2, packet: 3 };
+/** 谁压在谁上面：图片垫底，上面是边界框和圈出来的框，再上面是线，然后是方块和文字，沿线走的小圆点在最上面 */
+const LAYER: Record<string, number> = { image: 0, frame: 1, link: 2, path: 2, box: 3, circle: 3, text: 3, code: 3, packet: 4 };
 
 function SceneSvg({ scene, frame, label }: { scene: Scene; frame: SceneFrame; label: string }) {
   const byId = useMemo(() => new Map(scene.nodes.map((n) => [n.id, n])), [scene]);
-  const ordered = useMemo(() => scene.nodes.filter((n) => n.kind !== "camera").sort((a, b) => (LAYER[a.kind] ?? 2) - (LAYER[b.kind] ?? 2)), [scene]);
+  const ordered = useMemo(() => scene.nodes.filter((n) => n.kind !== "camera").sort((a, b) => (LAYER[a.kind] ?? 3) - (LAYER[b.kind] ?? 3)), [scene]);
   const cameraNode = scene.nodes.find((n) => n.kind === "camera");
   const cam = cameraNode ? frame[cameraNode.id] : undefined;
   const zoom = Math.min(8, Math.max(0.2, num(cam?.zoom, 1)));
@@ -194,6 +204,41 @@ function SceneSvg({ scene, frame, label }: { scene: Scene; frame: SceneFrame; la
     const color = paint(f.color, "ink");
     const tag = words(f.text);
     const dash = num(f.dashed, 0) ? "5 4" : undefined;
+
+    if (node.kind === "image") {
+      const src = pick(f.src);
+      if (!MEDIA_URL.test(src)) return null;
+      const w = Math.max(0, num(f.w, 0));
+      const h = Math.max(0, num(f.h, 0));
+      return (
+        <g key={node.id} transform={transform} opacity={opacity}>
+          <image href={src} x={-w / 2} y={-h / 2} width={w} height={h} preserveAspectRatio="xMidYMid meet" style={{ clipPath: `inset(0 round ${Math.max(0, num(f.radius, 8))}px)` }} />
+        </g>
+      );
+    }
+
+    if (node.kind === "path") {
+      const segments = pointsOf(f.points);
+      const t = clamp01(num(f.draw, 0));
+      if (!segments.length || t <= 0.001) return null;
+      const drawn = t >= 0.999;
+      return (
+        <g key={node.id} transform={transform} opacity={opacity}>
+          <path
+            d={shapePath(segments, num(f.closed, 0) > 0, num(f.smooth, 0) > 0)}
+            // 画出来的过程：把整条线的长度当成 1，露出前面 t 这一段；画完以后才显示成虚线
+            pathLength={drawn ? undefined : 1}
+            strokeDasharray={drawn ? (num(f.dashed, 0) ? "5 5" : undefined) : "1 1"}
+            strokeDashoffset={drawn ? undefined : 1 - t}
+            style={{ fill: paint(f.fill, "none"), stroke: paint(f.stroke, "ink") }}
+            fillOpacity={t * t}
+            strokeWidth={Math.max(0.5, num(f.width, 1.8))}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </g>
+      );
+    }
 
     if (node.kind === "box" || node.kind === "frame") {
       const w = Math.max(0, num(f.w, 0));
