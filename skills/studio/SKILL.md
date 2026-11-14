@@ -13,6 +13,7 @@ Studio 是本机视频工坊，线上 Galley 提供文章与演示画面。工�
 - 确实要从另一篇文章新建时，先 `studio_list_articles` 取得真实 `slug`，再 `studio_create_project`。
 - 每次修改或审查带刚读取的 `revisionId`，收到版本冲突先重读项目，保留别人的修改。待审版本不能编辑；用户要求返修时用 `studio_withdraw_review` 撤回相应阶段，再修改。
 - 工坊使用自己的 Agent 密钥和 MCP 连接，通常是 `http://localhost:4321/mcp`。博客密钥、工坊 Agent 密钥和站长管理密钥是三种用途。没有 Studio 工具时，说明需要接入本机工坊；不要拿博客工具冒充，也不要读取 `.owner-key` 或调用站长管理接口绕过 Agent 权限。
+- 工坊可由本机 Docker 运行，MCP 地址和制作流程不变。返回的 `/data` 是容器内路径，下载优先使用工具提供的 HTTP 地址；不要把容器路径当宿主机文件，也不要另建一个空工坊来找回项目。部署和迁移按仓库 `integrations/video-studio/README.md` 操作。
 
 ## 讲稿与视觉引导
 

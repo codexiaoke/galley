@@ -14,7 +14,9 @@
     "seed:demo": "tsx scripts/seed-demo.ts",
     "codex-plugin": "tsx scripts/codex-plugin.ts",
     "studio": "tsx integrations/video-studio/server.ts",
-    "studio:open": "tsx integrations/video-studio/open.ts"
+    "studio:open": "tsx integrations/video-studio/open.ts",
+    "studio:tts": "tsx integrations/video-studio/tts-server.ts",
+    "studio:docker": "tsx integrations/video-studio/docker.ts"
   },
   "dependencies": {
     "@jitl/quickjs-singlefile-cjs-release-sync": "^0.32.0",

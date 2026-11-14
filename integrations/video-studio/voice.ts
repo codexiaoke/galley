@@ -9,6 +9,7 @@ import { voiceHash } from "../../src/core/studio-projects";
 import type { StudioSource, Voice } from "../../src/core/studio-types";
 
 type Launch = { command: string; args: string[]; env?: Record<string, string> };
+export type VoiceBridge = { url: string; tokenFile: string };
 const resultSchema = z.object({ duration_seconds: z.number().positive().finite(), subtitle_cues: z.array(z.object({ start: z.number().nonnegative(), end: z.number().nonnegative(), text: z.string() })).default([]) });
 const safe = (id: string) => id.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 80);
 
@@ -16,11 +17,25 @@ export class StudioVoice {
   private client: Promise<Client> | null = null;
   private queue: Promise<unknown> = Promise.resolve();
   readonly directory: string;
-  constructor(private root: string, readonly serverName: string) {
+  constructor(private root: string, readonly serverName: string, private bridge?: VoiceBridge) {
     this.directory = path.join(root, "voice-assets"); mkdirSync(this.directory, { recursive: true });
   }
 
-  launch(): Launch | null {
+  configured() { return this.bridge ? existsSync(this.bridge.tokenFile) : !!this.launch(); }
+
+  private async remote(route: string, data: unknown) {
+    const token = readFileSync(this.bridge!.tokenFile, "utf8").trim();
+    if (!token) throw new Error("请配置本机配音连接密钥。");
+    const response = await fetch(new URL(route, this.bridge!.url), {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(data), signal: AbortSignal.timeout(20 * 60 * 1000), redirect: "error",
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error ?? `本机配音连接失败（${response.status}）。`);
+    return result;
+  }
+
+  private launch(): Launch | null {
     if (process.env.STUDIO_TTS_COMMAND?.trim()) {
       const [command, ...args] = process.env.STUDIO_TTS_COMMAND.trim().split(/\s+/); return { command, args };
     }
@@ -82,12 +97,22 @@ export class StudioVoice {
     const run = async () => {
       if (!force) { const hit = this.cached(id, text); if (hit) return hit; }
       const file = `${randomUUID()}.wav`;
-      const client = await this.connect();
-      const result = await client.callTool({ name: "generate_voiceover", arguments: { text, output_path: path.join(this.directory, file), subtitle_max_chars: 20 } }, undefined,
-        { timeout: 20 * 60 * 1000, resetTimeoutOnProgress: true, onprogress: (value) => progress(value.message ?? "正在生成配音…") });
-      const content = result.content as { type: string; text?: string }[] | undefined;
-      if (result.isError) throw new Error(content?.find((item) => item.type === "text")?.text ?? "配音服务返回错误。");
-      const data = resultSchema.parse(result.structuredContent ?? JSON.parse(content?.find((item) => item.type === "text")?.text ?? "{}"));
+      let data: z.infer<typeof resultSchema>;
+      if (this.bridge) {
+        progress("正在调用本机配音服务…");
+        const result = resultSchema.extend({ audio: z.string().min(1) }).parse(await this.remote("/voice", { text }));
+        const audio = Buffer.from(result.audio, "base64");
+        if (audio.toString("ascii", 0, 4) !== "RIFF" || audio.toString("ascii", 8, 12) !== "WAVE") throw new Error("本机配音服务没有返回 WAV 音频。");
+        writeFileSync(path.join(this.directory, file), audio);
+        data = result;
+      } else {
+        const client = await this.connect();
+        const result = await client.callTool({ name: "generate_voiceover", arguments: { text, output_path: path.join(this.directory, file), subtitle_max_chars: 20 } }, undefined,
+          { timeout: 20 * 60 * 1000, resetTimeoutOnProgress: true, onprogress: (value) => progress(value.message ?? "正在生成配音…") });
+        const content = result.content as { type: string; text?: string }[] | undefined;
+        if (result.isError) throw new Error(content?.find((item) => item.type === "text")?.text ?? "配音服务返回错误。");
+        data = resultSchema.parse(result.structuredContent ?? JSON.parse(content?.find((item) => item.type === "text")?.text ?? "{}"));
+      }
       if (!existsSync(path.join(this.directory, file)) || data.subtitle_cues.some((cue) => cue.end < cue.start || cue.end > data.duration_seconds + 0.5)) throw new Error("配音服务返回的音频或字幕时间无效。");
       const voice: Voice = { id, hash: voiceHash(text), audio: `/audio/${file}`, durationMs: Math.round(data.duration_seconds * 1000), cues: data.subtitle_cues };
       writeFileSync(this.cachePath(text), JSON.stringify(voice)); return voice;
@@ -95,6 +120,9 @@ export class StudioVoice {
     const job = this.queue.then(run, run); this.queue = job.catch(() => undefined); return job;
   }
 
-  async unload() { if (this.client) await (await this.client).callTool({ name: "unload_voice_model", arguments: {} }); }
+  async unload() {
+    if (this.bridge) await this.remote("/unload", {});
+    else if (this.client) await (await this.client).callTool({ name: "unload_voice_model", arguments: {} });
+  }
   async close() { if (this.client) await (await this.client).close(); }
 }

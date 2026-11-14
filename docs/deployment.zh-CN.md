@@ -2,7 +2,10 @@
 
 [English](deployment.md) · **简体中文**
 
-服务器上只需要装好 Docker。快速开始见 [README](../README.zh-CN.md#用-docker)，这里是细节。
+本页介绍**线上博客**部署，服务器上只需要装好 Docker。快速开始见 [README](../README.zh-CN.md#部署线上博客)，这里是细节。
+
+**视频工坊部署在自己的电脑上**，使用独立的 `compose.studio.yml` 和 `pnpm studio:docker up`，不随 `deploy.sh` 或 `release.sh` 上传到博客服务器。
+本机 Docker、配音连接、迁移和备份见[工坊部署](../integrations/video-studio/README.md)，模型服务准备见[配音配置](../integrations/video-studio/voice-setup.md)。
 
 ## 两种对外开放的方式
 

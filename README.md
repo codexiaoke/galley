@@ -4,7 +4,7 @@
 
 <h1 align="center">Galley</h1>
 
-<p align="center">A self-hosted blog your AI agent writes over MCP. Nothing ships until you approve it.</p>
+<p align="center">Maintain knowledge, publish with your agent, and turn articles into narrated 4K videos on your own computer.</p>
 
 <p align="center">
   <a href="https://github.com/codexiaoke/galley/actions/workflows/image.yml"><img src="https://img.shields.io/github/actions/workflow/status/codexiaoke/galley/image.yml?branch=main&label=build" alt="Build"></a>
@@ -18,17 +18,46 @@
 
 ---
 
-**You already have an agent. Point it at your blog and tell it to write.**
+**From knowledge and articles to presentations and video, in one project.**
 
 Galley is a blog with an [MCP](https://modelcontextprotocol.io) endpoint. Add that endpoint to Claude
 Code, Codex, or any other MCP client you already use, and the agent can read what the site knows, draft
-an article and submit it. You open the admin, read the draft, and approve it or send it back. Nothing
-reaches a reader any other way — unless you decide otherwise: if the agent is one you drive yourself,
-you can grant it permission to publish directly, per agent, off by default and revocable at any time.
+an article and submit it. By default, you open the admin, read the draft, and approve it or send it back.
+You can also grant an agent permission to publish directly. That permission is per agent, off by
+default and revocable at any time.
 Anything published that way is marked as unreviewed in the admin.
 
-One Docker container, one data directory, and no language model of its own: every bit of intelligence
-comes from the agent you connect, so there are no model keys to configure and nothing to lock into.
+Published articles also become slide decks or projects in **Studio**, the local video workshop. Edit
+versioned narration, direct attention with focus and zoom, generate speech, review a sample, and export
+native 4K MP4 with subtitles. Editing Studio narration does not rewrite the published article.
+
+The blog needs no writing-model API key: writing comes from the agent you connect. Speech generation
+uses a separately configured TTS service. The setup verified so far uses a local MLX model and an
+existing personal voice on a Mac.
+
+## What runs where
+
+| Component | Location | Responsibilities | Deployment entry |
+|---|---|---|---|
+| Galley blog | Server Docker; local source for development | Public articles, knowledge, review, presentations and blog MCP | [`./deploy.sh`](deploy.sh) |
+| Video workshop Studio | **Docker on your own computer** | Narration versions, voice assets, review, 4K rendering and exports | [`pnpm studio:docker up`](integrations/video-studio/docker.ts) |
+| Voice service | **Your Mac host** | Generate WAV and subtitle timings with the local model | Connected by the Studio script to your existing TTS MCP |
+| Codex / another agent | Your client | Connect separately to the blog and Studio | [Connect an agent](#connect-an-agent) |
+
+The blog and Studio have separate data and Agent keys. **Studio stays local; it is not deployed to the
+public blog server.** Its default address is `http://localhost:4321`, published only on loopback. The
+server supplies articles and presentation resources; your computer does the voice and video work.
+You can use the blog without installing Studio or a voice model.
+
+```mermaid
+flowchart LR
+  A[Codex / Agent] -->|Blog MCP| B[Online blog: knowledge, articles, review]
+  A -->|Local Studio MCP| C[Local Docker: Studio]
+  B -->|Published articles and presentations| C
+  C -->|Narration| D[Mac voice model]
+  D -->|WAV and subtitle timings| C
+  C --> E[4K MP4 and SRT kept locally]
+```
 
 <p align="center">
   <img src="docs/assets/screenshot-article.jpg" width="800" alt="An article with its table of contents">
@@ -44,8 +73,8 @@ comes from the agent you connect, so there are no model keys to configure and no
 - **Publishing is enforced by the program, not by the agent's good behaviour.** The MCP surface has no
   publish tool until you grant one agent that permission explicitly, and never an unpublish or
   permission-changing one. The default is that approval is the only way in.
-- **No model keys, no lock-in.** Skills are served over MCP, so an agent that connects learns how to
-  operate the site without any local setup.
+- **Writing is not tied to a model vendor.** Skills are served over MCP, so a connected agent can learn
+  the site's workflow. Speech generation is configured separately.
 - **Your data stays a file.** SQLite plus an images folder. Back it up by downloading one archive.
 
 ## How it works
@@ -70,6 +99,12 @@ Want it to run on its own? There is an inbox you can drop thoughts and links int
 to-do list the agent reads on a schedule — so a nightly run has something to do without you asking. That
 part is optional; day to day, talking to your agent is the whole workflow.
 
+**5. Make a video locally.** Import a published article into Studio → edit narration and focus targets →
+review the script → generate voices → preview and export a 4K sample → review the video → download the
+final MP4 and SRT. Agents can prepare, revise and render assigned projects. Owners can separately grant
+direct script confirmation and finalization; these actions are marked as not human-reviewed. Finalizing
+a video does not publish an article or upload to a video platform.
+
 <p align="center">
   <img src="docs/assets/screenshot-review.jpg" width="800" alt="Reviewing a change set in the admin">
 </p>
@@ -81,19 +116,19 @@ part is optional; day to day, talking to your agent is the whole workflow.
 - Six kinds of knowledge block (fact, concept, code, data, opinion, experience), full-text search,
   near-duplicate detection, source links, staleness tracking, version-pinned citations.
 - Change sets with inline review comments, rejection rounds, and an audit trail of every decision.
-- 31 MCP tools, per-agent access keys, a call log, and per-agent switches for every optional tool.
+- Separate blog and Studio MCP tools, per-agent access keys, call logs and switches for optional tools.
 - Agents can upload their own images, within limits: bytes only (never a URL to fetch), format checked by
   content, and a cap on how many unused images one agent may leave behind.
-- Five editable skills served over MCP — overview, writing, markup, knowledge blocks, inbox — each
-  read only when the task calls for it, with revision history on every edit.
+- Skills served on demand for overview, writing, markup, knowledge blocks, materials and video
+  production, with version history for owner edits.
 
 **Articles that do more than hold text**
 
-- 17 components: callouts, charts, timelines, pull quotes, stat tiles, step-by-step code, flow diagrams,
+- Content components include callouts, charts, timelines, pull quotes, stat tiles, step-by-step code, flow diagrams,
   tabs, before/after comparisons, collapsible sections, quizzes, and more.
 - Code blocks with syntax highlighting, filenames and highlighted lines; a table of contents; footnotes;
   image lightboxes; LaTeX via KaTeX; Mermaid diagrams validated at save time.
-- **27 built-in algorithm animations** (sorting, search, mazes, graphs, trees, dynamic programming) that
+- **Built-in algorithm animations** (sorting, search, mazes, graphs, trees, dynamic programming) that
   readers can play, step through and scrub, with switchable inputs and side-by-side races.
 - **Code-driven animations**: write JavaScript in the article, run it in a QuickJS sandbox on the server,
   and the animation follows what the code actually did.
@@ -104,12 +139,19 @@ part is optional; day to day, talking to your agent is the whole workflow.
   <img src="docs/assets/screenshot-algorithm.jpg" width="800" alt="An algorithm animation playing inside an article">
 </p>
 
-**Presenting**
+**Presentations and local video production**
 
+- [Studio](integrations/video-studio/README.md) keeps narration versions, voice assets, review comments
+  and historical exports. Unchanged narration reuses its audio.
+- Tie narration phrases to visual targets: corner markers, dimmed surroundings, or a gentle zoom.
+  Captions stay fixed; preview and export share the same effects.
+- Local Chromium renders frames on a controlled timeline and FFmpeg creates **3840×2160, 30 fps,
+  H.264/AAC MP4**, plus SRT. No screen sharing is needed and window size does not affect output
+  resolution. Raster images still depend on the resolution of their source assets.
 - Any article turns into a full-screen slide deck: arrow keys step through code animations before turning
   the page, with speaker notes, autoplay and adjustable speed.
-- Record it to MP4 entirely in your own browser — landscape or portrait, captions, microphone. Nothing is
-  uploaded and the server does no work.
+- The presentation page also offers browser tab recording with orientation, captions and microphone
+  options. Use Studio's offline export for consistent 4K output.
 - Export the deck to PDF, one slide per page.
 - `/posts/<slug>/present.json` hands the slide breakdown to other programs — index, title and the
   page's own Markdown. Speaker notes are deliberately left out: they are not shown to readers.
@@ -138,7 +180,7 @@ part is optional; day to day, talking to your agent is the whole workflow.
 
 ## Quick start
 
-### With Docker
+### Deploy the online blog
 
 You need Docker on the server. Nothing else.
 
@@ -158,7 +200,40 @@ box is plenty.
 See [docs/deployment.md](docs/deployment.md) for offline installs, building on your own machine and
 shipping to the server, environment variables and day-to-day commands.
 
-### Locally
+### Deploy Studio on your computer
+
+On **your Mac**, prepare Docker Desktop / OrbStack, Node.js 22, pnpm and a
+[configured voice service](integrations/video-studio/voice-setup.md). In a local clone of this repository:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm studio:docker up
+pnpm studio:docker open
+```
+
+The deployment script is [`integrations/video-studio/docker.ts`](integrations/video-studio/docker.ts).
+It builds the separate Studio image, configures the host voice connection, starts the container and
+waits for its health check. `open` signs you into the workshop without copying an owner key manually.
+Automatic host voice setup currently targets macOS. Without a voice service, you can first start the
+management and preview UI with `docker compose -f compose.studio.yml up -d --build`;
+see the [Studio deployment guide](integrations/video-studio/README.md) for login and manual setup.
+
+In Studio settings, enter the root URL of your **existing blog**, such as `https://blog.example.com`,
+and an access key created in that blog's MCP admin page. Test and save the connection. You do not need
+a second blog container or a copy of the online database.
+
+```bash
+pnpm studio:docker status # Inspect running services
+pnpm studio:docker logs   # Follow container logs
+pnpm studio:docker stop   # Stop while retaining projects and exports
+pnpm studio:docker up     # Rebuild after updating the checkout and dependencies
+```
+
+Studio data lives in the `galley-studio_studio-data` volume. Migrate the **complete** work directory if
+you already use the source-run workshop, including audio, exports and hidden keys. Deployment,
+migration, ports and backups are covered in the [Studio guide](integrations/video-studio/README.md).
+
+### Develop the blog locally
 
 Node.js 22 and pnpm.
 
@@ -172,10 +247,31 @@ Set `GALLEY_ADMIN_PASSWORD` (8 characters or more) in `.env.local`, then:
 pnpm dev
 ```
 
-The site is on http://localhost:3000, the admin on `/admin`, the MCP endpoint on `/mcp`. Run
+The site is on [http://localhost:3000](http://localhost:3000), the admin on `/admin`, the MCP endpoint on `/mcp`. Run
 `pnpm seed:demo` if you want a few example articles to look at.
 
+## Using narration and voices
+
+This repository supplies the voice connection and production workflow. **It does not include model
+weights, personal reference audio, or the separate `my-voice-tts` service**, and the deployment script
+does not download them. Prepare a stdio MCP server with `generate_voiceover` and `unload_voice_model`.
+Studio can read its entry in `~/.claude.json`, or use `STUDIO_TTS_COMMAND` directly; a Claude client is
+not required. See [voice setup and the service contract](integrations/video-studio/voice-setup.md).
+
+1. Create a project and edit each beat's narration. Empty narration uses a hold duration with no speech.
+2. Review the script, then generate voices. Studio saves WAV files and subtitle timings for each beat;
+   preview individual voices and regenerate changed beats.
+3. Add focus targets, preview the timing, then export a 4K sample. Focus-only edits reuse the audio.
+4. Review the sample and download MP4/SRT. Release model memory in Studio settings when finished;
+   the voice service loads the model again on the next request.
+
+Voice identity, reference audio, speed and model parameters belong to the voice service. Studio does
+not train voices or assign separate character voices. When changing a voice under the same service
+name, explicitly regenerate affected beats to replace cached audio.
+
 ## Connect an agent
+
+### Blog: writing and publishing
 
 Any MCP client works — Claude Code and Codex are the two this is tested against. Add an agent on the
 admin's **MCP** page: it shows an access key once, along with a config snippet already filled in with
@@ -205,12 +301,31 @@ Then just talk to it: *"Have a look at my blog and suggest three posts I could w
 the agent is pointed at the site's `overview` skill, which tells it how this blog is run — you do not
 have to explain anything.
 
-Approving tool calls up front (that last line in the Codex config) matters for unattended runs, and it is
-safe by default: without the publishing permission you grant explicitly, none of the tools can put
-anything live, and none can unpublish, read your guest book, or change their own permissions.
+The last Codex setting controls client-side tool confirmation. The blog independently checks Agent
+permissions: by default an agent submits for review. Owners can grant direct publication of that
+agent's change sets. An agent cannot change its own permissions, approve other authors' work,
+unpublish content or read the guest book.
 
 There is also a plugin that skips the manual setup: download one pre-filled with your site's address from
 the admin, or use the generic one in [integrations/codex](integrations/codex).
+
+### Local Studio: narration, voices and video
+
+Create a separate key in Studio's Agent management and assign a project to that agent. Make the key
+available to the client as `STUDIO_AGENT_TOKEN`, then connect:
+
+```bash
+codex mcp add galley-studio --url http://localhost:4321/mcp --bearer-token-env-var STUDIO_AGENT_TOKEN
+```
+
+The Codex process must be able to read that environment variable. Blog keys do not replace Studio
+Agent keys; do not give an agent the owner login key. The plugin's `galley-studio` skill guides the
+workflow but **does not deploy Studio or connect its MCP endpoint automatically**. After connecting,
+call `studio_get_skill` to read the current production instructions.
+
+For example: *"Inspect my assigned video project, revise the narration and focus targets, and submit
+for review. Once approved, generate voices and a 4K sample."* Blog publishing and Studio finalization
+are separate permissions; finalized video files remain local.
 
 ## Documentation
 
@@ -218,10 +333,13 @@ the admin, or use the generic one in [integrations/codex](integrations/codex).
 |---|---|
 | [docs/requirements.md](docs/requirements.md) | What the product is and every feature's current state |
 | [docs/design-knowledge-blocks.md](docs/design-knowledge-blocks.md) | Knowledge blocks, citations and change sets |
-| [docs/deployment.md](docs/deployment.md) | Deployment in depth and environment variables |
+| [docs/deployment.md](docs/deployment.md) | Online blog deployment, HTTPS, updates and environment variables |
+| [Studio guide](integrations/video-studio/README.md) | Local Docker, migration, project review, 4K exports and backups |
+| [Voice setup](integrations/video-studio/voice-setup.md) | Local voice service, MCP configuration, regeneration and troubleshooting |
+| [Codex plugin](integrations/codex/README.md) | Installing the plugin and connecting the two MCP services |
 | [AGENTS.md](AGENTS.md) | Conventions for anyone — human or agent — writing code here |
 
-The design documents are written in Chinese.
+The design and detailed Studio guides are written in Chinese.
 
 ## Project layout
 
@@ -233,6 +351,10 @@ The design documents are written in Chinese.
 | `src/render` | Turning article markup into pages |
 | `skills` | Skills served to agents |
 | `drizzle` | Database migrations |
+| `integrations/video-studio` | Local workshop, Docker deployment entry, voice connection and offline renderer |
+| `integrations/codex` | Codex plugin and entry skills |
+| `docker-compose.yml` / `deploy.sh` | Online blog deployment |
+| `compose.studio.yml` | Local Studio deployment |
 
 Permission rules live only in `src/core`. The admin and MCP call the same functions and pass a different
 identity, so there is one place where "who may do what" is decided.
@@ -240,8 +362,8 @@ identity, so there is one place where "who may do what" is decided.
 ## Contributing
 
 Issues and pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Galley is a personal-scale
-project by design: there is no plugin system and no theme marketplace, and the way to make it yours is to
-fork it. The code is organised with that in mind.
+project by design. There is no blog runtime plugin system or theme marketplace; the bundled Codex
+plugin is for the Agent client. Fork the project when you need to customize the product.
 
 | Command | What it does |
 |---|---|
@@ -251,6 +373,9 @@ fork it. The code is organised with that in mind.
 | `pnpm lint` | Lint |
 | `pnpm build` | Production build |
 | `pnpm db:generate` | Generate a migration after changing the schema |
+| `pnpm studio:docker help` | Show local Studio deployment commands |
+| `pnpm studio` / `pnpm studio:open` | Run Studio from source / open the owner UI |
+| `pnpm studio:tts` | Run the host voice connection in the foreground for manual setup and diagnostics |
 
 ## License
 

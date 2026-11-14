@@ -17,6 +17,7 @@ import { buildStudio } from "./build";
 import { StudioRuntime } from "./runtime";
 
 const PORT = Number(process.env.STUDIO_PORT ?? 4321);
+const HOST = z.enum(["127.0.0.1", "0.0.0.0"]).parse(process.env.STUDIO_HOST ?? "127.0.0.1");
 const WORK_DIR = process.env.STUDIO_DIR ?? path.join(homedir(), "galley-studio");
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const runtime = new StudioRuntime(WORK_DIR);
@@ -65,6 +66,7 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://${host}`);
   const route = url.pathname;
   try {
+    if (req.method === "GET" && route === "/healthz") return json(res, 200, { ok: true });
     if (req.method === "GET" && route === "/") {
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Frame-Options": "DENY" });
       return void res.end(readFileSync(path.join(HERE, "index.html")));
@@ -163,7 +165,7 @@ const server = createServer(async (req, res) => {
     if (!res.headersSent) json(res, status, { error: error instanceof Error ? error.message : "操作失败。" }); else res.end();
   }
 });
-server.listen(PORT, "127.0.0.1", () => {
+server.listen(PORT, HOST, () => {
   console.log(`Galley 视频工坊：http://localhost:${PORT}（运行 pnpm studio:open 打开管理入口）`);
   console.log(`文件位置：${WORK_DIR}`);
 });

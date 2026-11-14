@@ -2,8 +2,13 @@
 
 **English** · [简体中文](deployment.zh-CN.md)
 
-Docker on the server is the only requirement. The short version is in the
-[README](../README.md#with-docker); this page has the details.
+This page covers the **online blog**. Docker on the server is the only requirement. The short version
+is in the [README](../README.md#deploy-the-online-blog); this page has the details.
+
+**Studio runs on your own computer**, using the separate `compose.studio.yml` and `pnpm studio:docker up`.
+Neither `deploy.sh` nor `release.sh` deploys the video workshop to the blog server. See the
+[Studio guide](../integrations/video-studio/README.md) for local Docker, migration and backups, and
+[voice setup](../integrations/video-studio/voice-setup.md) for the host TTS service.
 
 ## Two ways to expose the site
 

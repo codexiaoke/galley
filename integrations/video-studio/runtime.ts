@@ -9,6 +9,7 @@ import { StudioProjects, studioSourceSchema } from "../../src/core/studio-projec
 import type { StudioSource } from "../../src/core/studio-types";
 import { exportVideo } from "./export";
 import { StudioVoice } from "./voice";
+import { studioFetchUrl } from "./site-url";
 
 export class StudioRuntime {
   readonly db;
@@ -25,14 +26,16 @@ export class StudioRuntime {
     this.exports = new StudioExports(directory);
     const tokenFile = process.env.GALLEY_TOKEN_FILE;
     this.connection = new StudioConnection(this.db, directory, { url: process.env.GALLEY_URL ?? "http://localhost:3000", token: process.env.GALLEY_TOKEN?.trim() || (tokenFile && existsSync(tokenFile) ? readFileSync(tokenFile, "utf8").trim() : "") });
-    this.voice = new StudioVoice(directory, process.env.STUDIO_TTS_SERVER ?? "my-voice-tts");
+    this.voice = new StudioVoice(directory, process.env.STUDIO_TTS_SERVER ?? "my-voice-tts", process.env.STUDIO_TTS_URL ? {
+      url: process.env.STUDIO_TTS_URL, tokenFile: process.env.STUDIO_TTS_TOKEN_FILE ?? path.join(directory, ".tts-token"),
+    } : undefined);
   }
 
-  config() { return { ...this.connection.public(), ttsServer: this.voice.serverName, ttsFound: !!this.voice.launch(), dir: this.directory }; }
+  config() { return { ...this.connection.public(), ttsServer: this.voice.serverName, ttsFound: this.voice.configured(), dir: this.directory }; }
 
   private async remote(route: string, connection = this.connection.read()) {
     if (!connection.token) throw invalid("请先在工坊设置中填写站点地址和访问密钥。");
-    const response = await fetch(`${connection.url}${route}`, { headers: { Authorization: `Bearer ${connection.token}` }, signal: AbortSignal.timeout(20000), redirect: "error" });
+    const response = await fetch(studioFetchUrl(`${connection.url}${route}`), { headers: { Authorization: `Bearer ${connection.token}` }, signal: AbortSignal.timeout(20000), redirect: "error" });
     if (!response.headers.get("content-type")?.includes("application/json")) throw invalid(`站点接口没有返回 JSON（${response.status}），请确认地址和线上 Galley 版本。`);
     const data = await response.json();
     if (!response.ok) throw invalid(data.error ?? `站点返回了 ${response.status}。`);
@@ -105,7 +108,7 @@ export class StudioRuntime {
     mkdirSync(path.dirname(output), { recursive: true });
     writeFileSync(output.replace(/\.mp4$/, ".manifest.json"), JSON.stringify({ projectId: id, revisionId, source, beats: revision.beats, voices: revision.voices, width: 3840, height: 2160, fps: 30 }, null, 2));
     const url = new URL(source.present, source.galley); url.searchParams.set("version", source.version);
-    void exportVideo({ url: url.toString(), beats: revision.beats, voices: revision.voices,
+    void exportVideo({ url: studioFetchUrl(url.toString()), beats: revision.beats, voices: revision.voices,
       audioPath: (beatId) => this.voice.file(revision.voices.find((voice) => voice.id === beatId)!.audio), output, signal: controller.signal,
       progress: (progress) => this.exports.progress(job.id, progress),
     }).then(() => { this.exports.complete(job.id); }, (error: unknown) => {

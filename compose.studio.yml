@@ -1,0 +1,25 @@
+# 与线上博客独立。本机运行：docker compose -f compose.studio.yml up -d --build
+name: galley-studio
+services:
+  studio:
+    build:
+      context: .
+      dockerfile: integrations/video-studio/Dockerfile
+    image: galley-studio:local
+    init: true
+    restart: unless-stopped
+    shm_size: 1gb
+    ports:
+      - "127.0.0.1:${STUDIO_PORT:-4321}:${STUDIO_PORT:-4321}"
+    environment:
+      STUDIO_PORT: ${STUDIO_PORT:-4321}
+      GALLEY_URL: ${GALLEY_URL:-http://localhost:3000}
+      STUDIO_LOCAL_SITE_HOST: host.docker.internal
+      STUDIO_TTS_SERVER: ${STUDIO_TTS_SERVER:-my-voice-tts}
+      STUDIO_TTS_URL: ${STUDIO_TTS_URL:-}
+      STUDIO_TTS_TOKEN_FILE: /data/.tts-token
+    volumes:
+      - studio-data:/data
+
+volumes:
+  studio-data:
