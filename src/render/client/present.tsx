@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { captionParts, captionWidth, speakingTime } from "../captions";
 import { download, prepareRecording, recordingSupport, type Recording, type RecordingSupport } from "./recorder";
 import { formatSpeed, PresentSpeed, SPEEDS } from "./speed";
 import { printWhenDiagramsReady } from "../print-readiness";
@@ -74,7 +75,7 @@ export function Presentation({
   const [chrome, setChrome] = useState(!autoParam);
   const [showNotes, setShowNotes] = useState(false);
   // 字幕：这一页有讲稿时用讲稿，没有时用页里动画当前这一步的说明
-  const [stepCaption, setStepCaption] = useState<{ page: number; text: string } | null>(null);
+  const [stepCaption, setStepCaption] = useState<{ page: number; text: string; wait?: number } | null>(null);
   const slideRefs = useRef<(HTMLElement | null)[]>([]);
   const stageRef = useRef<HTMLDivElement>(null);
   const size = DESIGN[orientation];
@@ -126,7 +127,8 @@ export function Presentation({
       return ro;
     });
     return () => observers.forEach((ro) => ro?.disconnect());
-  }, [page, run, orientation, print]);
+    // 开关字幕会改变页面留给内容的高度，也要重新算
+  }, [page, run, orientation, print, captions]);
 
   // 打印：屏幕上按窗口宽度缩小预览，真正打印时恢复原大（一页 PDF 正好是一页幻灯片）。
   // 打印前后的切换直接改样式：打印对话框弹出之前浏览器就要排版，等 React 重新渲染来不及。
@@ -174,7 +176,7 @@ export function Presentation({
     (dir: number) => {
       const inner = stepInside(dir);
       if (inner) {
-        if (inner.caption) setStepCaption({ page, text: inner.caption });
+        if (inner.caption) setStepCaption({ page, text: inner.caption, wait: inner.wait });
         return inner;
       }
       setPage((p) => Math.max(0, Math.min(total - 1, p + dir)));
@@ -338,7 +340,7 @@ export function Presentation({
       if (cancelled) return;
       const inner = stepInside(1);
       if (inner) {
-        if (inner.caption) setStepCaption({ page, text: inner.caption });
+        if (inner.caption) setStepCaption({ page, text: inner.caption, wait: inner.wait });
         // 页里动画给的等待时间已经按速度算过了（它们也在用同一个速度）
         timer = setTimeout(tick, inner.wait ?? 600);
         return;
@@ -360,6 +362,8 @@ export function Presentation({
 
   const current = page >= 1 && page <= slides.length ? slides[page - 1] : null;
   const caption = current ? current.notes || (stepCaption?.page === page ? stepCaption.text : null) : null;
+  // 这句字幕大概会在屏幕上停多久：几段字幕按各自的长短分摊这段时间
+  const captionSpan = !caption ? 0 : current?.notes ? (durations?.[page] ?? speakingTime(caption)) / speed : (stepCaption?.wait ?? speakingTime(caption) / speed);
   const idle = rec === "idle";
 
   return (
@@ -405,11 +409,7 @@ export function Presentation({
           </section>
         </div>
         </PresentSpeed.Provider>
-        {captions && caption && (
-          <p key={caption} className="galley-present-caption">
-            {caption}
-          </p>
-        )}
+        {captions && caption && <Caption key={`${page}:${caption}`} text={caption} span={captionSpan} />}
       </div>
 
       {print && (
@@ -596,6 +596,26 @@ export function Presentation({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * 字幕：一次只显示一小段（见 render/captions.ts），几段依次出现。
+ * 整句讲稿一起放上去会排成两三行的一大块，压住上面的画面。
+ */
+function Caption({ text, span }: { text: string; span: number }) {
+  const parts = useMemo(() => captionParts(text), [text]);
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    if (index >= parts.length - 1) return;
+    const total = parts.reduce((sum, part) => sum + captionWidth(part), 0) || 1;
+    const timer = setTimeout(() => setIndex(index + 1), Math.max(700, (span * captionWidth(parts[index])) / total));
+    return () => clearTimeout(timer);
+  }, [index, parts, span]);
+  return (
+    <p key={index} className="galley-present-caption">
+      {parts[Math.min(index, parts.length - 1)]}
+    </p>
   );
 }
 

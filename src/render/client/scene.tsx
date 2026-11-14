@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { isBlend, readingTime, sceneFrame, type FrameValue, type NodeFrame, type SceneFrame } from "@/core/scene/frame";
 import type { Scene, SceneNode } from "@/core/scene/types";
+import { speakingTime } from "../captions";
 import { arrowHead, curveDirection, curvePath, curvePoint, linkCurve, type Curve, type End } from "../scene-geometry";
 import { prefersReducedMotion, useInView, useVisible } from "./in-view";
 import { SPEEDS, usePresentSpeed } from "./speed";
@@ -385,7 +386,9 @@ export function ScenePlayer({ scene, title }: { scene: Scene; title?: string }) 
       // 字幕用讲稿（讲的时候说的话）；这一步没写讲稿时才用画面下面那句文字
       const spoken = (i: number) => scene.steps[i].say ?? scene.steps[i].text;
       if (detail.dir > 0) {
-        detail.wait = (scene.steps[next].duration + readingTime(spoken(next))) / rate;
+        const step = scene.steps[next];
+        // 有讲稿时：边放动画边讲，动画放完、话也说完了才走下一步；没有讲稿时：动画放完再留出读那句文字的时间
+        detail.wait = (step.say ? Math.max(step.duration, speakingTime(step.say)) + 500 : step.duration + readingTime(step.text)) / rate;
         detail.caption = spoken(next);
         go(next, true);
       } else {

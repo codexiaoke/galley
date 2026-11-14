@@ -4861,11 +4861,21 @@ body {
   font-size: 30px;
   line-height: 1.5;
   text-align: center;
+  /* 排成两行时两行差不多长，不要第二行只剩一两个字 */
+  text-wrap: balance;
   animation: galley-tab-in 0.4s var(--ease-out);
 }
 .galley-present[data-orientation="portrait"] .galley-present-caption {
   bottom: 90px;
   font-size: 36px;
+}
+/* 开着字幕时，页面内容给字幕让出位置：字幕压在画面上，两边都看不清。
+   横屏的字幕是一行（render/captions.ts 按一行的宽度分段），竖屏窄，留两行 */
+.galley-present[data-captions] .galley-slide:not(.galley-slide-cover) {
+  padding-bottom: 140px;
+}
+.galley-present[data-captions][data-orientation="portrait"] .galley-slide:not(.galley-slide-cover) {
+  padding-bottom: 260px;
 }
 .galley-present-progress {
   position: absolute;
