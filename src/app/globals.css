@@ -4758,6 +4758,113 @@ body {
     transform: translateY(14px);
   }
 }
+/* ---- 演示的转场 ------------------------------------------------------------ */
+/*
+ * 换页用浏览器的视图过渡：换页前后各拍一张，旧的一张退出、新的一张进来（见 present.tsx 的 turnTo）。
+ * 怎么动由两页的关系决定，写在 <html> 的 data-slide-turn 和 data-slide-dir 上：
+ * - within  同一节里翻页：上下接续，幅度小。标题单独拿出来，从上一页的位置移到这一页的位置；
+ * - section 换了一节：左右推开，幅度大一些，看得出"讲下一件事了"；
+ * - cover   进出封面和结尾：推近、拉远。
+ * 往回翻时方向反过来。
+ */
+.galley-slide[data-current] {
+  view-transition-name: galley-slide;
+}
+/* 同一节里，这一页的大标题和下一页左上角的小字是同一个东西 */
+html[data-slide-turn="within"] .galley-slide[data-current] .galley-slide-section,
+html[data-slide-turn="within"] .galley-slide[data-current] .galley-slide-body .galley-prose > h2:first-child {
+  view-transition-name: galley-slide-heading;
+}
+html[data-slide-turn] {
+  --turn-x: 0%;
+  --turn-y: 0%;
+  --turn-out-scale: 1;
+  --turn-in-scale: 1;
+}
+html[data-slide-turn="within"][data-slide-dir="forward"] {
+  --turn-y: 3.5%;
+}
+html[data-slide-turn="within"][data-slide-dir="back"] {
+  --turn-y: -3.5%;
+}
+html[data-slide-turn="section"][data-slide-dir="forward"] {
+  --turn-x: 7%;
+}
+html[data-slide-turn="section"][data-slide-dir="back"] {
+  --turn-x: -7%;
+}
+html[data-slide-turn="cover"][data-slide-dir="forward"] {
+  --turn-out-scale: 1.06;
+  --turn-in-scale: 0.95;
+}
+html[data-slide-turn="cover"][data-slide-dir="back"] {
+  --turn-out-scale: 0.95;
+  --turn-in-scale: 1.06;
+}
+@keyframes galley-turn-out {
+  to {
+    opacity: 0;
+    transform: translate(calc(var(--turn-x) * -1), calc(var(--turn-y) * -1)) scale(var(--turn-out-scale));
+  }
+}
+@keyframes galley-turn-in {
+  from {
+    opacity: 0;
+    transform: translate(var(--turn-x), var(--turn-y)) scale(var(--turn-in-scale));
+  }
+}
+/* 旧的一页先走，新的一页稍后跟上：两页的字不会叠在一起 */
+::view-transition-old(galley-slide) {
+  animation: galley-turn-out 0.3s cubic-bezier(0.4, 0, 1, 1) both;
+  mix-blend-mode: normal;
+}
+::view-transition-new(galley-slide) {
+  animation: galley-turn-in 0.6s var(--ease-out) 0.14s both;
+  mix-blend-mode: normal;
+}
+::view-transition-group(galley-slide-heading) {
+  animation-duration: 0.62s;
+  animation-timing-function: var(--ease-out);
+}
+::view-transition-old(galley-slide-heading),
+::view-transition-new(galley-slide-heading) {
+  /* 两处的字号不同，按高度对齐、保持比例，文字不会被拉扁 */
+  height: 100%;
+  width: auto;
+  object-fit: contain;
+  object-position: left center;
+}
+/* 有视图过渡时，整页的进场交给它；下面这个淡入只留给不支持的浏览器 */
+@supports (view-transition-name: none) {
+  .galley-slide {
+    animation: none;
+  }
+}
+/* 一页里的内容依次浮上来。标题不参与：它要么随整页进来，要么从上一页移过来 */
+@keyframes galley-slide-rise {
+  from {
+    opacity: 0;
+    translate: 0 16px;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .galley-present:not([data-print]) .galley-slide[data-current] .galley-slide-body > .galley-prose > * {
+    animation: galley-slide-rise 0.55s var(--ease-out) backwards;
+    animation-delay: calc(0.18s + var(--n, 7) * 0.08s);
+  }
+  .galley-slide-body > .galley-prose > :nth-child(1) { --n: 0; }
+  .galley-slide-body > .galley-prose > :nth-child(2) { --n: 1; }
+  .galley-slide-body > .galley-prose > :nth-child(3) { --n: 2; }
+  .galley-slide-body > .galley-prose > :nth-child(4) { --n: 3; }
+  .galley-slide-body > .galley-prose > :nth-child(5) { --n: 4; }
+  .galley-slide-body > .galley-prose > :nth-child(6) { --n: 5; }
+  .galley-slide-body > .galley-prose > :nth-child(7) { --n: 6; }
+  .galley-present:not([data-print]) .galley-slide[data-current] .galley-slide-body > .galley-prose > h2:first-child,
+  .galley-present:not([data-print]) .galley-slide[data-current] .galley-slide-body > .galley-prose > h3:first-child {
+    animation: none;
+  }
+}
+
 /* 内容放不下时，整页内容（文字、播放器、按钮）一起等比缩小，见 present.tsx */
 .galley-slide-body {
   flex: 0 0 auto;

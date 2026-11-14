@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { lineIdentities } from "../code-diff";
 import { splitSlides, publicSlideSource } from "../slides";
+import { turnKind } from "../turn";
 
 describe("演示和代码演变", () => {
   it("每个二级标题一页，--- 也分页，讲稿从页面上拿出来", () => {
@@ -112,5 +113,21 @@ describe("讲稿和正文分开", () => {
     const slides = splitSlides(`## 一节\n\n正文。\n\n:::notes\n第一段\n:::\n\n:::notes\n第二段\n:::`);
     expect(slides[0].notes).toBe("第一段\n第二段");
     expect(slides[0].source).toBe("## 一节\n\n正文。");
+  });
+});
+
+describe("转场按两页的关系选", () => {
+  // 封面、开场白、「甲」的标题页、甲的两个小节、「乙」的标题页、结尾
+  const pages = splitSlides("开场白。\n\n## 甲\n\n甲的引子。\n\n### 甲一\n\n内容。\n\n### 甲二\n\n内容。\n\n## 乙\n\n乙的内容。");
+  it("同一节里翻页是接续，换一节是推开，进出封面和结尾是推近拉远", () => {
+    expect(pages.map((p) => p.section ?? p.title)).toEqual([undefined, "甲", "甲", "甲", "乙"]);
+    expect(turnKind(pages, 0, 1)).toBe("cover");
+    expect(turnKind(pages, 1, 2)).toBe("section"); // 开场白不属于任何一节
+    expect(turnKind(pages, 2, 3)).toBe("within"); // 标题页到它的小节
+    expect(turnKind(pages, 3, 4)).toBe("within");
+    expect(turnKind(pages, 4, 3)).toBe("within"); // 往回翻也一样
+    expect(turnKind(pages, 4, 5)).toBe("section");
+    expect(turnKind(pages, 5, 6)).toBe("cover");
+    expect(turnKind(pages, 6, 0)).toBe("cover");
   });
 });

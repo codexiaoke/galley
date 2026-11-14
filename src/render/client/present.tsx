@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { captionParts, captionWidth, speakingTime } from "../captions";
 import { download, prepareRecording, recordingSupport, type Recording, type RecordingSupport } from "./recorder";
 import { formatSpeed, PresentSpeed, SPEEDS } from "./speed";
 import { printWhenDiagramsReady } from "../print-readiness";
+import { turnKind } from "../turn";
 
 /**
  * 演示模式：文章变成全屏的幻灯片。
@@ -12,6 +14,11 @@ import { printWhenDiagramsReady } from "../print-readiness";
  * 翻页的规则：按"下一步"时，先问当前这一页里的动画（代码演变、算法动画……）还要不要往下走
  * ——给它们发一个 "galley-step" 事件，哪个接了（preventDefault）就算这一步用掉了；
  * 都不接（动画已经播完了，或者这一页没有动画），才翻到下一页。"上一步"同理。
+ *
+ * 转场：换页时旧的一页退出、新的一页进来，怎么动取决于两页的关系（见 render/turn.ts）：
+ * 同一节里往下翻是上下接续，标题缩到左上角变成小字留在原处；换一节是左右推开；封面和结尾是推近拉远。
+ * 用浏览器的视图过渡（View Transitions）做：换页前后各拍一张，中间的动画由 globals.css 里的规则决定。
+ * 浏览器不支持、读者设置了减少动态效果、打印时，直接换页。
  *
  * 幻灯片按固定的设计尺寸排版（横屏 1600×900，竖屏 900×1600），整体缩放到窗口大小，
  * 所以在什么屏幕上看、录成视频，排版都一样。内容太多放不下时整页缩小一点。
@@ -28,6 +35,8 @@ export type Cover = { title: string; summary?: string; site: string; date?: stri
 type Orientation = "landscape" | "portrait";
 
 type StepDetail = { dir: number; wait?: number; caption?: string };
+
+type TransitionDocument = Document & { startViewTransition?: (update: () => void) => { finished: Promise<void> } };
 type RecState = "idle" | "setup" | "countdown" | "recording" | "saving" | "done";
 type RecOptions = { orientation: Orientation; captions: boolean; mic: boolean; pacing: "auto" | "manual"; speed: number };
 
@@ -79,6 +88,42 @@ export function Presentation({
   const slideRefs = useRef<(HTMLElement | null)[]>([]);
   const stageRef = useRef<HTMLDivElement>(null);
   const size = DESIGN[orientation];
+
+  // ---- 换页和转场 ----
+  const pageRef = useRef(0);
+  useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
+  const turnToken = useRef(0);
+
+  /** 换到第 to 页。animate 为 false 时不放转场（比如录制开始时回到封面） */
+  const turnTo = useCallback(
+    (to: number, animate = true) => {
+      const from = pageRef.current;
+      const next = Math.max(0, Math.min(total - 1, to));
+      if (next === from) return;
+      pageRef.current = next;
+      const doc = document as TransitionDocument;
+      if (!animate || print || !doc.startViewTransition || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        setPage(next);
+        return;
+      }
+      // 转场的种类和方向写在 <html> 上，样式按它选动画；转场结束后拿掉
+      const root = document.documentElement;
+      const token = ++turnToken.current;
+      root.dataset.slideTurn = turnKind(slides, from, next);
+      root.dataset.slideDir = next > from ? "forward" : "back";
+      const transition = doc.startViewTransition(() => flushSync(() => setPage(next)));
+      const clear = () => {
+        // 连着翻页时，上一次转场结束得晚：不要把这一次的标记拿掉
+        if (turnToken.current !== token) return;
+        delete root.dataset.slideTurn;
+        delete root.dataset.slideDir;
+      };
+      transition.finished.then(clear, clear);
+    },
+    [total, print, slides],
+  );
 
   // ---- 录制 ----
   const [rec, setRec] = useState<RecState>("idle");
@@ -179,10 +224,10 @@ export function Presentation({
         if (inner.caption) setStepCaption({ page, text: inner.caption, wait: inner.wait });
         return inner;
       }
-      setPage((p) => Math.max(0, Math.min(total - 1, p + dir)));
+      turnTo(page + dir);
       return null;
     },
-    [stepInside, total, page],
+    [stepInside, turnTo, page],
   );
 
   const stopRecording = useCallback(async () => {
@@ -214,7 +259,7 @@ export function Presentation({
       });
       recording.current = r;
       // 从头开始：回到封面，所有动画重新挂载
-      setPage(0);
+      turnTo(0, false);
       setRun((n) => n + 1);
       setStepCaption(null);
       setShowNotes(false);
@@ -288,8 +333,8 @@ export function Presentation({
         if (e.key === "a" || e.key === "A") setAuto((v) => !v);
         else if (e.key === "-" || e.key === "_") changeSpeed(-1);
         else if (e.key === "=" || e.key === "+") changeSpeed(1);
-        else if (e.key === "Home") setPage(0);
-        else if (e.key === "End") setPage(total - 1);
+        else if (e.key === "Home") turnTo(0);
+        else if (e.key === "End") turnTo(total - 1);
         else if (e.key === "f" || e.key === "F") {
           if (document.fullscreenElement) void document.exitFullscreen();
           else void document.documentElement.requestFullscreen?.();
@@ -298,7 +343,7 @@ export function Presentation({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [auto, move, total, backHref, rec, stopRecording, print]);
+  }, [auto, move, turnTo, total, backHref, rec, stopRecording, print]);
 
   // 控制条：鼠标不动两秒后隐藏
   useEffect(() => {
@@ -347,7 +392,7 @@ export function Presentation({
       }
       const left = reading - (Date.now() - started);
       if (left > 0) timer = setTimeout(tick, left);
-      else setPage((p) => p + 1);
+      else turnTo(page + 1);
     };
     // 先让这一页显示出来、动画开始，再开始往下走
     timer = setTimeout(tick, 1200 / speed);
@@ -355,7 +400,7 @@ export function Presentation({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [auto, autoParam, speed, page, total, slides, stepInside, durations, rec, stopRecording]);
+  }, [auto, autoParam, speed, page, total, slides, stepInside, turnTo, durations, rec, stopRecording]);
 
   // 结果里的视频地址用完就释放
   useEffect(() => () => void (result && URL.revokeObjectURL(result.url)), [result]);
