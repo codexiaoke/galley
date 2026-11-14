@@ -8,6 +8,7 @@ const render = (body: string) => renderToStaticMarkup(createElement(Markdown, { 
 
 /** 交给场景播放器的数据，测试里用来看哪些东西会被送到浏览器 */
 const scenesSent = vi.hoisted(() => [] as unknown[]);
+const sourcesSent = vi.hoisted(() => [] as (string | undefined)[]);
 
 /**
  * 播放器在页面上是按需加载的（client/lazy.tsx 里用 next/dynamic），离开 Next.js 时 next/dynamic 什么都不渲染。
@@ -31,6 +32,7 @@ vi.mock("../client/lazy", async () => ({
     const Real = (await import("../client/scene")).ScenePlayer;
     return function ScenePlayerSpy(props: Parameters<typeof Real>[0]) {
       scenesSent.push(props.scene);
+      sourcesSent.push(props.source);
       return createElement(Real, props);
     };
   })(),
@@ -160,6 +162,24 @@ describe("场景动画", () => {
     expect(sent({})).not.toContain("讲的时候说的话");
     expect(sent({ review: true })).not.toContain("讲的时候说的话");
     expect(sent({ narration: true })).toContain("讲的时候说的话");
+  });
+
+  it("有读者能调的东西时才把代码交给浏览器，而且先摘掉讲稿", async () => {
+    const plain = ':::scene\n```js\nconst a = box("甲")\nstep("出现。", () => { say("不给读者看的讲稿。"); show(a) })\n```\n:::';
+    const tunable = ':::scene\n```js\nconst w = param("w", { min: 50, max: 300, value: 100 })\nconst a = box("甲", { w })\nstep("出现。", () => { say("不给读者看的讲稿。"); show(a) })\n```\n:::';
+    const { runScenes } = await import("@/core/scene/run");
+    const sent = async (body: string) => {
+      sourcesSent.length = 0;
+      renderToStaticMarkup(createElement(Markdown, { body, blocks: {}, scenes: await runScenes(body) }));
+      return sourcesSent[0];
+    };
+    expect(await sent(plain)).toBeUndefined();
+    const source = await sent(tunable);
+    expect(source).toContain('param("w"');
+    expect(source).not.toContain("讲稿");
+    // 页面上有滑块
+    const html = renderToStaticMarkup(createElement(Markdown, { body: tunable, blocks: {}, scenes: await runScenes(tunable) }));
+    expect(html).toContain('type="range"');
   });
 
   it("代码出错时读者什么都看不到，审阅预览里显示错误", async () => {

@@ -317,6 +317,67 @@ step("看这个按钮。", () => { show(shot); show(button); zoomTo(button) })`)
     expect(parseMarkup(body).images.map((i) => i.name)).toEqual(["abc123.png"]);
   });
 
+  it("读者能调的数：没调时用默认值，带着新的数值重新运行就是新的画面", async () => {
+    const code = `const a = param("a", { min: -2, max: 2, value: 0.5, step: 0.1, label: "开口" })
+const ax = axes({ x: [-3, 3], y: [-4, 4], labels: false })
+const curve = ax.plot((x) => a * x * x)
+const p = handle("p", { x: 400, y: 100, axis: "x", minX: 200, maxX: 600 })
+const note = box("a = " + a.toFixed(1), { x: p.x, y: 60 })
+tip(note, "这是抛物线的开口大小")
+show(ax.parts, curve, p, note)
+step("拖滑块看开口怎么变。", () => pulse(note))`;
+    const first = await ok(code);
+    expect(first.params).toEqual([
+      { kind: "slider", name: "a", label: "开口", min: -2, max: 2, step: 0.1, value: 0.5, initial: 0.5 },
+      expect.objectContaining({ kind: "handle", name: "p", x: 400, y: 100, minX: 200, maxX: 600, axis: "x" }),
+    ]);
+    expect(first.nodes.find((n) => n.props.text === "a = 0.5")).toMatchObject({ tip: "这是抛物线的开口大小" });
+    expect(first.nodes.find((n) => n.handle === "p")!.props).toMatchObject({ x: 400, y: 100 });
+
+    // 读者把滑块拖到 -1、把点拖到右边：同一段代码，新的数值
+    const dragged = await runScene(code, "16:9", { values: { a: -1, p_x: 9999, p_y: 300 } });
+    if (!dragged.ok) throw new Error(dragged.error);
+    expect(dragged.scene.nodes.some((n) => n.props.text === "a = -1.0")).toBe(true);
+    // 超出范围的收回到范围里；只能左右拖的点，上下的数值不算
+    expect(dragged.scene.nodes.find((n) => n.handle === "p")!.props).toMatchObject({ x: 600, y: 100 });
+    expect(dragged.scene.params![0]).toMatchObject({ value: -1, initial: 0.5 });
+    // 曲线真的变了
+    const curveOf = (scene: typeof first) => scene.nodes.filter((n) => n.kind === "path").at(-1)!.props.points;
+    expect(curveOf(dragged.scene)).not.toBe(curveOf(first));
+
+    // 来自读者浏览器的数值只认数字；别的东西进不去
+    const junk = await runScene(code, "16:9", { values: { a: Number.NaN, "__proto__": 1, "a b": 2 } as Record<string, number> });
+    expect(junk.ok && junk.scene.params![0]).toMatchObject({ value: 0.5 });
+  });
+
+  it("读者拖动时取景不跟着变：重新运行沿用第一次的全景", async () => {
+    const code = `const w = param("w", { min: 50, max: 700, value: 100 })
+const a = box("甲", { x: 400, y: 225, w: w, h: 60 })
+step("出现。", () => { show(a); zoomTo(a); zoomOut() })`;
+    const first = await ok(code);
+    const camera = (scene: typeof first) => scene.nodes.find((n) => n.kind === "camera")!.props as { x: number; y: number; zoom: number };
+    const home = camera(first);
+    expect(home.zoom).toBeGreaterThan(1.5); // 东西很小，全景放大了
+    const free = await runScene(code, "16:9", { values: { w: 700 } });
+    const fixed = await runScene(code, "16:9", { values: { w: 700 }, home });
+    if (!free.ok || !fixed.ok) throw new Error("运行失败");
+    expect(camera(free.scene).zoom).toBeLessThan(home.zoom); // 不固定时：东西变大，镜头会退后
+    expect(camera(fixed.scene)).toEqual(home); // 固定时：还是原来的取景
+    // zoomOut 回到的也是这个全景
+    expect(sceneFrame(fixed.scene, 0, Infinity)[fixed.scene.nodes.find((n) => n.kind === "camera")!.id]).toMatchObject(home);
+  });
+
+  it("参数写错的地方会报出来", async () => {
+    const dup = await runScene(`param("a", { min: 0, max: 1 })\nparam("a", { min: 0, max: 1 })\nstep("一")`);
+    expect(!dup.ok && dup.error).toMatch(/名字「a」已经用过了/);
+    const range = await runScene(`param("a", { min: 1, max: 1 })\nstep("一")`);
+    expect(!range.ok && range.error).toMatch(/max 要比 min 大/);
+    const name = await runScene(`param("开口", { min: 0, max: 1 })\nstep("一")`);
+    expect(!name.ok && name.error).toMatch(/字母开头/);
+    const link = await runScene(`const a = box("甲"), b = box("乙")\ntip(arrow(a, b), "说明")\nstep("一")`);
+    expect(!link.ok && link.error).toMatch(/不能是连线/);
+  });
+
   it("组件清单里的例子本身能跑通", async () => {
     const example = getComponent("scene")!.example;
     const [result] = Object.values(await runScenes(example));

@@ -4630,6 +4630,137 @@ body {
   stroke-linejoin: round;
 }
 
+/* 场景里读者能动手的东西 */
+.galley-scene-stage {
+  position: relative;
+}
+/* 能拖的点：手型光标，外面一圈会呼吸的环提示"这里能拖" */
+.galley-scene-handle {
+  cursor: grab;
+  touch-action: none;
+}
+.galley-scene-handle:active {
+  cursor: grabbing;
+}
+.galley-scene-handle-ring {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.4;
+  opacity: 0.5;
+  pointer-events: none;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: galley-scene-breathe 1.8s ease-in-out infinite;
+}
+/* 带说明的东西：整块都能点（空心的框也是），右上角一个小圆点 */
+.galley-scene-tip {
+  cursor: pointer;
+}
+.galley-scene-tip rect,
+.galley-scene-tip circle,
+.galley-scene-tip image {
+  pointer-events: all;
+}
+.galley-scene-tip-dot {
+  fill: var(--accent);
+  stroke: var(--scene-bg);
+  stroke-width: 1.5;
+  pointer-events: none;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: galley-scene-breathe 1.8s ease-in-out infinite;
+}
+@keyframes galley-scene-breathe {
+  50% {
+    transform: scale(1.35);
+    opacity: 0.25;
+  }
+}
+/* 点开的说明：一个小气泡，贴在被点的东西旁边 */
+.galley-scene-tipbox {
+  position: absolute;
+  z-index: 1;
+  width: max-content;
+  max-width: min(22rem, 70%);
+  margin: 0;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-ui);
+  font-size: 0.84rem;
+  line-height: 1.6;
+  text-align: left;
+  --tip-x: -50%;
+  --tip-y: calc(-100% - 8px);
+  translate: var(--tip-x) var(--tip-y);
+  animation: galley-tab-in 0.25s var(--ease-out);
+}
+.galley-scene-tipbox[data-below] {
+  --tip-y: 8px;
+}
+/* 靠左的往右展开，靠右的往左展开，不伸到画面外面 */
+.galley-scene-tipbox[data-align="start"] {
+  --tip-x: -1.5rem;
+}
+.galley-scene-tipbox[data-align="end"] {
+  --tip-x: calc(-100% + 1.5rem);
+}
+/* 滑块：画面下面一行，一个参数一条 */
+.galley-scene-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1.4rem;
+  padding: 0.65rem 1.1rem;
+  border-top: 1px solid color-mix(in srgb, var(--rule) 70%, transparent);
+  background: var(--scene-bg, var(--paper-raised));
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+.galley-scene-controls label {
+  display: flex;
+  flex: 1 1 14rem;
+  align-items: center;
+  gap: 0.6rem;
+}
+.galley-scene-controls input[type="range"] {
+  flex: 1;
+  min-width: 6rem;
+  accent-color: var(--accent);
+}
+.galley-scene-controls output {
+  min-width: 3ch;
+  font-family: var(--font-geist-mono), "SF Mono", Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.galley-scene-controls button {
+  border-radius: 6px;
+  padding: 0.15rem 0.6rem;
+  color: var(--ink-soft);
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+.galley-scene-controls button:disabled {
+  opacity: 0.4;
+}
+/* 演示里不放滑块：一页的高度是按画面算好的；画面上能拖的点、能点的说明照常能用 */
+.galley-slide .galley-scene-controls {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .galley-scene-handle-ring,
+  .galley-scene-tip-dot {
+    animation: none;
+  }
+}
+@media print {
+  .galley-scene-controls,
+  .galley-scene-tipbox {
+    display: none;
+  }
+}
+
 /* ---- 演示模式 -------------------------------------------------------------- */
 /* 幻灯片按设计尺寸（横屏 1600×900，竖屏 900×1600）排版，整体缩放到窗口大小 */
 
@@ -5454,4 +5585,3 @@ html[data-slide-turn="cover"][data-slide-dir="back"] {
   font-size: 25px;
   line-height: 1.6;
 }
-

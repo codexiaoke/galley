@@ -40,7 +40,19 @@ export type SceneNode = {
   to?: string | [number, number];
   /** 小圆点沿着哪条连线走 */
   along?: string;
+  /** 读者可以拖的点：它对应哪个参数（见 SceneParam） */
+  handle?: string;
+  /** 点一下显示的说明 */
+  tip?: string;
 };
+
+/**
+ * 读者能动手调的东西。读者一动，浏览器带着新的数值把场景代码重新跑一遍，画面跟着变。
+ * slider 是画面下面的一个滑块，值交给代码里的 param()；handle 是画面上能拖的一个点，位置交给 handle()。
+ */
+export type SceneParam =
+  | { kind: "slider"; name: string; label: string; min: number; max: number; step: number; value: number; initial: number }
+  | { kind: "handle"; name: string; node: string; x: number; y: number; minX: number; maxX: number; minY: number; maxY: number; axis: "" | "x" | "y" };
 
 export type SceneTween = {
   id: string;
@@ -68,8 +80,8 @@ export type SceneStep = {
   duration: number;
 };
 
-export type Scene = { w: number; h: number; nodes: SceneNode[]; steps: SceneStep[] };
+export type Scene = { w: number; h: number; nodes: SceneNode[]; steps: SceneStep[]; params?: SceneParam[] };
 
 export type SceneResult = { ok: true; scene: Scene } | { ok: false; error: string; line?: number };
 
-export const SCENE_LIMITS = { nodes: 120, steps: 24, tweens: 900, codeLines: 16, bytes: 500_000 };
+export const SCENE_LIMITS = { nodes: 120, steps: 24, tweens: 900, codeLines: 16, bytes: 500_000, params: 6 };

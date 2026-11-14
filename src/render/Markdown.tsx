@@ -17,8 +17,8 @@ import type { FlowGraph } from "@/core/markup/flow";
 import { readCodeSteps, readFlow, readQuiz, readScene, readSteps, readTrace, STEP_LINES_PATTERN } from "@/core/markup/structure";
 import { lineIdentities } from "./code-diff";
 import { traceCache, traceKey, type TraceResult } from "@/core/algo/trace-shared";
-import { sceneCache, sceneKey, withoutNarration } from "@/core/scene/shared";
-import type { SceneResult } from "@/core/scene/types";
+import { sceneCache, sceneKey, stripNarration, withoutNarration } from "@/core/scene/shared";
+import type { SceneRatio, SceneResult } from "@/core/scene/types";
 import type { BlockView } from "@/core/services/blocks";
 import type { PostCard } from "@/core/services/documents";
 import { CiteHover } from "./CiteHover";
@@ -249,7 +249,7 @@ function remarkGalley(options: { source: string }) {
       if (d.name === "scene") {
         const sc = readScene(d as never);
         const code = sc.code ?? "";
-        d.data = { hName: "galley-scene", hProperties: { attrs: JSON.stringify({ id: sceneKey(code, sc.ratio), title: sc.title ?? "" }) }, hChildren: [] };
+        d.data = { hName: "galley-scene", hProperties: { attrs: JSON.stringify({ id: sceneKey(code, sc.ratio), title: sc.title ?? "", code, ratio: sc.ratio }) }, hChildren: [] };
         return;
       }
       if (d.name === "quiz") {
@@ -651,15 +651,21 @@ function Trace({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
 
 /**
  * 场景动画：代码已经在服务端的沙箱里跑过（页面渲染前调用 prepareRender），这里取结果交给播放器。
- * 读者的浏览器只拿到运行结果，不执行作者的代码。代码出错时读者什么都看不到，审阅预览里显示错误。
+ * 读者的浏览器平时只拿到运行结果。场景里有读者能调的东西（滑块、能拖的点）时才把代码也给过去，
+ * 读者一动就在后台线程的沙箱里重新运行。代码出错时读者什么都看不到，审阅预览里显示错误。
  *
  * 每一步有两句话：写给读者看的文字，和讲的时候说的话（讲稿）。讲稿只在演示里用，
  * 文章页面上先把它去掉再交给播放器，不会被送到读者的浏览器里。
  */
 function SceneView({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
-  const { id, title } = attrsOf<{ id: string; title: string }>(props);
+  const { id, title, code, ratio } = attrsOf<{ id: string; title: string; code: string; ratio: SceneRatio }>(props);
   const result = ctx.scenes[id] ?? sceneCache.get(id);
-  if (result?.ok) return <ScenePlayer scene={ctx.narration ? result.scene : withoutNarration(result.scene)} title={title || undefined} />;
+  if (result?.ok) {
+    // 场景里有读者能调的东西时，把代码也交给播放器：读者一动，浏览器要带着新的数值重新运行。
+    // 交出去的代码先摘掉讲稿；没有可调的东西时不交代码，读者的浏览器只拿到运行结果。
+    const source = result.scene.params?.length ? stripNarration(code) : undefined;
+    return <ScenePlayer key={id} scene={ctx.narration ? result.scene : withoutNarration(result.scene)} title={title || undefined} source={source} ratio={ratio} />;
+  }
   return ctx.review ? <p className="galley-trace-error">{result ? `场景代码出错，${result.error}` : "场景代码还没有运行。"}</p> : null;
 }
 

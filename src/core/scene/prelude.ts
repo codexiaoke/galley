@@ -14,7 +14,7 @@
  *
  * 写在第一个 step 之前的动作不是动画，而是直接改一开始的样子（比如先 show 出底图）。
  *
- * W、H（舞台的宽高）在这段代码之前由 run.ts 设好。
+ * W、H（舞台的宽高）、__params（读者调过的数值）、__homeFixed（固定的全景）在这段代码之前由 execute.ts 设好。
  * 这段代码不能用模板字符串里的 ${}（外面是 TypeScript 的字符串），需要拼接时用 + 号。
  */
 export const SCENE_PRELUDE = String.raw`
@@ -483,6 +483,61 @@ function axes(o) {
   };
 }
 
+/* ---------- 读者能动手的东西 ---------- */
+var __paramDefs = [];
+function __paramName(name, fn) {
+  if (typeof name !== "string" || !/^[A-Za-z][A-Za-z0-9]{0,15}$/.test(name)) __fail(fn + "() 的第一个参数是它的名字：字母开头，只用字母和数字，例如 \"a\"。");
+  if (__paramDefs.some(function (d) { return d.name === name; })) __fail(fn + "() 的名字「" + name + "」已经用过了。");
+  if (__paramDefs.length >= 6) __fail("一个场景里读者能调的东西最多 6 个。");
+}
+function __clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+/**
+ * 读者可以调的一个数：画面下面出现一个滑块，返回它现在的值。
+ * 读者一拖，整段代码带着新的值重新跑一遍，所以直接拿返回值去算就行。
+ */
+function param(name, o) {
+  o = o || {};
+  __paramName(name, "param");
+  __known(o, ["min", "max", "value", "step", "label"], "param");
+  var min = __num(o.min, "min", "param"), max = __num(o.max, "max", "param");
+  if (!(max > min)) __fail("param() 的 max 要比 min 大。");
+  var step = o.step === undefined ? (max - min) / 100 : __num(o.step, "step", "param");
+  if (!(step > 0)) __fail("param() 的 step 要大于 0。");
+  var initial = o.value === undefined ? min : __clamp(__num(o.value, "value", "param"), min, max);
+  var given = __params[name];
+  var value = typeof given === "number" && isFinite(given) ? __clamp(given, min, max) : initial;
+  __paramDefs.push({ kind: "slider", name: name, label: o.label === undefined ? name : String(o.label), min: min, max: max, step: step, value: value, initial: initial });
+  return value;
+}
+/**
+ * 读者可以直接在画面上拖的一个点。返回这个点（一个小圆），用 .x、.y 读它现在的位置去算别的东西。
+ * axis: "x" 只能左右拖，"y" 只能上下拖；minX、maxX、minY、maxY 限制它能去的范围。
+ */
+function handle(name, o) {
+  o = o || {};
+  __paramName(name, "handle");
+  __known(o, ["x", "y", "axis", "minX", "maxX", "minY", "maxY", "tone", "r"], "handle");
+  if (o.axis !== undefined && o.axis !== "x" && o.axis !== "y") __fail("handle() 的 axis 只能是 \"x\"（只能左右拖）或 \"y\"（只能上下拖）。");
+  var x0 = __num(o.x, "x", "handle"), y0 = __num(o.y, "y", "handle");
+  var minX = o.minX === undefined ? 0 : __num(o.minX, "minX", "handle"), maxX = o.maxX === undefined ? W : __num(o.maxX, "maxX", "handle");
+  var minY = o.minY === undefined ? 0 : __num(o.minY, "minY", "handle"), maxY = o.maxY === undefined ? H : __num(o.maxY, "maxY", "handle");
+  var gx = __params[name + "_x"], gy = __params[name + "_y"];
+  var x = o.axis === "y" || typeof gx !== "number" || !isFinite(gx) ? x0 : gx;
+  var y = o.axis === "x" || typeof gy !== "number" || !isFinite(gy) ? y0 : gy;
+  x = __clamp(x, minX, maxX); y = __clamp(y, minY, maxY);
+  var node = circle("", { r: o.r === undefined ? 7 : o.r, tone: o.tone === undefined ? "accent" : o.tone, x: x, y: y });
+  __byId[node.id].handle = name;
+  __paramDefs.push({ kind: "handle", name: name, node: node.id, x: x, y: y, minX: minX, maxX: maxX, minY: minY, maxY: maxY, axis: o.axis || "" });
+  return node;
+}
+/** 读者点一下这个东西，旁边显示一段说明。适合截图上的各个区域、图里的各个零件 */
+function tip(n, words) {
+  if (!__isNode(n) || n.kind === "link" || n.kind === "camera" || n.kind === "packet") __fail("tip() 的第一个参数要是画面上的东西（不能是连线）。");
+  if (typeof words !== "string" || !words.trim()) __fail("tip() 的第二个参数是点开以后显示的说明（一两句话）。");
+  if (words.length > 200) __fail("tip() 的说明太长了（超过 200 个字）。");
+  __byId[n.id].tip = words.trim();
+}
+
 var __camera = __add("camera", { x: W / 2, y: H / 2, zoom: 1 });
 
 /* ---------- 时间 ---------- */
@@ -900,12 +955,15 @@ function __home() {
 function __finish() {
   if (!__steps.length) __fail("场景里至少要有一步：step(\"这一步讲什么\", () => { show(a) })。");
   if (!__cameraSet) {
-    var home = __home();
+    // 读者拖动时重新运行：全景沿用第一次算出来的，画面的取景不跟着变
+    var home = __homeFixed || __home();
     if (home) {
       ["x", "y", "zoom"].forEach(function (k) { __byId[__camera.id].props[k] = home[k]; });
       __homeTweens.forEach(function (tw) { tw.to = home[tw.prop]; });
     }
   }
-  return JSON.stringify({ w: W, h: H, nodes: __nodes, steps: __steps });
+  var out = { w: W, h: H, nodes: __nodes, steps: __steps };
+  if (__paramDefs.length) out.params = __paramDefs;
+  return JSON.stringify(out);
 }
 `;
