@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { flushSync } from "react-dom";
+import { advance, leadsOn, planBuild, type BuildState, type BuildStop } from "../build";
 import { captionParts, captionWidth, speakingTime } from "../captions";
 import { download, prepareRecording, recordingSupport, type Recording, type RecordingSupport } from "./recorder";
 import { formatSpeed, PresentSpeed, SPEEDS } from "./speed";
@@ -11,12 +12,15 @@ import { turnKind } from "../turn";
 /**
  * 演示模式：文章变成全屏的幻灯片。
  *
- * 翻页的规则：按"下一步"时，先问当前这一页里的动画（代码演变、算法动画……）还要不要往下走
- * ——给它们发一个 "galley-step" 事件，哪个接了（preventDefault）就算这一步用掉了；
- * 都不接（动画已经播完了，或者这一页没有动画），才翻到下一页。"上一步"同理。
+ * 翻页的规则：按"下一步"时，先看当前这一页里还有没有东西可走（顺序见 render/build.ts）：
+ * - 文字一条一条出现：段落、列表的每一项，除了第一条都先藏着，按一下出一条；
+ * - 页里的动画（代码演变、算法动画、场景）：给它发一个 "galley-step" 事件，它接了（preventDefault）就算这一步用掉了。
+ * 都走完了，才翻到下一页。"上一步"原路退回。
  *
  * 转场：换页时旧的一页退出、新的一页进来，怎么动取决于两页的关系（见 render/turn.ts）：
  * 同一节里往下翻是上下接续，标题缩到左上角变成小字留在原处；换一节是左右推开；封面和结尾是推近拉远。
+ * 同一节里相邻两页都有同一类大块（都是代码块、都是图、都是播放器）时，这个大块不跟着整页走，
+ * 而是留在画面上从上一页的位置和大小变到这一页的，里面的内容交叉淡入：看起来是同一个窗口换了内容。
  * 用浏览器的视图过渡（View Transitions）做：换页前后各拍一张，中间的动画由 globals.css 里的规则决定。
  * 浏览器不支持、读者设置了减少动态效果、打印时，直接换页。
  *
@@ -37,6 +41,62 @@ type Orientation = "landscape" | "portrait";
 type StepDetail = { dir: number; wait?: number; caption?: string };
 
 type TransitionDocument = Document & { startViewTransition?: (update: () => void) => { finished: Promise<void> } };
+
+/** 一页里能一条一条出现的文字：段落、引文、表格、提示框，以及列表的每一项 */
+const BUILD_BLOCKS = "p, blockquote, .galley-table-wrap, .galley-callout";
+/** 一页里的"大块"：相邻两页是同一类时，换页时把它们接起来 */
+const HERO_BLOCKS = ":scope > figure, :scope > .galley-mermaid, :scope > .galley-chart, :scope > .galley-flow";
+
+const proseOf = (slide: HTMLElement | null | undefined) => slide?.querySelector<HTMLElement>(".galley-slide-body > .galley-prose") ?? null;
+const charsOf = (el: Element) => (el.textContent ?? "").replace(/\s+/g, "").length;
+
+/** 第一次进这一页时：找出能一条一条出现的文字，除了第一条都先藏起来（藏着的仍然占位，出现时版面不会跳） */
+function prepareBuild(slide: HTMLElement) {
+  const prose = proseOf(slide);
+  if (!prose || prose.dataset.buildReady) return;
+  prose.dataset.buildReady = "true";
+  const units: HTMLElement[] = [];
+  for (const child of Array.from(prose.children) as HTMLElement[]) {
+    if (child.tagName === "UL" || child.tagName === "OL") units.push(...(Array.from(child.children) as HTMLElement[]).filter((item) => item.tagName === "LI"));
+    else if (child.matches(BUILD_BLOCKS)) units.push(child);
+  }
+  // 以冒号结尾、而且紧挨着的就是下一条文字（或者一个列表，下一条是它的第一项）时，这一条是引子。
+  // 后面跟着的是代码或图时不算：那是在引出它，不是引出再后面的文字。
+  const leads = units.map((unit, i) => {
+    const next = unit.nextElementSibling;
+    return leadsOn(unit.textContent ?? "") && !!units[i + 1] && (next === units[i + 1] || next?.firstElementChild === units[i + 1]);
+  });
+  planBuild(leads).forEach((plan, i) => {
+    units[i].dataset.build = plan.state;
+    if (plan.lead) units[i].dataset.buildLead = "true";
+  });
+}
+
+/** 这一页里能"走一步"的东西，按页面上的先后：藏着等出现的文字，和页里的播放器 */
+function buildStops(slide: HTMLElement): BuildStop[] {
+  return Array.from(slide.querySelectorAll<HTMLElement>("[data-build], [data-steppable]")).map((el) => {
+    if (el.dataset.build) {
+      return { type: "unit", state: el.dataset.build as BuildState, lead: !!el.dataset.buildLead, chars: charsOf(el), apply: (state) => void (el.dataset.build = state) };
+    }
+    return {
+      type: "player",
+      step: (dir) => {
+        const detail: StepDetail = { dir };
+        const event = new CustomEvent<StepDetail>("galley-step", { detail, cancelable: true });
+        el.dispatchEvent(event);
+        return event.defaultPrevented ? detail : null;
+      },
+    };
+  });
+}
+
+/** 这一页的文字里，一进来就在的那几条占多大比例（按字数）。没有分步的页返回 0 */
+function firstShare(slide: HTMLElement | null): number {
+  const units = slide ? Array.from(slide.querySelectorAll<HTMLElement>("[data-build]")) : [];
+  const total = units.reduce((sum, unit) => sum + charsOf(unit), 0);
+  if (!total) return 0;
+  return units.filter((unit) => unit.dataset.build === "first").reduce((sum, unit) => sum + charsOf(unit), 0) / total;
+}
 type RecState = "idle" | "setup" | "countdown" | "recording" | "saving" | "done";
 type RecOptions = { orientation: Orientation; captions: boolean; mic: boolean; pacing: "auto" | "manual"; speed: number };
 
@@ -103,16 +163,31 @@ export function Presentation({
       const next = Math.max(0, Math.min(total - 1, to));
       if (next === from) return;
       pageRef.current = next;
+      // 离开的这一页：内容的进场动画到此为止；上一次转场接过的大块也放开
+      const leaving = slideRefs.current[from];
+      if (leaving) delete leaving.dataset.enter;
+      document.querySelectorAll("[data-slide-hero]").forEach((el) => el.removeAttribute("data-slide-hero"));
       const doc = document as TransitionDocument;
-      if (!animate || print || !doc.startViewTransition || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      // 页面在后台时浏览器不出画面，视图过渡会一直等着：直接换页
+      if (!animate || print || !doc.startViewTransition || document.hidden || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         setPage(next);
         return;
       }
       // 转场的种类和方向写在 <html> 上，样式按它选动画；转场结束后拿掉
       const root = document.documentElement;
       const token = ++turnToken.current;
-      root.dataset.slideTurn = turnKind(slides, from, next);
+      const kind = turnKind(slides, from, next);
+      root.dataset.slideTurn = kind;
       root.dataset.slideDir = next > from ? "forward" : "back";
+      if (kind === "within") {
+        // 两页都有同一类大块：标成同一个东西，转场时从上一页的位置变到这一页的
+        const a = proseOf(slideRefs.current[from])?.querySelector<HTMLElement>(HERO_BLOCKS);
+        const b = proseOf(slideRefs.current[next])?.querySelector<HTMLElement>(HERO_BLOCKS);
+        if (a && b && a.classList[0] === b.classList[0]) {
+          a.dataset.slideHero = "true";
+          b.dataset.slideHero = "true";
+        }
+      }
       const transition = doc.startViewTransition(() => flushSync(() => setPage(next)));
       const clear = () => {
         // 连着翻页时，上一次转场结束得晚：不要把这一次的标记拿掉
@@ -201,21 +276,42 @@ export function Presentation({
   }, [print]);
 
   /** 让当前页里的动画走一步；返回它接没接，以及建议等多久再走下一步 */
+  /** 这一页至少停留多久（毫秒，已经按速度算过）：给定的时长，否则按讲稿或页面文字估 */
+  const pageStay = useCallback(
+    (p: number) => {
+      const slide = p >= 1 && p <= slides.length ? slides[p - 1] : null;
+      return (durations?.[p] ?? (slide ? Math.min(14000, Math.max(3500, ((slide.notes.length || slide.text) * 1000) / 7)) : 3500)) / speed;
+    },
+    [durations, slides, speed],
+  );
+
   const stepInside = useCallback(
     (dir: number): StepDetail | null => {
       const slide = slideRefs.current[page];
       if (!slide) return null;
-      const targets = [...slide.querySelectorAll<HTMLElement>("[data-steppable]")];
-      for (const t of dir > 0 ? targets : targets.reverse()) {
-        const detail: StepDetail = { dir };
-        const ev = new CustomEvent<StepDetail>("galley-step", { detail, cancelable: true });
-        t.dispatchEvent(ev);
-        if (ev.defaultPrevented) return detail;
-      }
-      return null;
+      const stops = buildStops(slide);
+      const result = advance(stops, dir);
+      if (!result) return null;
+      if ("player" in result) return { dir, ...result.player };
+      // 出现了一条文字：自动播放时，它按自己的字数分摊这一页的时间
+      const total = stops.reduce((sum, stop) => sum + (stop.type === "unit" ? stop.chars : 0), 0);
+      return { dir, wait: total ? (pageStay(page) * result.chars) / total : undefined };
     },
-    [page],
+    [page, pageStay],
   );
+
+  // 进到一页：这一页的内容依次进场；能一条一条出现的文字先藏好。
+  // 用 layout effect：要赶在这一页第一次画出来之前（也赶在转场拍"之后"那一张之前）。
+  useLayoutEffect(() => {
+    if (print) return;
+    slideRefs.current.forEach((slide, i) => {
+      if (!slide) return;
+      if (i === page) slide.dataset.enter = "true";
+      else delete slide.dataset.enter;
+    });
+    const slide = slideRefs.current[page];
+    if (slide) prepareBuild(slide);
+  }, [page, run, print]);
 
   const move = useCallback(
     (dir: number) => {
@@ -375,9 +471,7 @@ export function Presentation({
       }, 2500 / speed);
       return () => clearTimeout(t);
     }
-    const slide = page >= 1 ? slides[page - 1] : null;
-    // 这一页至少停留多久：给定的时长，否则按讲稿或页面文字估
-    const reading = (durations?.[page] ?? (slide ? Math.min(14000, Math.max(3500, ((slide.notes.length || slide.text) * 1000) / 7)) : 3500)) / speed;
+    const reading = pageStay(page);
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     const started = Date.now();
@@ -394,13 +488,14 @@ export function Presentation({
       if (left > 0) timer = setTimeout(tick, left);
       else turnTo(page + 1);
     };
-    // 先让这一页显示出来、动画开始，再开始往下走
-    timer = setTimeout(tick, 1200 / speed);
+    // 先让这一页显示出来、动画开始，再开始往下走。
+    // 文字一条一条出现的页：一进来就在的那几条，先留出它们那一份时间
+    timer = setTimeout(tick, Math.max(1200 / speed, reading * firstShare(slideRefs.current[page])));
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [auto, autoParam, speed, page, total, slides, stepInside, turnTo, durations, rec, stopRecording]);
+  }, [auto, autoParam, speed, page, total, stepInside, turnTo, pageStay, rec, stopRecording]);
 
   // 结果里的视频地址用完就释放
   useEffect(() => () => void (result && URL.revokeObjectURL(result.url)), [result]);

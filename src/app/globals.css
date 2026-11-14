@@ -4848,7 +4848,8 @@ html[data-slide-turn="cover"][data-slide-dir="back"] {
   }
 }
 @media (prefers-reduced-motion: no-preference) {
-  .galley-present:not([data-print]) .galley-slide[data-current] .galley-slide-body > .galley-prose > * {
+  /* data-enter 由 present.tsx 在进到这一页时标上、离开时拿掉 */
+  .galley-present:not([data-print]) .galley-slide[data-enter] .galley-slide-body > .galley-prose > * {
     animation: galley-slide-rise 0.55s var(--ease-out) backwards;
     animation-delay: calc(0.18s + var(--n, 7) * 0.08s);
   }
@@ -4859,10 +4860,40 @@ html[data-slide-turn="cover"][data-slide-dir="back"] {
   .galley-slide-body > .galley-prose > :nth-child(5) { --n: 4; }
   .galley-slide-body > .galley-prose > :nth-child(6) { --n: 5; }
   .galley-slide-body > .galley-prose > :nth-child(7) { --n: 6; }
-  .galley-present:not([data-print]) .galley-slide[data-current] .galley-slide-body > .galley-prose > h2:first-child,
-  .galley-present:not([data-print]) .galley-slide[data-current] .galley-slide-body > .galley-prose > h3:first-child {
+  .galley-present:not([data-print]) .galley-slide[data-enter] .galley-slide-body > .galley-prose > h2:first-child,
+  .galley-present:not([data-print]) .galley-slide[data-enter] .galley-slide-body > .galley-prose > h3:first-child {
     animation: none;
   }
+  /* 按一下出一条：轮到的那一条浮上来 */
+  .galley-present:not([data-print]) .galley-slide[data-enter] .galley-slide-body > .galley-prose [data-build="shown"] {
+    animation: galley-build-in 0.5s var(--ease-out);
+  }
+}
+@keyframes galley-build-in {
+  from {
+    opacity: 0;
+    translate: 0 14px;
+  }
+}
+/* 还没轮到的文字藏着，但仍然占着位置：一条条出现时版面不会跳，整页的缩放也不会变 */
+.galley-slide [data-build="pending"] {
+  visibility: hidden;
+}
+
+/*
+ * 同一节里相邻两页都有同一类大块（代码块、图、播放器）：它不跟着整页走，
+ * 而是从上一页的位置和大小变到这一页的，内容交叉淡入（present.tsx 给两边标上 data-slide-hero）。
+ * 两边按宽度对齐、保持比例，高出来的部分由外框裁掉，文字不会被拉扁。
+ */
+[data-slide-hero] {
+  view-transition-name: galley-slide-hero;
+  animation: none !important;
+}
+::view-transition-group(galley-slide-hero) {
+  animation-duration: 0.6s;
+  animation-timing-function: var(--ease-out);
+  overflow: clip;
+  border-radius: 10px;
 }
 
 /* 内容放不下时，整页内容（文字、播放器、按钮）一起等比缩小，见 present.tsx */
