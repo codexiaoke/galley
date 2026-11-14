@@ -45,6 +45,7 @@ const sceneSchema = z.object({
     .array(
       z.object({
         text: z.string().min(1).max(400),
+        say: z.string().min(1).max(600).optional(),
         duration: z.number().min(0).max(120_000),
         tweens: z
           .array(z.object({ id, prop: z.string().max(16), to: value, at: z.number().min(0).max(120_000), dur: z.number().min(0).max(60_000), ease: z.enum(SCENE_EASES) }))

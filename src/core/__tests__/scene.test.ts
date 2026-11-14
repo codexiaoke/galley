@@ -3,6 +3,7 @@ import { getComponent } from "../markup/components";
 import { parseMarkup } from "../markup/parse";
 import { isBlend, sceneFrame } from "../scene/frame";
 import { runScene, runScenes } from "../scene/run";
+import { narrationIsLiteral, stripNarration, withoutNarration } from "../scene/shared";
 
 const ok = async (code: string, ratio?: "16:9" | "4:3") => {
   const r = await runScene(code, ratio);
@@ -143,9 +144,46 @@ step("都回来。", () => { focus() })`);
     expect(parseMarkup(":::scene{ratio=\"3:2\"}\n```js\nstep(\"一\")\n```\n:::").issues.map((i) => i.message).join()).toMatch(/参数不合法/);
   });
 
+  it("每一步的文字和讲稿是两句话：讲稿可以不写，写了就单独记着", async () => {
+    const scene = await ok(`const a = box("甲")
+step("放进 Worker，它碰不到页面了。", () => {
+  say("那换个地方跑呢？挪进 Worker，你看，它现在够不着页面了。")
+  show(a)
+})
+step("这一步没有讲稿。", () => { pulse(a) })`);
+    expect(scene.steps[0].text).toBe("放进 Worker，它碰不到页面了。");
+    expect(scene.steps[0].say).toBe("那换个地方跑呢？挪进 Worker，你看，它现在够不着页面了。");
+    expect(scene.steps[1].say).toBeUndefined();
+    // 文章页面上用的那一份不带讲稿
+    expect(withoutNarration(scene).steps.every((s) => !("say" in s))).toBe(true);
+    expect(withoutNarration(scene).steps[0].text).toBe(scene.steps[0].text);
+
+    const twice = await runScene(`const a = box("甲")\nstep("一", () => { say("甲"); say("乙"); show(a) })`);
+    expect(!twice.ok && twice.error).toMatch(/一步里只写一个 say/);
+    const outside = await runScene(`say("开场白")\nstep("一")`);
+    expect(!outside.ok && outside.error).toMatch(/say\(\) 要写在 step/);
+  });
+
+  it("讲稿能从代码里整句摘掉，所以括号里只能直接写一个字符串", async () => {
+    const code = `step("文字", () => {\n  say("讲的时候说的话，带个 \\"引号\\" 和 (括号)")\n  show(a)\n})\nstep("二", () => { say('第二句'); pulse(a) })`;
+    expect(narrationIsLiteral(code)).toBe(true);
+    const stripped = stripNarration(code);
+    expect(stripped).not.toMatch(/say|讲的时候|第二句/);
+    expect(stripped).toBe(`step("文字", () => {\n  show(a)\n})\nstep("二", () => {  pulse(a) })`);
+
+    expect(narrationIsLiteral(`const line = "讲稿"\nstep("一", () => { say(line) })`)).toBe(false);
+    expect(narrationIsLiteral(`step("一", () => { say("前半" + "后半") })`)).toBe(false);
+    const body = ':::scene\n```js\nconst line = "讲稿"\nconst a = box("甲")\nstep("一", () => { say(line); show(a) })\n```\n:::';
+    await runScenes(body);
+    expect(parseMarkup(body).issues.map((i) => i.message).join()).toMatch(/say\(\) 的括号里要直接写一句话/);
+  });
+
   it("组件清单里的例子本身能跑通", async () => {
     const example = getComponent("scene")!.example;
-    await runScenes(example);
+    const [result] = Object.values(await runScenes(example));
     expect(parseMarkup(example).issues).toEqual([]);
+    // 例子里每一步都写了讲稿，而且没有一句是照抄文字的
+    if (!result.ok) throw new Error(result.error);
+    expect(result.scene.steps.every((s) => s.say && s.say !== s.text)).toBe(true);
   });
 });

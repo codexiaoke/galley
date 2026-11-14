@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { lineIdentities } from "../code-diff";
-import { splitSlides } from "../slides";
+import { splitSlides, publicSlideSource } from "../slides";
 
 describe("演示和代码演变", () => {
   it("每个二级标题一页，--- 也分页，讲稿从页面上拿出来", () => {
@@ -81,6 +81,18 @@ describe("场景动画演示分页", () => {
     expect(slides[0].source).toBe(scene);
     expect(slides[0].section).toBe("三道墙");
     expect(slides[0].notes).toBe("讲到沙箱时停一下");
+  });
+});
+
+describe("场景里的讲稿不进公开的接口", () => {
+  it("say 整句摘掉，写给读者的文字和动作都留着", () => {
+    const source = ':::scene\n```js\nconst a = box("甲")\nstep("写给读者的文字。", () => {\n  say("讲的时候说的话。")\n  show(a)\n})\n```\n:::';
+    const out = publicSlideSource(`前面一句 say("这不是代码")。\n\n${source}`);
+    expect(out).not.toContain("讲的时候说的话");
+    expect(out).toContain("写给读者的文字。");
+    expect(out).toContain("show(a)");
+    // 场景外面的正文不动
+    expect(out).toContain('前面一句 say("这不是代码")。');
   });
 });
 

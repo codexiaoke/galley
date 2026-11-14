@@ -14,8 +14,8 @@ import { SPEEDS, usePresentSpeed } from "./speed";
  * 所以正着放、退回上一步、直接跳到某一步，用的是同一套计算。
  *
  * 三种用法，一份数据：
- * - 文章里：第一次滚到眼前时自动播放，每一步的动画放完后停一会儿（按讲解的字数），再走下一步；
- * - 演示里：由方向键一步一步推进（"galley-step" 事件），讲解交给演示当字幕；
+ * - 文章里：第一次滚到眼前时自动播放，每一步的动画放完后停一会儿（按那句文字的字数），再走下一步；
+ * - 演示里：由方向键一步一步推进（"galley-step" 事件），这一步的讲稿交给演示当字幕和提词；
  * - 打印、存成 PDF：直接显示最后的样子。
  *
  * 颜色都是主题变量的名字，画的时候才换成 var(--…)，所以换主题、换深色模式不用重新算。
@@ -382,13 +382,14 @@ export function ScenePlayer({ scene, title }: { scene: Scene; title?: string }) 
       if (next < -1 || next > last) return;
       e.preventDefault();
       setPlaying(false);
+      // 字幕用讲稿（讲的时候说的话）；这一步没写讲稿时才用画面下面那句文字
+      const spoken = (i: number) => scene.steps[i].say ?? scene.steps[i].text;
       if (detail.dir > 0) {
-        const step = scene.steps[next];
-        detail.wait = (step.duration + readingTime(step.text)) / rate;
-        detail.caption = step.text;
+        detail.wait = (scene.steps[next].duration + readingTime(spoken(next))) / rate;
+        detail.caption = spoken(next);
         go(next, true);
       } else {
-        detail.caption = next >= 0 ? scene.steps[next].text : undefined;
+        detail.caption = next >= 0 ? spoken(next) : undefined;
         go(next, false);
       }
     };

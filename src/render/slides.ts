@@ -1,5 +1,7 @@
 import { toString } from "mdast-util-to-string";
+import { visit } from "unist-util-visit";
 import { parseToTree } from "@/core/markup/parse";
+import { stripNarration } from "@/core/scene/shared";
 
 /**
  * 把一篇文章切成幻灯片：
@@ -136,4 +138,23 @@ function splitSolo(d: DraftPage): DraftPage[] {
   // 标题和讲稿没有正文时不制造空页，但也不丢弃末尾讲稿。
   if (pending.length && pages.length) pages[pages.length - 1].parts.push(...pending.filter(isNotes));
   return pages;
+}
+
+/**
+ * 一页的正文里可以公开的部分：场景代码里的讲稿（say）摘掉。
+ * 讲稿和 :::notes 一样，是作者讲的时候自己说的话，不放进公开的幻灯片接口（present.json）。
+ */
+export function publicSlideSource(source: string): string {
+  let out = source;
+  // 从后往前改，前面的位置不会被挪动
+  const scenes: Node[] = [];
+  visit(parseToTree(source), (n) => {
+    if (n.type === "containerDirective" && (n as unknown as Node).name === "scene") scenes.push(n as unknown as Node);
+  });
+  for (const scene of scenes.reverse()) {
+    const start = scene.position?.start.offset ?? 0;
+    const end = scene.position?.end.offset ?? 0;
+    out = out.slice(0, start) + stripNarration(out.slice(start, end)) + out.slice(end);
+  }
+  return out;
 }

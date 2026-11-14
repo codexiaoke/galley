@@ -1,4 +1,4 @@
-import { splitSlides } from "@/render/slides";
+import { publicSlideSource, splitSlides } from "@/render/slides";
 import { loadPublishedDocument } from "../../../data";
 
 /**
@@ -8,8 +8,8 @@ import { loadPublishedDocument } from "../../../data";
  * 一个大块一页）只在 Galley 这边，外部工具自己重写一份迟早会和这里跑偏。
  * 返回的东西刻意只有序号、标题和这一页的正文：讲稿、配音、视频都不是 Galley 的事。
  *
- * 不返回 `:::notes`。它是演讲时作者自己看的提词，页面上不显示给读者，
- * 放进一个公开的接口等于把它公开了。
+ * 不返回 `:::notes`，也不返回场景动画里每一步的讲稿（say）。它们是演讲时作者自己说的话，
+ * 页面上不显示给读者，放进一个公开的接口等于把它公开了。
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -23,7 +23,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
     /** 这一页属于哪一节。接着上一页往下讲时，标题在上一页，这里给出它所属的小节 */
     section: slide.section ?? null,
     /** 这一页的正文，Markdown 原文，保留引用标记和组件 */
-    source: slide.source,
+    source: publicSlideSource(slide.source),
   }));
   return Response.json(
     {

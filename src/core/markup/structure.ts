@@ -1,6 +1,6 @@
 import { variantsOf } from "../algo/presets";
 import { TRACE_LANGS, traceCache, traceKey } from "../algo/trace-shared";
-import { SCENE_LANGS, sceneCache, sceneKey } from "../scene/shared";
+import { narrationIsLiteral, SCENE_LANGS, sceneCache, sceneKey } from "../scene/shared";
 import { SCENE_RATIOS, type SceneRatio } from "../scene/types";
 import { FLOW_MAX_NODES, parseFlow, type FlowGraph } from "./flow";
 
@@ -126,7 +126,7 @@ export function readScene(container: Node): { code?: string; ratio: SceneRatio; 
   if (codes.length !== 1) return { ratio, title, errors: ["scene 里要放且只放一个 ```js 代码块，写场景的 JavaScript。"] };
   const code = codes[0];
   if (!SCENE_LANGS.includes((code.lang ?? "").toLowerCase())) return { ratio, title, errors: ["scene 里的代码块要写成 ```js：场景代码只能用 JavaScript。"] };
-  if (children.length !== 1) return { code: code.value ?? "", ratio, title, errors: ["scene 里除了代码块不要放别的内容：每一步的讲解写在 step(\"讲解\", ...) 里，其余的说明写在 scene 的前后。"] };
+  if (children.length !== 1) return { code: code.value ?? "", ratio, title, errors: ["scene 里除了代码块不要放别的内容：每一步给读者看的文字写在 step(\"文字\", ...) 里，其余的说明写在 scene 的前后。"] };
   return { code: code.value ?? "", ratio, title, errors: [] };
 }
 
@@ -164,6 +164,9 @@ export function checkStructure(name: string, node: Node, source: string): string
   if (name === "scene") {
     const sc = readScene(node);
     if (sc.errors.length || sc.code === undefined) return sc.errors;
+    if (!narrationIsLiteral(sc.code)) {
+      return ["scene 里 say() 的括号里要直接写一句话（一个字符串），不要用变量或者拼接：讲稿不出现在文章和公开的接口里，程序要能把它整句摘掉。"];
+    }
     // 代码的运行结果：保存前已经在沙箱里跑过（见 scene/run.ts 的 runScenes），这里只取结果。
     const result = sceneCache.get(sceneKey(sc.code, sc.ratio));
     return result && !result.ok ? [`场景代码出错，${result.error}`] : [];

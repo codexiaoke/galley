@@ -6,6 +6,9 @@ import { extractToc } from "../toc";
 
 const render = (body: string) => renderToStaticMarkup(createElement(Markdown, { body, blocks: {} }));
 
+/** 交给场景播放器的数据，测试里用来看哪些东西会被送到浏览器 */
+const scenesSent = vi.hoisted(() => [] as unknown[]);
+
 /**
  * 播放器在页面上是按需加载的（client/lazy.tsx 里用 next/dynamic），离开 Next.js 时 next/dynamic 什么都不渲染。
  * 测试里换成直接引用，看渲染出来的内容；按需加载本身在正式构建的页面上验证过。
@@ -24,7 +27,13 @@ vi.mock("../client/lazy", async () => ({
   ZoomImage: (await import("../client/image")).ZoomImage,
   Quiz: (await import("../client/quiz")).Quiz,
   CodeRunner: (await import("../client/code-runner")).CodeRunner,
-  ScenePlayer: (await import("../client/scene")).ScenePlayer,
+  ScenePlayer: await (async () => {
+    const Real = (await import("../client/scene")).ScenePlayer;
+    return function ScenePlayerSpy(props: Parameters<typeof Real>[0]) {
+      scenesSent.push(props.scene);
+      return createElement(Real, props);
+    };
+  })(),
 }));
 const renderAll = async (body: string) => render(body);
 
@@ -135,6 +144,22 @@ describe("场景动画", () => {
     // 颜色是主题变量，不是写死的值
     expect(html).toContain("var(--chart-2)");
     expect(html).not.toContain("const a = box");
+  });
+
+  it("讲稿不送到文章页面上，只有演示里才带", async () => {
+    const spoken = ':::scene\n```js\nconst a = box("页面")\nstep("写给读者的文字。", () => { say("讲的时候说的话。"); show(a) })\n```\n:::';
+    const { runScenes } = await import("@/core/scene/run");
+    const scenes = await runScenes(spoken);
+    // 播放器是客户端组件：它拿到的数据就是会被送到读者浏览器里的数据
+    const sent = (extra: object) => {
+      scenesSent.length = 0;
+      renderToStaticMarkup(createElement(Markdown, { body: spoken, blocks: {}, scenes, ...extra }));
+      return JSON.stringify(scenesSent);
+    };
+    expect(sent({})).toContain("写给读者的文字。");
+    expect(sent({})).not.toContain("讲的时候说的话");
+    expect(sent({ review: true })).not.toContain("讲的时候说的话");
+    expect(sent({ narration: true })).toContain("讲的时候说的话");
   });
 
   it("代码出错时读者什么都看不到，审阅预览里显示错误", async () => {

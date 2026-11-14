@@ -3,7 +3,7 @@
  *
  * 作者的代码做两件事：
  * 1. 摆东西：box、circle、text、code、frame、arrow、line 各建一个东西，返回它的"把手"；
- * 2. 写步骤：step(讲解, () => { show(a); move(b, { x: 300 }); send(link) })。
+ * 2. 写步骤：step(写给读者的一句话, () => { say(讲的时候说的话); show(a); move(b, { x: 300 }); send(link) })。
  *
  * 这里不画任何东西，只记账：每个东西一开始的属性，以及每一步里
  * "谁的哪个属性、在这一步的第几毫秒、用多久、变成多少"。最后 __finish() 把账本交出去。
@@ -267,7 +267,17 @@ function step(note, fn) {
   __group = null;
   try { if (fn) fn(); }
   finally { var s = __cur; __cur = null; __group = null; }
-  __steps.push({ text: s.text, tweens: s.tweens, duration: Math.max(300, Math.round(s.end)) });
+  var out = { text: s.text, tweens: s.tweens, duration: Math.max(300, Math.round(s.end)) };
+  if (s.say !== undefined) out.say = s.say;
+  __steps.push(out);
+}
+/** 讲这一步时说的话：口语的讲稿。文章里不出现，演示里是字幕和提词 */
+function say(words) {
+  if (!__cur) __fail("say() 要写在 step(文字, () => { ... }) 的函数里面：它是讲这一步时说的话。");
+  if (typeof words !== "string" || !words.trim()) __fail("say() 的括号里直接写讲这一步时说的话（一两句口语）。");
+  if (__cur.say !== undefined) __fail("一步里只写一个 say()。要说的话都写在这一句里。");
+  if (words.length > 600) __fail("say() 太长了（超过 600 个字）。一步只讲一件事，说两三句就够。");
+  __cur.say = words.trim();
 }
 /** 里面的动作同时开始 */
 function together(fn) {

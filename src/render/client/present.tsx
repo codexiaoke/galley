@@ -481,7 +481,8 @@ export function Presentation({
           {showNotes && (
             <aside className="galley-present-notes">
               <strong>{current ? (current.title ?? `第 ${page} 页`) : page === 0 ? "封面" : "结尾"}</strong>
-              <p>{current ? current.notes || "这一页没有讲稿。" : ""}</p>
+              {/* 这一页的讲稿；没有时显示页里动画当前这一步的讲稿（场景动画的 say） */}
+              <p>{current ? current.notes || (stepCaption?.page === page ? stepCaption.text : "") || "这一页没有讲稿。" : ""}</p>
             </aside>
           )}
         </>

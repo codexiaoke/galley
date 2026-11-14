@@ -17,7 +17,7 @@ import type { FlowGraph } from "@/core/markup/flow";
 import { readCodeSteps, readFlow, readQuiz, readScene, readSteps, readTrace, STEP_LINES_PATTERN } from "@/core/markup/structure";
 import { lineIdentities } from "./code-diff";
 import { traceCache, traceKey, type TraceResult } from "@/core/algo/trace-shared";
-import { sceneCache, sceneKey } from "@/core/scene/shared";
+import { sceneCache, sceneKey, withoutNarration } from "@/core/scene/shared";
 import type { SceneResult } from "@/core/scene/types";
 import type { BlockView } from "@/core/services/blocks";
 import type { PostCard } from "@/core/services/documents";
@@ -291,7 +291,7 @@ const formatDate = (d: Date) => new Date(d).toISOString().slice(0, 10);
  * 正文里只保留读者关心的东西（内容本身和数据的出处）。
  * 这些系统信息只在后台的审阅预览里显示，由 Markdown 的 review 参数打开。
  */
-type Ctx = { blocks: Record<string, BlockView>; posts: Record<string, PostCard>; review: boolean; traces: Record<string, TraceResult>; scenes: Record<string, SceneResult>; terms: Map<string, Term> };
+type Ctx = { blocks: Record<string, BlockView>; posts: Record<string, PostCard>; review: boolean; traces: Record<string, TraceResult>; scenes: Record<string, SceneResult>; narration: boolean; terms: Map<string, Term> };
 
 function Sources({ block }: { block: BlockView }) {
   if (block.sources.length === 0) return null;
@@ -652,11 +652,14 @@ function Trace({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
 /**
  * 场景动画：代码已经在服务端的沙箱里跑过（页面渲染前调用 prepareRender），这里取结果交给播放器。
  * 读者的浏览器只拿到运行结果，不执行作者的代码。代码出错时读者什么都看不到，审阅预览里显示错误。
+ *
+ * 每一步有两句话：写给读者看的文字，和讲的时候说的话（讲稿）。讲稿只在演示里用，
+ * 文章页面上先把它去掉再交给播放器，不会被送到读者的浏览器里。
  */
 function SceneView({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
   const { id, title } = attrsOf<{ id: string; title: string }>(props);
   const result = ctx.scenes[id] ?? sceneCache.get(id);
-  if (result?.ok) return <ScenePlayer scene={result.scene} title={title || undefined} />;
+  if (result?.ok) return <ScenePlayer scene={ctx.narration ? result.scene : withoutNarration(result.scene)} title={title || undefined} />;
   return ctx.review ? <p className="galley-trace-error">{result ? `场景代码出错，${result.error}` : "场景代码还没有运行。"}</p> : null;
 }
 
@@ -676,6 +679,7 @@ export function Markdown({
   review = false,
   traces = {},
   scenes = {},
+  narration = false,
   terms = [],
 }: {
   body: string;
@@ -688,10 +692,12 @@ export function Markdown({
   traces?: Record<string, TraceResult>;
   /** 场景代码的运行结果（prepareRender 的返回值）。服务端渲染时也可以省略，直接从缓存取。 */
   scenes?: Record<string, SceneResult>;
+  /** 演示模式：场景动画带上每一步的讲稿（字幕和提词用）。文章页面上不带。 */
+  narration?: boolean;
   /** 站点上的术语（见 core/services/knowledge.ts 的 listTerms）。给了才标，正文里每个术语只标第一次出现 */
   terms?: Term[];
 }) {
-  const ctx: Ctx = { blocks, posts, review, traces, scenes, terms: new Map(terms.map((t) => [t.id, t])) };
+  const ctx: Ctx = { blocks, posts, review, traces, scenes, narration, terms: new Map(terms.map((t) => [t.id, t])) };
   const processor = unified()
     .use(remarkParse)
     .use(remarkGfm)
