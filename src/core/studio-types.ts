@@ -1,5 +1,6 @@
 /** 视频制作的交换格式；浏览器、核心流程和渲染器共用。 */
-export type GuideTarget = { id: string; label: string };
+/** appearsMs：场景元素在这一拍开始后多久才画出来（一开始就在时不写）。 */
+export type GuideTarget = { id: string; label: string; appearsMs?: number };
 export type GuideEmphasis = "point" | "focus" | "zoom";
 export type GuideCue = { targetId: string; phrase: string; emphasis?: GuideEmphasis };
 export type GuidePlan = { id: string; cues: { targetId: string; startMs: number; endMs: number; emphasis: GuideEmphasis }[] }[];

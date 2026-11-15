@@ -8,6 +8,24 @@ import { clamp, guideCameraFor, guideEase, HOME_CAMERA, mix, mixCamera, mixRect,
 export type GuideReport = { seen: string[]; missing: string[] };
 type GuideWindow = Window & { __galleyGuideReport?: GuideReport };
 
+/**
+ * 正文按文字实际占的范围量，不用元素的盒子：段落和标题是整栏宽的块，
+ * 一句只占半行的话，按盒子画框会拉到栏的右边，推近也算不出倍数。
+ */
+function textBounds(element: HTMLElement): DOMRect | null {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT), range = document.createRange();
+  let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.textContent?.trim() || !node.parentElement?.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue;
+    range.selectNodeContents(node);
+    for (const r of range.getClientRects()) {
+      if (!r.width || !r.height) continue;
+      left = Math.min(left, r.left); top = Math.min(top, r.top); right = Math.max(right, r.right); bottom = Math.max(bottom, r.bottom);
+    }
+  }
+  return left === Infinity ? null : new DOMRect(left, top, right - left, bottom - top);
+}
+
 /** 同一受控时间轴驱动聚焦框和镜头；字幕位于镜头层之外。 */
 export function GuideFocus() {
   const maskId = useId();
@@ -87,7 +105,7 @@ export function GuideFocus() {
       if (!cue) { leave(now); return; }
       const target = stage.querySelector<HTMLElement>(`[data-current] [data-galley-target="${CSS.escape(cue.targetId)}"]`);
       if (!target || target.dataset.guideVisible === "false" || target.closest('[hidden], [data-build="hidden"]') || !(target instanceof SVGElement ? target.ownerSVGElement : target)?.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) { leave(now); return; }
-      const rect = target.getBoundingClientRect(), bounds = stage.getBoundingClientRect();
+      const rect = (target instanceof HTMLElement && textBounds(target)) || target.getBoundingClientRect(), bounds = stage.getBoundingClientRect();
       if (!rect.width && !rect.height) { leave(now); return; }
       const sx = stage.clientWidth / bounds.width, sy = stage.clientHeight / bounds.height;
       // 先消除本组件的镜头变换，避免把上次放大的结果当成下次的原始尺寸，形成缩放反馈。

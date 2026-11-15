@@ -40,7 +40,7 @@ export function narrationBeats(body: string, scenes: Record<string, SceneResult>
     const section = slide.section ?? null;
     const steps: Beat[] = [];
     const tree = parseToTree(slide.source);
-    const targets = proseGuideTargets(tree, page).map(({ target }) => target);
+    const targets = proseGuideTargets(tree, page, slide.source).map(({ target }) => target);
     let selfPaced = false;
     visit(tree, (node) => {
       const d = node as Directive;

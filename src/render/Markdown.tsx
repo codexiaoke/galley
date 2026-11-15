@@ -715,7 +715,7 @@ export function Markdown({
     .use(remarkGalley, { source: body })
     .use(() => (tree: MdastRoot) => {
       if (guidePage === undefined) return;
-      for (const { node, target } of proseGuideTargets(tree, guidePage)) {
+      for (const { node, target } of proseGuideTargets(tree, guidePage, body)) {
         node.data = { ...node.data, hProperties: { ...node.data?.hProperties, "data-galley-target": target.id } };
       }
     })

@@ -1,6 +1,6 @@
 import type { Voice } from "../../core/studio-types";
 import { describe, expect, it } from "vitest";
-import { assertTimeline, subtitleFile } from "../../../integrations/video-studio/export";
+import { assertTimeline, missingGuides, subtitleFile } from "../../../integrations/video-studio/export";
 import { beatLength } from "../../../integrations/video-studio/timing.js";
 
 describe("视频工坊的时间轴", () => {
@@ -25,5 +25,9 @@ describe("视频工坊的时间轴", () => {
       [{ id: "p0", at: 0 }, { id: "p0", at: 3500 }],
       [{ id: "p0", at: 3500 }, { id: "p1", at: 0 }],
     ]) expect(() => assertTimeline(beats, timeline)).toThrow("时间轴与讲稿不一致");
+  });
+  it("错过的指向报出目标和拍点；拍点名里带点号和冒号也能拆对", () => {
+    const plan = [{ id: "264kkvceczk.0", cues: [{ targetId: "264kkvceczk:b2", startMs: 0, endMs: 1000, emphasis: "focus" as const }, { targetId: "264kkvceczk:b3", startMs: 1000, endMs: 2000, emphasis: "zoom" as const }] }];
+    expect(missingGuides(plan, ["264kkvceczk.0/1"])).toBe("讲解指向没有出现在画面中：264kkvceczk:b3（拍点 264kkvceczk.0）。请检查目标与讲稿时机。");
   });
 });

@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { chromium } from "playwright";
 import ffmpegPath from "ffmpeg-static";
-import type { Beat, Voice } from "../../src/core/studio-types";
+import type { Beat, GuidePlan, Voice } from "../../src/core/studio-types";
 import { resolveGuidePlan } from "../../src/core/studio-guides";
 import type { GuideReport } from "../../src/render/client/guide-focus";
 import { beatLength } from "./timing.js";
@@ -62,6 +62,15 @@ export function subtitleFile(timeline: TimelineEntry[], voices: Voice[]): string
   )).join("\n");
 }
 
+/** key 是「拍点/第几个指向」，和 guide-focus 的记录一致。 */
+export function missingGuides(plan: GuidePlan, keys: string[]) {
+  const targets = keys.map((key) => {
+    const at = key.lastIndexOf("/"), beat = plan.find((item) => item.id === key.slice(0, at));
+    return `${beat?.cues[Number(key.slice(at + 1))]?.targetId ?? "未知目标"}（拍点 ${key.slice(0, at)}）`;
+  });
+  return `讲解指向没有出现在画面中：${targets.join("、")}。请检查目标与讲稿时机。`;
+}
+
 export function assertTimeline(beats: Pick<Beat, "id">[], timeline: TimelineEntry[]) {
   if (timeline.length !== beats.length || timeline.some((entry, i) => entry.id !== beats[i].id || entry.at < 0 || (i > 0 && entry.at <= timeline[i - 1].at))) {
     throw new Error("演示时间轴与讲稿不一致，请重新读取文章后导出。");
@@ -118,7 +127,7 @@ export async function exportVideo(input: ExportInput): Promise<{ frames: number;
 
     // CSS/WAAPI 的时钟独立于 JS。每次输出帧时暂停并定位它们，避免慢机器漏掉进场动画。
     const renderer = await page.evaluateHandle((voices) => {
-      const w = window as unknown as { __galleyTimeline?: TimelineEntry[]; __galleyPresentDone?: boolean };
+      const w = window as unknown as { __galleyTimeline?: TimelineEntry[]; __galleyPresentDone?: boolean; __galleyGuideReport?: GuideReport };
       w.__galleyTimeline = [];
       w.__galleyPresentDone = false;
       const origin = performance.now();
@@ -158,7 +167,7 @@ export async function exportVideo(input: ExportInput): Promise<{ frames: number;
           if (subtitle.textContent !== text) { subtitle.textContent = text; subtitle.hidden = !text; dirty = true; }
           const capture = dirty || moving;
           dirty = false;
-          return { capture, timeline, done: !!w.__galleyPresentDone };
+          return { capture, timeline, done: !!w.__galleyPresentDone, missing: w.__galleyGuideReport?.missing ?? [] };
         },
       };
     }, input.voices);
@@ -186,6 +195,8 @@ export async function exportVideo(input: ExportInput): Promise<{ frames: number;
       previousTime = time;
       const state = await renderer.evaluate((render) => render.frame());
       timeline = state.timeline;
+      // 指向错过了就不可能补上，立刻停下，不必把整段 4K 渲染完才报错。
+      if (state.missing.length) throw new Error(missingGuides(guides, state.missing));
       if (state.done) break;
       if (state.capture || !buffer) {
         const shot = await cdp.send("Page.captureScreenshot", { format: "png", optimizeForSpeed: true });
@@ -197,8 +208,8 @@ export async function exportVideo(input: ExportInput): Promise<{ frames: number;
     if (frames === MAX_FRAMES) throw new Error("演示超过一小时仍未结束，导出已停止。");
     assertTimeline(input.beats, timeline);
     const seen = await page.evaluate(() => (window as Window & { __galleyGuideReport?: GuideReport }).__galleyGuideReport?.seen ?? []);
-    const missing = guides.flatMap((beat) => beat.cues.map((cue, i) => ({ key: `${beat.id}/${i}`, target: cue.targetId }))).filter((cue) => !seen.includes(cue.key));
-    if (missing.length) throw new Error(`讲解指向没有出现在画面中：${missing.map((cue) => cue.target).join("、")}。请检查目标与讲稿时机。`);
+    const missing = guides.flatMap((beat) => beat.cues.map((_, i) => `${beat.id}/${i}`)).filter((key) => !seen.includes(key));
+    if (missing.length) throw new Error(missingGuides(guides, missing));
     encoder.stdin.end();
     await encoding.done;
     encoder = undefined;

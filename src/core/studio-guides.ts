@@ -10,7 +10,7 @@ export const GUIDE_EMPHASIS = [
   { value: "zoom", label: "放大聚焦 · 推近重点" },
 ] as const;
 export const guideEmphasisLabel = (value: string | undefined) => GUIDE_EMPHASIS.find((item) => item.value === (value ?? "focus"))!.label;
-export const guideTargetsSchema = z.array(z.object({ id: targetId, label: z.string().min(1).max(200) })).max(240);
+export const guideTargetsSchema = z.array(z.object({ id: targetId, label: z.string().min(1).max(200), appearsMs: z.number().int().nonnegative().max(600000).optional() })).max(240);
 export const guidesSchema = z.array(z.object({ targetId, phrase: z.string().trim().min(1).max(2000), emphasis: guideEmphasisSchema.optional().describe("point 仅显示目标边框；focus 聚焦目标（默认）；zoom 放大并聚焦重点。不宜每句都推近。") })).max(12);
 export const narrationEditSchema = z.object({
   id: z.string(), text: z.string().trim().max(2000).optional(),
@@ -20,6 +20,9 @@ export const narrationEditSchema = z.object({
 export const guidePlanSchema = z.array(z.object({ id: z.string().max(100), cues: z.array(z.object({
   targetId, emphasis: guideEmphasisSchema, startMs: z.number().finite().min(0).max(600000), endMs: z.number().finite().min(0).max(600000),
 })).max(12) })).max(2000);
+
+/** 聚焦框淡入要几帧才算显示出来；目标至少要在这句话结束前这么久出现。 */
+const APPEAR_MARGIN_MS = 150;
 
 /** 标点、空白和英文大小写不影响配音字幕对齐；不猜测同义词。 */
 const spoken = (text: string) => text.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
@@ -61,6 +64,13 @@ export function resolveGuidePlan(beats: Beat[], voices: Voice[], draft = false):
       return { targetId: guide.targetId, emphasis: guide.emphasis ?? "focus", startMs: Math.max(0, Math.round(timeAt(at, false) - 450)), endMs: Math.min(duration, Math.round(timeAt(at + phrase.length, true) + 450)) };
     });
     cues.forEach((cue, i) => { if (cues[i + 1]) cue.endMs = Math.min(cue.endMs, cues[i + 1].startMs); });
+    // 场景元素要等动画画出来才能指；按真实配音算出时机还早于它，导出时一定指不到。草稿估时不准，只在预览时提示。
+    if (!draft) cues.forEach((cue, i) => {
+      const target = beat.targets?.find((item) => item.id === cue.targetId);
+      if (target?.appearsMs !== undefined && cue.endMs - APPEAR_MARGIN_MS <= target.appearsMs) {
+        throw invalid(`拍点 ${beat.id} 说到「${beat.guides![i].phrase}」时，「${target.label}」还没画出来（这一拍开始约 ${(target.appearsMs / 1000).toFixed(1)} 秒后才出现，这句话在 ${(cue.endMs / 1000).toFixed(1)} 秒前就说完了）。请把这句话往后放，或指向一开始就在的目标。`);
+      }
+    });
     return { id: beat.id, cues };
   });
 }

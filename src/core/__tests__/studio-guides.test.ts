@@ -33,4 +33,11 @@ describe("讲解指向", () => {
     expect(resolveGuidePlan([beat], [], true)[0].cues[1].endMs).toBe(6000);
     expect(resolveGuidePlan([{ ...beat, guides: [] }], [])).toEqual([]);
   });
+  it("按真实配音算出说到目标时它还没画出来，导出前就拒绝；草稿预览只按估时，不拦", () => {
+    const late = { ...beat, targets: [beat.targets![0], { ...beat.targets![1], appearsMs: 6400 }] };
+    expect(() => resolveGuidePlan([late], [voice])).toThrow("还没画出来");
+    expect(resolveGuidePlan([late], [], true)).toHaveLength(1);
+    const inTime = { ...beat, targets: [beat.targets![0], { ...beat.targets![1], appearsMs: 3000 }] };
+    expect(resolveGuidePlan([inTime], [voice])[0].cues).toHaveLength(2);
+  });
 });
