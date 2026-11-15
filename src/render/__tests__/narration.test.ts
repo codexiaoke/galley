@@ -49,6 +49,8 @@ describe("讲稿清单", () => {
     expect(beats.find((b) => b.id === "p2")).toMatchObject({ text: "这一页的讲稿，说给人听的。", title: "第一节" });
     // 场景独占一页（第 3 页）：这一页本身没有讲稿，只是亮个相就开始走步骤
     expect(beats.find((b) => b.id === "p3")).toMatchObject({ text: "", section: "第一节", suggestedMs: 1200 });
+    // 封面和结尾只停一秒
+    for (const kind of ["cover", "ending"]) expect(beats.find((b) => b.kind === kind)).toMatchObject({ suggestedMs: 1000, minMs: 1000 });
   });
 
   it("场景的每一步：讲稿是 say，画面下面那句只作参考；最短要等动画放完", async () => {

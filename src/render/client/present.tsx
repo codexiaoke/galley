@@ -371,7 +371,7 @@ export function Presentation({
   const pageStay = useCallback(
     (p: number) => {
       const slide = p >= 1 && p <= slides.length ? slides[p - 1] : null;
-      const fallback = p >= total - 1 ? 2500 : slide ? defaultPageStay(slide.notes.length, slide.text) : 3500;
+      const fallback = p >= total - 1 ? 1000 : slide ? defaultPageStay(slide.notes.length, slide.text) : 1000;
       return (timing?.[`p${p}`] ?? durations?.[p] ?? fallback) / speed;
     },
     [timing, durations, slides, speed, total],

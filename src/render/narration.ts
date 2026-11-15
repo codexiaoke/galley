@@ -27,12 +27,14 @@ import { proseGuideTargets, sceneGuideTargets } from "./guide-targets";
 
 
 const MIN_PAGE_MS = 1200;
+/** 封面和结尾只停一秒：标题一闪就进正文，视频不拖沓 */
+const TITLE_PAGE_MS = 1000;
 const SELF_PACED = new Set(["code-steps", "algo", "race", "trace"]);
 
 type Directive = { type: string; name?: string };
 
 export function narrationBeats(body: string, scenes: Record<string, SceneResult>): Beat[] {
-  const beats: Beat[] = [{ id: "p0", kind: "cover", page: 0, title: null, section: null, text: "", suggestedMs: 3500, minMs: MIN_PAGE_MS, targets: [{ id: "p0:title", label: "封面标题" }] }];
+  const beats: Beat[] = [{ id: "p0", kind: "cover", page: 0, title: null, section: null, text: "", suggestedMs: TITLE_PAGE_MS, minMs: TITLE_PAGE_MS, targets: [{ id: "p0:title", label: "封面标题" }] }];
   const slides = splitSlides(body);
   slides.forEach((slide, i) => {
     const page = i + 1;
@@ -86,7 +88,7 @@ export function narrationBeats(body: string, scenes: Record<string, SceneResult>
     });
     beats.push(...steps);
   });
-  beats.push({ id: `p${slides.length + 1}`, kind: "ending", page: slides.length + 1, title: null, section: null, text: "", suggestedMs: 2500, minMs: MIN_PAGE_MS, targets: [{ id: `p${slides.length + 1}:title`, label: "结尾标题" }] });
+  beats.push({ id: `p${slides.length + 1}`, kind: "ending", page: slides.length + 1, title: null, section: null, text: "", suggestedMs: TITLE_PAGE_MS, minMs: TITLE_PAGE_MS, targets: [{ id: `p${slides.length + 1}:title`, label: "结尾标题" }] });
   return beats;
 }
 
