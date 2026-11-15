@@ -28,6 +28,8 @@ COPY integrations/video-studio ./integrations/video-studio
 COPY drizzle ./drizzle
 COPY skills ./skills
 ENV NODE_ENV=production STUDIO_DIR=/data STUDIO_HOST=0.0.0.0 STUDIO_PORT=4321
+# 容器里的 localhost 不是宿主机；站点地址写本机时，后台请求改走宿主机。线上地址不受影响，设为空可关闭。
+ENV STUDIO_LOCAL_SITE_HOST=host.docker.internal
 USER node
 VOLUME /data
 EXPOSE 4321

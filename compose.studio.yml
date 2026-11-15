@@ -9,6 +9,9 @@ services:
     init: true
     restart: unless-stopped
     shm_size: 1gb
+    # Linux 宿主机默认没有 host.docker.internal；Docker Desktop / OrbStack 本来就有，这一行不影响。
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "127.0.0.1:${STUDIO_PORT:-4321}:${STUDIO_PORT:-4321}"
     env_file:

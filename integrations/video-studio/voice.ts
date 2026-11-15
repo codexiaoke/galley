@@ -1,5 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { homedir } from "node:os";
 import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -12,6 +14,28 @@ type Launch = { command: string; args: string[]; env?: Record<string, string> };
 export type VoiceBridge = { url: string; tokenFile: string };
 const resultSchema = z.object({ duration_seconds: z.number().positive().finite(), subtitle_cues: z.array(z.object({ start: z.number().nonnegative(), end: z.number().nonnegative(), text: z.string() })).default([]) });
 const safe = (id: string) => id.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 80);
+const BRIDGE_TIMEOUT_MS = 20 * 60 * 1000;
+
+/**
+ * 宿主机整段配好音才回响应头，一段可能要好几分钟。
+ * 不用 fetch：它默认 300 秒收不到响应头就断开，AbortSignal 延长不了。
+ */
+export function post(url: URL, token: string, body: string): Promise<{ status: number; body: string }> {
+  if (url.protocol !== "http:" && url.protocol !== "https:") return Promise.reject(new Error("配音服务地址必须是 http 或 https。"));
+  return new Promise((resolve, reject) => {
+    const req = (url.protocol === "https:" ? httpsRequest : httpRequest)(url, {
+      method: "POST", signal: AbortSignal.timeout(BRIDGE_TIMEOUT_MS),
+      headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body), Authorization: `Bearer ${token}` },
+    }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (chunk: Buffer) => chunks.push(chunk));
+      res.on("end", () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }));
+      res.on("error", reject);
+    });
+    req.on("error", (error) => reject(error.name === "TimeoutError" || error.name === "AbortError" ? new Error("本机配音服务超过 20 分钟没有完成。") : error));
+    req.end(body);
+  });
+}
 
 export class StudioVoice {
   private client: Promise<Client> | null = null;
@@ -26,12 +50,10 @@ export class StudioVoice {
   private async remote(route: string, data: unknown) {
     const token = readFileSync(this.bridge!.tokenFile, "utf8").trim();
     if (!token) throw new Error("请配置本机配音连接密钥。");
-    const response = await fetch(new URL(route, this.bridge!.url), {
-      method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify(data), signal: AbortSignal.timeout(20 * 60 * 1000), redirect: "error",
-    });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error ?? `本机配音连接失败（${response.status}）。`);
+    const { status, body } = await post(new URL(route, this.bridge!.url), token, JSON.stringify(data));
+    let result: { error?: string } & Record<string, unknown>;
+    try { result = JSON.parse(body); } catch { throw new Error(`本机配音服务没有返回 JSON（${status}）。`); }
+    if (status < 200 || status >= 300) throw new Error(result.error ?? `本机配音连接失败（${status}）。`);
     return result;
   }
 
@@ -52,7 +74,9 @@ export class StudioVoice {
     const connecting = (async () => {
       const transport = new StdioClientTransport({ ...launch, env: { ...process.env as Record<string, string>, ...launch.env }, stderr: "ignore" });
       const client = new Client({ name: "galley-video-studio", version: "0.2.0" });
-      await client.connect(transport); transport.onclose = () => { this.client = null; }; return client;
+      // 用 client.onclose，不能覆盖 transport.onclose：SDK 靠后者让进行中的请求在进程退出时立即失败。
+      client.onclose = () => { if (this.client === connecting) this.client = null; };
+      await client.connect(transport); return client;
     })();
     this.client = connecting; void connecting.catch(() => { this.client = null; }); return connecting;
   }

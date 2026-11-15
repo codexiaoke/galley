@@ -10,7 +10,8 @@ import { newId } from "./ids";
 import type { StudioExport } from "./studio-exports";
 import type { Beat, StudioProject, StudioProjectDetail, StudioRevision, StudioRevisionData, StudioSource, Voice } from "./studio-types";
 
-const textSchema = z.string().trim().max(2000);
+type Guide = NonNullable<Beat["guides"]>[number];
+const textSchema =z.string().trim().max(2000);
 const beatSchema = z.object({ id: z.string().min(1).max(100), kind: z.enum(["cover", "page", "step", "ending"]), page: z.number().int().nonnegative(), title: z.string().nullable(), section: z.string().nullable(), text: textSchema, written: z.string().optional(), suggestedMs: z.number().min(0).max(120000), minMs: z.number().min(0).max(120000), selfPaced: z.literal(true).optional(), targets: guideTargetsSchema.optional(), guides: guidesSchema.optional() });
 export const studioSourceSchema = z.object({ galley: z.string().url(), slug: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/), title: z.string().min(1), present: z.string().startsWith("/posts/"), version: z.string().regex(/^[a-f0-9]{64}$/), revisedAt: z.string().nullable(), beats: z.array(beatSchema).min(1).max(2000) });
 export const voiceHash = (text: string) => createHash("sha256").update(text).digest("hex");
@@ -117,9 +118,18 @@ export class StudioProjects {
     if (source.version === revision.source.version) throw conflict("来源文章没有变化，无需同步。");
     const edits = source.beats.flatMap((beat) => {
       const previous = revision.beats.find((item) => item.id === beat.id);
-      return previous ? [{ id: beat.id, text: previous.text, suggestedMs: previous.suggestedMs, guides: (previous.guides ?? []).filter((guide) => beat.targets?.some((target) => target.id === guide.targetId)) }] : [];
+      if (!previous) return [];
+      // 只保留工坊里改过的讲稿和时长；没改过的拍点跟随文章的新内容。
+      const original = revision.source.beats.find((item) => item.id === beat.id);
+      const text = original && previous.text === original.text ? beat.text : previous.text;
+      const suggestedMs = original && previous.suggestedMs === original.suggestedMs ? beat.suggestedMs : previous.suggestedMs;
+      const guides: Guide[] = [];
+      for (const guide of previous.guides ?? []) {
+        try { validateBeatGuides({ ...beat, text, guides: [...guides, guide] }); guides.push(guide); } catch { /* 目标已移除或原话已不在讲稿中 */ }
+      }
+      return [{ id: beat.id, text, suggestedMs, guides }];
     });
-    return this.revise(actor, id, revisionId, edits, "同步来源文章，重新审查；已移除的目标不再保留指向", source);
+    return this.revise(actor, id, revisionId, edits, "同步来源文章，重新审查；目标已移除或原话已改动的指向不再保留", source);
   }
 
   revise(actor: Actor, id: string, baseRevisionId: string, edits: z.infer<typeof narrationEditSchema>[], note: string, source?: StudioSource) {

@@ -117,6 +117,23 @@ describe("Studio 讲稿、审查与成片", () => {
     const next = projects.revise(agent, p.id, p.currentRevisionId, [], "来源变化", { ...source, version: "b".repeat(64) });
     expect(next.revision.source.version).toBe("b".repeat(64)); expect(next.revision.scriptStatus).toBe("draft");
   });
+  it("同步来源时，工坊没改过的拍点采用文章新讲稿，改过的保留，失效的指向移除", () => {
+    const targets = [{ id: "title", label: "标题" }];
+    const p = projects.create(agent, { ...source, beats: source.beats.map((beat) => ({ ...beat, targets })) }, "视频", null, voices);
+    const edited = projects.revise(agent, p.id, p.currentRevisionId, [{ id: "p1", text: "工坊改写的正文", suggestedMs: 4000, guides: [{ targetId: "title", phrase: "改写" }] }], "改稿");
+    const updated = { ...source, version: "b".repeat(64), beats: [
+      { ...source.beats[0], text: "文章里新的开头", suggestedMs: 2000, targets },
+      { ...source.beats[1], text: "文章里新的正文", suggestedMs: 3000, targets },
+    ] };
+    const synced = projects.synchronize(agent, p.id, edited.currentRevisionId, updated).revision;
+    expect(synced.beats[0]).toMatchObject({ text: "文章里新的开头", suggestedMs: 2000 });
+    expect(synced.beats[1]).toMatchObject({ text: "工坊改写的正文", suggestedMs: 4000, guides: [{ targetId: "title", phrase: "改写" }] });
+    expect(synced.voices.map((voice) => voice.id)).toEqual([]);
+
+    const withGuide = projects.revise(agent, p.id, synced.id, [{ id: "cover", guides: [{ targetId: "title", phrase: "新的开头" }] }], "加指向");
+    const again = projects.synchronize(agent, p.id, withGuide.currentRevisionId, { ...updated, version: "c".repeat(64), beats: [{ ...updated.beats[0], text: "再次改过的封面" }, updated.beats[1]] }).revision;
+    expect(again.beats[0]).toMatchObject({ text: "再次改过的封面", guides: [] });
+  });
 });
 
 describe("Studio 管理身份与连接配置", () => {

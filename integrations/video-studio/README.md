@@ -62,7 +62,7 @@ pnpm studio:docker up
 
 如果旧工坊用 `GALLEY_SECRET_KEY` 环境变量加密站点密钥，须安全地给新容器提供相同变量，或在迁移后重新保存连接密钥。不能只拷贝 `studio.db`；音频、历史成片和加密密钥也属于同一份备份。迁移后核对项目版本、历史导出、Agent 和连接状态，再停用原入口。原目录留作备份。
 
-Docker 中的后台请求自动把 `localhost` / `127.0.0.1` 站点地址改走宿主机，数据库和浏览器预览仍使用原网址。因此本机开发站点和线上 HTTPS 站点都可连接，不必改写历史项目来源。
+Docker 中的后台请求自动把 `localhost` / `127.0.0.1` 站点地址改走宿主机（镜像默认 `STUDIO_LOCAL_SITE_HOST=host.docker.internal`），数据库和浏览器预览仍使用原网址。因此本机开发站点和线上 HTTPS 站点都可连接，不必改写历史项目来源。
 
 备份 Docker 工坊时先停止容器，然后把整个 `/data` 复制出来：
 
@@ -82,7 +82,7 @@ docker compose -f compose.studio.yml start studio
 
 打开「工坊设置 → 配置站点」，填写已有博客的根地址（如 `https://blog.example.com`）和该站点后台「MCP 管理」生成的访问密钥，点「测试并保存」。不需要重新部署博客，也不用复制线上数据库。
 
-线上 Galley 需要包含当前版本的讲稿指纹接口。连接密钥加密保存在工坊数据目录中，不返回网页；切换站点需填写新站点的密钥。现有项目仍属于原站点。Docker 方式推荐在界面配置，重建容器后沿用已保存的连接。`GALLEY_URL` 只初始化新数据卷，不能覆盖已有连接；已有工坊须在界面测试并保存新站点。若确实需要本地开发，可在 `.env.studio` 显式设置 `STUDIO_LOCAL_SITE_HOST=host.docker.internal`；连接线上站点不需要这项。
+线上 Galley 需要包含当前版本的讲稿指纹接口。连接密钥加密保存在工坊数据目录中，不返回网页；切换站点需填写新站点的密钥。现有项目仍属于原站点。Docker 方式推荐在界面配置，重建容器后沿用已保存的连接。`GALLEY_URL` 只初始化新数据卷，不能覆盖已有连接；已有工坊须在界面测试并保存新站点。连接本机开发站点时直接填 `http://localhost:3000` 这类地址即可，容器会改走宿主机；不想改写时在 `.env.studio` 设置 `STUDIO_LOCAL_SITE_HOST=`（留空）。
 
 ## 从源码启动
 
@@ -113,7 +113,7 @@ pnpm studio
 | `STUDIO_TTS_URL` | 宿主机配音连接地址；未配置时直接调用 stdio MCP | 无 |
 | `STUDIO_TTS_TOKEN_FILE` | 配音连接密钥文件 | `STUDIO_DIR/.tts-token` |
 | `STUDIO_TTS_PORT` / `STUDIO_TTS_DIR` | 宿主机配音端口与密钥、日志目录 | `4322` / `~/.galley-studio-tts` |
-| `STUDIO_LOCAL_SITE_HOST` | 仅本地开发：容器后台访问本机博客时替换的主机名 | 未设置，线上连接不需要 |
+| `STUDIO_LOCAL_SITE_HOST` | 后台请求本机站点（`localhost` / `127.0.0.1`）时替换成的主机名；线上地址不受影响，留空则不改写 | Docker 镜像为 `host.docker.internal`，源码运行未设置 |
 
 配音服务提供 `generate_voiceover` 与 `unload_voice_model`。完整的服务配置、返回格式、试听、重配与排错见[配音配置与使用](voice-setup.md)。
 

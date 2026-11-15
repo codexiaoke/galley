@@ -63,3 +63,22 @@ it("只替换后端请求中的本机主机名，保留站点端口、路径和�
   expect(studioFetchUrl("http://127.0.0.1:3000/narration.json")).toBe("http://host.docker.internal:3000/narration.json");
   expect(studioFetchUrl("https://blog.example.com/narration.json")).toBe("https://blog.example.com/narration.json");
 });
+it("配音进程中途退出时立即报错，不等 20 分钟超时，之后会重新启动", async () => {
+  // 只会握手的假配音服务：收到 tools/call 就直接退出。
+  const script = path.join(dir, "crash.mjs");
+  writeFileSync(script, `
+import { createInterface } from "node:readline";
+const send = (message) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\\n");
+createInterface({ input: process.stdin }).on("line", (line) => {
+  const message = JSON.parse(line);
+  if (message.method === "initialize") send({ id: message.id, result: { protocolVersion: message.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "crash", version: "1" } } });
+  if (message.method === "tools/call") process.exit(1);
+});`);
+  vi.stubEnv("STUDIO_TTS_COMMAND", `${process.execPath} ${script}`);
+  const voice = new StudioVoice(dir, "crash");
+  const started = Date.now();
+  await expect(voice.generate("beat", "你好", false, () => {})).rejects.toThrow();
+  expect(Date.now() - started).toBeLessThan(5000);
+  await expect(voice.generate("beat", "你好", false, () => {})).rejects.toThrow();
+  await voice.close();
+});
