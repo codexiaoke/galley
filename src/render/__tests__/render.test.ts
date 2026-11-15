@@ -51,6 +51,11 @@ describe("正文渲染", () => {
     expect(page.targets?.some((target) => target.label.includes("私有讲稿"))).toBe(false);
     expect(render(body)).not.toContain("data-galley-target");
   });
+  it(":::article 的内容在文章里照常显示", () => {
+    const html = render("## 依据\n\n:::article\n只在文章里出现的一段。\n:::");
+    expect(html).toContain("galley-article-only");
+    expect(html).toContain("只在文章里出现的一段。");
+  });
   it("小节标题的编号和目录一致，重名的依次加序号", () => {
     const body = "## 为什么\n\n文字\n\n### Step One\n\n## 为什么\n";
     const toc = extractToc(body);

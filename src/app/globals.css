@@ -4979,6 +4979,44 @@ html[data-slide-turn="cover"][data-slide-dir="back"] {
     animation: none;
   }
 }
+/* ---- 受控播放的换页 ----
+ * 视频工坊的预览和逐帧导出不用视图过渡：导出只按虚拟时钟定位舞台里的动画，拍不到浏览器在页面外层合成的过渡。
+ * 这时离开的那一页留在画面上退出、新的一页进来，用的是上面同一组动画；
+ * 种类和方向写在两页的 data-turn、data-dir 上（见 present.tsx 的 turnTo）。
+ */
+.galley-slide[data-turn] {
+  --turn-x: 0%;
+  --turn-y: 0%;
+  --turn-out-scale: 1;
+  --turn-in-scale: 1;
+}
+.galley-slide[data-turn="within"][data-dir="forward"] {
+  --turn-y: 3.5%;
+}
+.galley-slide[data-turn="within"][data-dir="back"] {
+  --turn-y: -3.5%;
+}
+.galley-slide[data-turn="section"][data-dir="forward"] {
+  --turn-x: 7%;
+}
+.galley-slide[data-turn="section"][data-dir="back"] {
+  --turn-x: -7%;
+}
+.galley-slide[data-turn="cover"][data-dir="forward"] {
+  --turn-out-scale: 1.06;
+  --turn-in-scale: 0.95;
+}
+.galley-slide[data-turn="cover"][data-dir="back"] {
+  --turn-out-scale: 0.95;
+  --turn-in-scale: 1.06;
+}
+.galley-present:is([data-controlled], [data-offline]) .galley-slide[data-turn][data-leaving] {
+  animation: galley-turn-out 0.3s cubic-bezier(0.4, 0, 1, 1) both;
+  pointer-events: none;
+}
+.galley-present:is([data-controlled], [data-offline]) .galley-slide[data-turn]:not([data-leaving]) {
+  animation: galley-turn-in 0.6s var(--ease-out) 0.14s both;
+}
 /* 一页里的内容依次浮上来。标题不参与：它要么随整页进来，要么从上一页移过来 */
 @keyframes galley-slide-rise {
   from {

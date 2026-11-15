@@ -169,6 +169,14 @@ export const COMPONENTS: ComponentDef[] = [
       ].join("\n"),
   },
   {
+    name: "article",
+    form: "container",
+    description:
+      "只在文章里出现的内容：读文章时照常显示，演示模式和导出的视频里整段跳过。用来放视频里用不上、文章读者又需要的东西：带引用的依据说明、完整的代码附录、可运行的长代码、延伸阅读。放在一页的标题下面时，这一页在演示里就只剩动画，不会被拆出一张只有字的页。",
+    example: ":::article\n:cite[官方文档把这一步写成默认流程]{b=k7f3q2x9}。完整代码附在文末。\n:::",
+    params: z.object({}),
+  },
+  {
     name: "notes",
     form: "container",
     description:

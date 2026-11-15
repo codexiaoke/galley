@@ -749,6 +749,8 @@ export function Markdown({
     "galley-code-steps": (props: ElementProps) => <CodeSteps props={props} />,
     // 讲稿只在演示模式和视频里用（见 render/slides.ts），文章里不显示
     "galley-notes": () => null,
+    // 只在文章里出现的内容：演示切页时整段跳过（见 render/slides.ts），文章里照常显示
+    "galley-article": (props: ElementProps) => <div className="galley-article-only">{props.children}</div>,
     "galley-mermaid": (props: ElementProps) => <MermaidDiagram code={attrsOf(props).code} review={ctx.review} />,
     "galley-code": (props: ElementProps) => {
       const { code, lang, meta } = attrsOf(props);

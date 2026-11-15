@@ -76,6 +76,14 @@ describe("场景动画演示分页", () => {
     expect(slides[1].section).toBe("三道墙");
     expect(slides[2].source).toBe("三道墙各管一件事。");
   });
+  it(":::article 只属于文章：标题下的引子不会拆出一张只有字的页，只有 article 的一节不进演示", () => {
+    const slides = splitSlides(`## 三道墙\n\n:::article\n引用的依据。\n:::\n\n${scene}\n\n:::notes\n开场\n:::\n\n## 附录\n\n:::article\n完整代码\n:::`);
+    expect(slides).toHaveLength(1);
+    expect(slides[0].source).toBe(scene);
+    expect(slides[0].section).toBe("三道墙");
+    expect(slides[0].notes).toBe("开场");
+    expect(slides.some((s) => s.source.includes("引用的依据") || s.source.includes("完整代码"))).toBe(false);
+  });
   it("标题下面直接是场景时不留空页，场景后的讲稿跟着场景", () => {
     const slides = splitSlides(`## 三道墙\n\n${scene}\n\n:::notes\n讲到沙箱时停一下\n:::`);
     expect(slides).toHaveLength(1);

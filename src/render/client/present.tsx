@@ -50,6 +50,9 @@ type TimelineEntry = { id: string; at: number };
 
 type TransitionDocument = Document & { startViewTransition?: (update: () => void) => { finished: Promise<void>; ready: Promise<void> } };
 
+/** 受控播放时一次换页的长度：旧的一页 0.3 秒退出，新的一页延后 0.14 秒、用 0.6 秒进来（和 globals.css 一致） */
+const CONTROLLED_TURN_MS = 760;
+
 /** 一页里能一条一条出现的文字：段落、引文、表格、提示框，以及列表的每一项 */
 const BUILD_BLOCKS = "p, blockquote, .galley-table-wrap, .galley-callout";
 /** 一页里的"大块"：相邻两页是同一类时，换页时把它们接起来 */
@@ -156,6 +159,11 @@ export function Presentation({
   // 第 0 页是封面，最后一页是结尾
   const total = slides.length + 2;
   const [page, setPage] = useState(0);
+  /**
+   * 受控播放（视频工坊预览、逐帧导出）时的换页动画：离开的那一页在动画期间还留在画面上。
+   * 这时不能用视图过渡：导出只按虚拟时钟定位舞台里的动画，拍不到浏览器在页面外层合成的过渡画面。
+   */
+  const [turning, setTurning] = useState<{ from: number; to: number; kind: string; dir: string } | null>(null);
   const [auto, setAuto] = useState(autoParam && !controlled);
   const [started, setStarted] = useState(!controlled);
   const [orientation, setOrientation] = useState<Orientation>(orientationParam ?? "landscape");
@@ -236,6 +244,19 @@ export function Presentation({
       if (leaving) delete leaving.dataset.enter;
       document.querySelectorAll("[data-slide-hero]").forEach((el) => el.removeAttribute("data-slide-hero"));
       const doc = document as TransitionDocument;
+      const kind = turnKind(slides, from, next);
+      const dir = next > from ? "forward" : "back";
+      // 受控播放：用舞台里的普通动画换页（样式见 globals.css 的"受控播放的换页"），动画结束后放下旧的一页。
+      // 导出时定时器走的是虚拟时钟，和画面同一个时间。
+      if (animate && !print && (offline || controlled)) {
+        const token = ++turnToken.current;
+        setTurning({ from, to: next, kind, dir });
+        setPage(next);
+        setTimeout(() => {
+          if (turnToken.current === token) setTurning(null);
+        }, CONTROLLED_TURN_MS);
+        return;
+      }
       // 页面在后台时浏览器不出画面，视图过渡会一直等着：直接换页
       if (!animate || print || offline || controlled || !doc.startViewTransition || document.hidden || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         setPage(next);
@@ -244,9 +265,8 @@ export function Presentation({
       // 转场的种类和方向写在 <html> 上，样式按它选动画；转场结束后拿掉
       const root = document.documentElement;
       const token = ++turnToken.current;
-      const kind = turnKind(slides, from, next);
       root.dataset.slideTurn = kind;
-      root.dataset.slideDir = next > from ? "forward" : "back";
+      root.dataset.slideDir = dir;
       if (kind === "within") {
         // 两页都有同一类大块：标成同一个东西，转场时从上一页的位置变到这一页的
         const a = proseOf(slideRefs.current[from])?.querySelector<HTMLElement>(HERO_BLOCKS);
@@ -607,6 +627,11 @@ export function Presentation({
   // 结果里的视频地址用完就释放
   useEffect(() => () => void (result && URL.revokeObjectURL(result.url)), [result]);
 
+  /** 一页在受控换页中的角色：离开的那一页留在画面上退出，进来的那一页按同样的种类和方向进场 */
+  const turnProps = (i: number) => {
+    if (!turning || (i !== turning.from && i !== turning.to)) return { hidden: !print && page !== i };
+    return { hidden: false, "data-turn": turning.kind, "data-dir": turning.dir, "data-leaving": i === turning.from || undefined };
+  };
   const current = page >= 1 && page <= slides.length ? slides[page - 1] : null;
   const caption = current ? current.notes || (stepCaption?.page === page ? stepCaption.text : null) : null;
   // 这句字幕大概会在屏幕上停多久：几段字幕按各自的长短分摊这段时间
@@ -637,21 +662,21 @@ export function Presentation({
       >
         <PresentSpeed.Provider value={speed}>
         <div key={run} className="galley-present-slides">
-          <section ref={(el) => void (slideRefs.current[0] = el)} className="galley-slide galley-slide-cover" data-current={page === 0 || undefined} hidden={!print && page !== 0}>
+          <section ref={(el) => void (slideRefs.current[0] = el)} className="galley-slide galley-slide-cover" data-current={page === 0 || undefined} {...turnProps(0)}>
             <p className="galley-slide-site">{cover.site}</p>
             <h1 data-galley-target="p0:title">{cover.title}</h1>
             {cover.summary && <p className="galley-slide-summary">{cover.summary}</p>}
             {cover.date && <p className="galley-slide-date">{cover.date}</p>}
           </section>
           {slides.map((s, i) => (
-            <section key={i} ref={(el) => void (slideRefs.current[i + 1] = el)} className="galley-slide" data-current={page === i + 1 || undefined} hidden={!print && page !== i + 1}>
+            <section key={i} ref={(el) => void (slideRefs.current[i + 1] = el)} className="galley-slide" data-current={page === i + 1 || undefined} {...turnProps(i + 1)}>
               <div className="galley-slide-body galley-prose">
                 {s.section && <p className="galley-slide-section">{s.section}</p>}
                 {s.content}
               </div>
             </section>
           ))}
-          <section ref={(el) => void (slideRefs.current[total - 1] = el)} className="galley-slide galley-slide-cover" data-current={page === total - 1 || undefined} hidden={!print && page !== total - 1}>
+          <section ref={(el) => void (slideRefs.current[total - 1] = el)} className="galley-slide galley-slide-cover" data-current={page === total - 1 || undefined} {...turnProps(total - 1)}>
             <h1 data-galley-target={`p${total - 1}:title`}>{cover.title}</h1>
             <p className="galley-slide-site">{cover.site}</p>
             {cover.url && <p className="galley-slide-date">{cover.url.replace(/^https?:\/\//, "")}</p>}

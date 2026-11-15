@@ -9,7 +9,8 @@ import { stripNarration } from "@/core/scene/shared";
  * - 二级标题下面的三级标题也各自成一页（一个小节一页，内容才放得下），
  *   页面上方用小字标出它属于哪个二级标题；二级标题下面直接就是小节时，不单独留一页空的；
  * - 单独一行的 --- 也分页；
- * - 二级标题前面的开场白单独成一页。
+ * - 二级标题前面的开场白单独成一页；
+ * - :::article 里的内容只属于文章，不进幻灯片。
  * 页里的 :::notes 是讲稿，从页面上拿掉，单独放在 notes 里
  * （演讲者视图里显示，导出视频时当成字幕的内容）。
  */
@@ -29,6 +30,8 @@ export function splitSlides(body: string): Slide[] {
     if (current.parts.length && !(current.headingOnly && current.parts.length === 1)) slides.push(current);
   };
   for (const node of top) {
+    // :::article 只在文章里出现，演示和视频里整段跳过
+    if (node.type === "containerDirective" && node.name === "article") continue;
     if (node.type === "thematicBreak") {
       flush();
       current = { section, parts: [] };
