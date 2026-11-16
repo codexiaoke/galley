@@ -74,7 +74,7 @@ packages/ui      后台和工坊共用的表格、弹框、选择器、样式（
 
 ### 存在哪
 
-讲稿是工坊项目版本的一部分，现在已经是这样存的（`studio_revisions.beats` 里每拍的 text 和 guides）。变化在于初稿的来源：以前从文章里抄过来，以后由 Agent 或站长在工坊里写。
+讲稿是工坊项目版本的一部分，现在已经是这样存的（`studio_revisions.data` 里的 beats，每拍有 text 和 guides）。变化在于初稿的来源：以前从文章里抄过来，以后由 Agent 或站长在工坊里写。
 
 ### 怎么和步骤对上
 
