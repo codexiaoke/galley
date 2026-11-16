@@ -5,14 +5,14 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
-import { narrationEditSchema } from "../../src/core/studio-guides";
+import { narrationEditSchema } from "./core/guides";
 import { OWNER } from "../../src/core/actor";
 import { GalleyError, invalid, notFound } from "../../src/core/errors";
-import { StudioAccess, STUDIO_COOKIE, requireStudioOwner } from "../../src/core/studio-access";
-import { StudioExportError } from "../../src/core/studio-exports";
+import { StudioAccess, STUDIO_COOKIE, requireStudioOwner } from "./core/access";
+import { StudioExportError } from "./core/exports";
 import { authenticateAgent, createAgent, listAgents, recentAgentCalls, regenerateAgentToken, setAgentCanPublish, setAgentDisabled, setAgentDisabledTools } from "../../src/core/services/agents";
-import { toolsFor } from "../../src/core/tools";
-import { createStudioMcp } from "../../src/mcp/studio";
+import { STUDIO_TOOLS } from "./core/tools";
+import { createStudioMcp } from "./core/mcp";
 import { buildStudio } from "./build";
 import { StudioRuntime } from "./runtime";
 
@@ -146,7 +146,7 @@ const server = createServer(async (req, res) => {
       if (req.method === "DELETE" && !exportRoute[2]) { runtime.projects.checkExportRemoval(actor, job); runtime.exports.remove(job.id); return json(res, 200, { ok: true }); }
     }
     if (route === "/api/agents") {
-      if (req.method === "GET") return json(res, 200, { agents: listAgents(runtime.db), tools: toolsFor("studio"), calls: recentAgentCalls(runtime.db) });
+      if (req.method === "GET") return json(res, 200, { agents: listAgents(runtime.db), tools: STUDIO_TOOLS, calls: recentAgentCalls(runtime.db) });
       if (req.method === "POST") { const data = await input(req, z.object({ name })); return json(res, 201, createAgent(runtime.db, actor, data.name)); }
     }
     const agentRoute = route.match(/^\/api\/agents\/([a-z0-9]+)(?:\/(token))?$/);
@@ -154,7 +154,7 @@ const server = createServer(async (req, res) => {
       if (req.method === "POST" && agentRoute[2] === "token") return json(res, 200, regenerateAgentToken(runtime.db, actor, agentRoute[1]));
       if (req.method === "PATCH") {
         const data = await input(req, z.object({ disabled: z.boolean(), canPublish: z.boolean(), disabledTools: z.array(z.string()) }));
-        runtime.db.transaction(() => { setAgentCanPublish(runtime.db, actor, agentRoute[1], data.canPublish); setAgentDisabled(runtime.db, actor, agentRoute[1], data.disabled); setAgentDisabledTools(runtime.db, actor, agentRoute[1], data.disabledTools); });
+        runtime.db.transaction(() => { setAgentCanPublish(runtime.db, actor, agentRoute[1], data.canPublish); setAgentDisabled(runtime.db, actor, agentRoute[1], data.disabled); setAgentDisabledTools(runtime.db, actor, agentRoute[1], data.disabledTools, STUDIO_TOOLS); });
         return json(res, 200, { ok: true });
       }
     }

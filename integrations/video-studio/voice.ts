@@ -7,8 +7,8 @@ import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { z } from "zod";
-import { voiceHash } from "../../src/core/studio-projects";
-import type { StudioSource, Voice } from "../../src/core/studio-types";
+import { voiceHash } from "./core/projects";
+import type { StudioSource, Voice } from "./core/types";
 
 type Launch = { command: string; args: string[]; env?: Record<string, string> };
 export type VoiceBridge = { url: string; tokenFile: string };

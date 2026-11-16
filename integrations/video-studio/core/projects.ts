@@ -1,14 +1,14 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { guideTargetsSchema, guidesSchema, narrationEditSchema, resolveGuidePlan, validateBeatGuides } from "./studio-guides";
-import type { Actor } from "./actor";
-import type { Db } from "./db/client";
-import { agents, studioComments, studioEvents, studioProjects, studioRevisions } from "./db/schema";
-import { conflict, forbidden, invalid, notFound } from "./errors";
-import { newId } from "./ids";
-import type { StudioExport } from "./studio-exports";
-import type { Beat, StudioProject, StudioProjectDetail, StudioRevision, StudioRevisionData, StudioSource, Voice } from "./studio-types";
+import { guideTargetsSchema, guidesSchema, narrationEditSchema, resolveGuidePlan, validateBeatGuides } from "./guides";
+import type { Actor } from "../../../src/core/actor";
+import type { Db } from "../../../src/core/db/client";
+import { agents, studioComments, studioEvents, studioProjects, studioRevisions } from "../../../src/core/db/schema";
+import { conflict, forbidden, invalid, notFound } from "../../../src/core/errors";
+import { newId } from "../../../src/core/ids";
+import type { StudioExport } from "./exports";
+import type { Beat, StudioProject, StudioProjectDetail, StudioRevision, StudioRevisionData, StudioSource, Voice } from "./types";
 
 type Guide = NonNullable<Beat["guides"]>[number];
 const textSchema =z.string().trim().max(2000);
@@ -23,13 +23,16 @@ const cleanName = (name: string) => {
   return value;
 };
 
+/** 博客的 schema 只把 data 当成 JSON 存；它的结构由工坊定义（types.ts）。 */
+const revisionData = (row: { data: Record<string, unknown> }) => row.data as StudioRevisionData;
+
 /** 项目、版本和审查的唯一业务入口；网页与 MCP 共用。 */
 export class StudioProjects {
   constructor(readonly db: Db) {}
 
   recover() {
     for (const row of this.db.select().from(studioRevisions).all()) {
-      if (row.data.voiceJob.state === "running") this.update(row.id, { voiceJob: { state: "failed", message: "", error: "配音因工坊关闭而中断，请重新生成。" } });
+      if (revisionData(row).voiceJob.state === "running") this.update(row.id, { voiceJob: { state: "failed", message: "", error: "配音因工坊关闭而中断，请重新生成。" } });
     }
   }
 
@@ -42,7 +45,7 @@ export class StudioProjects {
   revision(id: string): StudioRevision {
     const row = this.db.select().from(studioRevisions).where(eq(studioRevisions.id, id)).get();
     if (!row) throw notFound("没有找到这个讲稿版本。");
-    return { ...row.data, id: row.id, projectId: row.projectId, number: row.number, createdAt: row.createdAt.getTime(), updatedAt: row.updatedAt.getTime() };
+    return { ...revisionData(row), id: row.id, projectId: row.projectId, number: row.number, createdAt: row.createdAt.getTime(), updatedAt: row.updatedAt.getTime() };
   }
 
   current(actor: Actor, projectId: string, revisionId: string) {
@@ -71,7 +74,7 @@ export class StudioProjects {
   private update(id: string, change: Partial<StudioRevisionData>) {
     const row = this.db.select().from(studioRevisions).where(eq(studioRevisions.id, id)).get()!;
     const now = new Date();
-    this.db.update(studioRevisions).set({ data: { ...row.data, ...change }, updatedAt: now }).where(eq(studioRevisions.id, id)).run();
+    this.db.update(studioRevisions).set({ data: { ...revisionData(row), ...change }, updatedAt: now }).where(eq(studioRevisions.id, id)).run();
     this.db.update(studioProjects).set({ updatedAt: now }).where(eq(studioProjects.id, row.projectId)).run();
     return this.revision(id);
   }
@@ -92,7 +95,7 @@ export class StudioProjects {
       this.db.insert(studioRevisions).values({ id: revisionId, projectId: id, number: 1, createdAt: now, updatedAt: now, data: {
         source: parsed.data, beats: parsed.data.beats, voices: voices.filter((voice) => parsed.data.beats.some((beat) => beat.id === voice.id && voice.hash === voiceHash(beat.text))),
         scriptStatus: "draft", videoStatus: "draft", scriptDirect: false, videoDirect: false, sampleExportId: null, note: "从文章建立项目", voiceJob: { state: "idle", message: "" },
-      } }).run();
+      } satisfies StudioRevisionData }).run();
       this.event(actor, this.revision(revisionId), "创建项目");
       return this.get(actor, id);
     });
@@ -155,7 +158,7 @@ export class StudioProjects {
       this.db.insert(studioRevisions).values({ id: revisionId, projectId: id, number: previous.number + 1, createdAt: now, updatedAt: now, data: {
         source: source ?? previous.source, beats, voices: previous.voices.filter((voice) => beats.some((beat) => beat.id === voice.id && voice.hash === voiceHash(beat.text))),
         scriptStatus: "draft", videoStatus: "draft", scriptDirect: false, videoDirect: false, sampleExportId: null, note: note.trim(), voiceJob: { state: "idle", message: "" },
-      } }).run();
+      } satisfies StudioRevisionData }).run();
       this.db.update(studioProjects).set({ currentRevisionId: revisionId, updatedAt: now }).where(eq(studioProjects.id, id)).run();
       this.event(actor, this.revision(revisionId), source ? "同步来源版本" : "修改讲稿与指向", note);
     });

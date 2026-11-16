@@ -4,12 +4,12 @@ import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { StudioRuntime } from "../../../integrations/video-studio/runtime";
-import { createStudioMcp } from "../../mcp/studio";
-import { OWNER, type Actor } from "../actor";
-import { authenticateAgent, createAgent, setAgentCanPublish, setAgentDisabledTools } from "../services/agents";
-import { getSkill, saveSkill } from "../services/skills";
-import { toolsFor } from "../tools";
+import { StudioRuntime } from "../../runtime";
+import { createStudioMcp } from "../mcp";
+import { OWNER, type Actor } from "../../../../src/core/actor";
+import { authenticateAgent, createAgent, setAgentCanPublish, setAgentDisabledTools } from "../../../../src/core/services/agents";
+import { getSkill, saveSkill } from "../../../../src/core/services/skills";
+import { STUDIO_TOOLS } from "../tools";
 
 let dir: string, runtime: StudioRuntime, agent: Extract<Actor, { kind: "agent" }>;
 const clients: Client[] = [];
@@ -33,7 +33,7 @@ it("制作技能通过 MCP 读取当前内容，站长修订后不继续返回�
 it("真实 MCP 协议提供完整工具流程，开关和直接定稿权限按请求生效", async () => {
   const client = await connect();
   const names = (await client.listTools()).tools.map((tool) => tool.name);
-  expect(names).toEqual(toolsFor("studio").filter((tool) => tool.name !== "studio_publish_project").map((tool) => tool.name));
+  expect(names).toEqual(STUDIO_TOOLS.filter((tool) => tool.name !== "studio_publish_project").map((tool) => tool.name));
   expect(names.some((name) => /approve|permission|agent_create/.test(name))).toBe(false);
   vi.spyOn(runtime, "source").mockResolvedValue({ galley: "https://blog.example.com", slug: "demo", title: "演示", present: "/posts/demo/present", version: "a".repeat(64), revisedAt: null, beats: [{ id: "cover", kind: "cover", page: 0, title: "演示", section: null, text: "", minMs: 100, suggestedMs: 1000, targets: [{ id: "cover:title", label: "标题" }] }] });
   const created = await client.callTool({ name: "studio_create_project", arguments: { slug: "demo", name: "MCP 项目" } });
@@ -51,7 +51,7 @@ it("真实 MCP 协议提供完整工具流程，开关和直接定稿权限按�
   const premature = await client.callTool({ name: "studio_generate_voices", arguments: args }); expect(premature.isError).toBe(true);
   expect((await client.callTool({ name: "studio_submit_review", arguments: args })).isError).not.toBe(true);
   expect(runtime.projects.get(OWNER, data.id).revision.scriptStatus).toBe("in_review");
-  setAgentCanPublish(runtime.db, OWNER, agent.id, true); setAgentDisabledTools(runtime.db, OWNER, agent.id, ["studio_render_video"]);
+  setAgentCanPublish(runtime.db, OWNER, agent.id, true); setAgentDisabledTools(runtime.db, OWNER, agent.id, ["studio_render_video"], STUDIO_TOOLS);
   const allowed = await connect();
   const enabled = (await allowed.listTools()).tools.map((tool) => tool.name);
   expect(enabled).toContain("studio_publish_project"); expect(enabled).not.toContain("studio_render_video");

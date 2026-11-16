@@ -17,10 +17,10 @@ import {
   skillHistory,
   suggestSkillChange,
 } from "../services/skills";
-import { toolsFor } from "../tools";
+import { TOOLS as ALL_TOOLS } from "../tools";
 import { createMcpServer, registeredTools } from "../../mcp/server";
 
-const TOOLS = toolsFor("galley");
+const TOOLS = ALL_TOOLS;
 let db: Db;
 let agent: Extract<Actor, { kind: "agent" }>;
 

@@ -1,8 +1,8 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import type { Actor } from "./actor";
-import { forbidden, invalid } from "./errors";
+import type { Actor } from "../../../src/core/actor";
+import { forbidden, invalid } from "../../../src/core/errors";
 
 const equal = (a: string, b: string) => { const left = Buffer.from(a), right = Buffer.from(b); return left.length === right.length && timingSafeEqual(left, right); };
 export const STUDIO_COOKIE = "galley_studio_owner";

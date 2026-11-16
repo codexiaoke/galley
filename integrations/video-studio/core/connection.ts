@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
-import type { Actor } from "./actor";
-import type { Db } from "./db/client";
-import { studioConnection } from "./db/schema";
-import { forbidden, invalid } from "./errors";
-import { decryptSecret, encryptSecret } from "./secrets";
+import type { Actor } from "../../../src/core/actor";
+import type { Db } from "../../../src/core/db/client";
+import { studioConnection } from "../../../src/core/db/schema";
+import { forbidden, invalid } from "../../../src/core/errors";
+import { decryptSecret, encryptSecret } from "../../../src/core/secrets";
 
 export function studioSiteUrl(value: string) {
   let url: URL;

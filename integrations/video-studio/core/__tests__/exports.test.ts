@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { StudioExports } from "../studio-exports";
+import { StudioExports } from "../exports";
 
 describe("本机视频导出目录", () => {
   const binding = { projectId: "project", revisionId: "revision", sourceVersion: "a".repeat(64) };

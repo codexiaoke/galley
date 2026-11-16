@@ -2,8 +2,8 @@ import { useRef, useState } from "react";
 import { MousePointer2, Plus, X } from "lucide-react";
 import { Field, INPUT, buttonClass } from "../../src/app/admin/ui";
 import { Select } from "../../src/app/admin/select";
-import type { Beat } from "../../src/core/studio-types";
-import { GUIDE_EMPHASIS, guideEmphasisLabel } from "../../src/core/studio-guides";
+import type { Beat } from "./core/types";
+import { GUIDE_EMPHASIS, guideEmphasisLabel } from "./core/guides";
 
 export function readGuides(form: FormData) {
   const targets = form.getAll("guide-target"), phrases = form.getAll("guide-phrase"), emphasis = form.getAll("guide-emphasis");

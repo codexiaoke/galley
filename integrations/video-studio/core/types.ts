@@ -1,23 +1,6 @@
-/** 视频制作的交换格式；浏览器、核心流程和渲染器共用。 */
-/** appearsMs：场景元素在这一拍开始后多久才画出来（一开始就在时不写）。 */
-export type GuideTarget = { id: string; label: string; appearsMs?: number };
-export type GuideEmphasis = "point" | "focus" | "zoom";
-export type GuideCue = { targetId: string; phrase: string; emphasis?: GuideEmphasis };
-export type GuidePlan = { id: string; cues: { targetId: string; startMs: number; endMs: number; emphasis: GuideEmphasis }[] }[];
-export type Beat = {
-  id: string;
-  kind: "cover" | "page" | "step" | "ending";
-  page: number;
-  title: string | null;
-  section: string | null;
-  text: string;
-  written?: string;
-  suggestedMs: number;
-  minMs: number;
-  selfPaced?: true;
-  targets?: GuideTarget[];
-  guides?: GuideCue[];
-};
+/** 视频工坊自己的数据：项目、版本、配音、批注。演示的拍点和指向目标是和博客共用的约定，见 src/contract/narration.ts。 */
+import type { Beat } from "../../../src/contract/narration";
+export type { Beat, GuideCue, GuideEmphasis, GuidePlan, GuideTarget } from "../../../src/contract/narration";
 
 export type Voice = { id: string; hash: string; audio: string; durationMs: number; cues: { start: number; end: number; text: string }[] };
 export type StudioSource = { galley: string; slug: string; title: string; present: string; version: string; revisedAt: string | null; beats: Beat[] };

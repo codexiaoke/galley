@@ -1,8 +1,8 @@
 import { memo, useEffect, useRef, useState } from "react";
 import { LoaderCircle, Play, Square } from "lucide-react";
 import { buttonClass } from "../../src/app/admin/ui";
-import type { StudioRevision } from "../../src/core/studio-types";
-import { resolveGuidePlan } from "../../src/core/studio-guides";
+import type { StudioRevision } from "./core/types";
+import { resolveGuidePlan } from "./core/guides";
 import { beatLength } from "./timing.js";
 
 /** 审查预览使用当前讲稿的时长和不可变音频；来源版本变化时页面会拒绝加载。 */

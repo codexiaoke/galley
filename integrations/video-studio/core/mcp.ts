@@ -1,12 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { narrationEditSchema } from "../core/studio-guides";
-import type { Actor } from "../core/actor";
-import { GalleyError, notFound } from "../core/errors";
-import { disabledToolsOf, listAgents, logAgentCall } from "../core/services/agents";
-import { getSkill } from "../core/services/skills";
-import { findTool } from "../core/tools";
-import type { StudioRuntime } from "../../integrations/video-studio/runtime";
+import { narrationEditSchema } from "./guides";
+import type { Actor } from "../../../src/core/actor";
+import { GalleyError, notFound } from "../../../src/core/errors";
+import { disabledToolsOf, listAgents, logAgentCall } from "../../../src/core/services/agents";
+import { getSkill } from "../../../src/core/services/skills";
+import { findStudioTool } from "./tools";
+import type { StudioRuntime } from "../runtime";
 
 const project = { projectId: z.string(), revisionId: z.string().describe("刚读取的当前版本 ID，用于防止覆盖其他修改") };
 const stage = z.enum(["script", "video"]);
@@ -16,8 +16,8 @@ export function createStudioMcp(runtime: StudioRuntime, actor: Extract<Actor, { 
   const disabled = disabledToolsOf(runtime.db, actor.id);
   const canPublish = listAgents(runtime.db).find((item) => item.id === actor.id)?.canPublish;
   function tool<S extends z.ZodRawShape>(name: string, inputSchema: S, handler: (args: z.infer<z.ZodObject<S>>) => unknown) {
-    const info = findTool(name);
-    if (!info || info.surface !== "studio") throw new Error(`未登记 Studio 工具：${name}`);
+    const info = findStudioTool(name);
+    if (!info) throw new Error(`未登记 Studio 工具：${name}`);
     if (disabled.has(name) || (name === "studio_publish_project" && !canPublish)) return;
     server.registerTool(name, { description: info.label, inputSchema, annotations: { readOnlyHint: readOnly.has(name), destructiveHint: false, openWorldHint: false } }, (async (args: z.infer<z.ZodObject<S>>) => {
       try {

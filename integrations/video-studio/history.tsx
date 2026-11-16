@@ -3,7 +3,7 @@ import { Download, Film, RefreshCw, Search } from "lucide-react";
 import { Badge, buttonClass, EmptyState, Field, INPUT, PageHeader, PrimaryCell, RowActions, Table, type Tone } from "../../src/app/admin/ui";
 import { Modal, ModalForm } from "../../src/app/admin/modal";
 import { Select } from "../../src/app/admin/select";
-import type { StudioExport } from "../../src/core/studio-exports";
+import type { StudioExport } from "./core/exports";
 import { duration, request, run } from "./actions";
 
 export type ExportRecord = StudioExport & { approval: "historical" | "superseded" | "direct" | "approved" | "in_review" | "sample" };

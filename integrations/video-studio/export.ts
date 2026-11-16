@@ -3,11 +3,11 @@ import { mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { chromium } from "playwright";
 import ffmpegPath from "ffmpeg-static";
-import type { Beat, GuidePlan, Voice } from "../../src/core/studio-types";
-import { resolveGuidePlan } from "../../src/core/studio-guides";
+import type { Beat, GuidePlan, Voice } from "./core/types";
+import { resolveGuidePlan } from "./core/guides";
 import type { GuideReport } from "../../src/render/client/guide-focus";
 import { beatLength } from "./timing.js";
-import type { ExportProgress } from "../../src/core/studio-exports";
+import type { ExportProgress } from "./core/exports";
 
 export type TimelineEntry = { id: string; at: number };
 export type ExportInput = {

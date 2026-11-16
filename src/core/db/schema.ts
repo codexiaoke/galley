@@ -1,5 +1,4 @@
 import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
-import type { StudioRevisionData } from "../studio-types";
 
 /**
  * Galley 的核心表。设计说明见 docs/design-knowledge-blocks.md。
@@ -35,6 +34,8 @@ export type BlockSource = { url: string; title?: string; quote?: string; accesse
 const createdAt = () => integer("created_at", { mode: "timestamp_ms" }).notNull();
 
 /** 本机 Studio 使用自己的数据库文件；复用 Agent 身份、工具权限和调用记录。 */
+// 视频工坊的表：暂时还和博客共用一套迁移，拆分的第 1b 步会挪到工坊自己的迁移里（见 docs/design-studio-split.md）。
+// data 列的结构由工坊校验和解释（integrations/video-studio/core/types.ts），博客不认识它。
 export const studioProjects = sqliteTable("studio_projects", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -48,7 +49,7 @@ export const studioRevisions = sqliteTable("studio_revisions", {
   id: text("id").primaryKey(),
   projectId: text("project_id").notNull().references(() => studioProjects.id),
   number: integer("number").notNull(),
-  data: text("data", { mode: "json" }).$type<StudioRevisionData>().notNull(),
+  data: text("data", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
   createdAt: createdAt(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 }, (t) => [uniqueIndex("studio_revision_number_idx").on(t.projectId, t.number)]);

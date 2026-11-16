@@ -2,7 +2,7 @@ import { toString } from "mdast-util-to-string";
 import type { Root, RootContent } from "mdast";
 import { sceneFrame, sceneTargetVisible } from "../core/scene/frame";
 import type { Scene } from "../core/scene/types";
-import type { GuideTarget } from "../core/studio-types";
+import type { GuideTarget } from "../contract/narration";
 
 /** FNV-1a：前台和服务端都能算，不依赖 node:crypto。 */
 function fingerprint(text: string) {

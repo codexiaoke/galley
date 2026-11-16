@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
-import { guidePlanSchema } from "../../core/studio-guides";
-import type { GuidePlan } from "../../core/studio-types";
+import { guidePlanSchema, type GuidePlan } from "../../contract/narration";
 import { clamp, guideCameraFor, guideEase, HOME_CAMERA, mix, mixCamera, mixRect, projectRect, unprojectRect, type GuideCamera, type GuideRect } from "../guide-motion";
 
 export type GuideReport = { seen: string[]; missing: string[] };

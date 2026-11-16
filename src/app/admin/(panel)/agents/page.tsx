@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { getDb } from "@/core/db/client";
 import { listAgents, recentAgentCalls } from "@/core/services/agents";
 import { getSiteSettings } from "@/core/services/settings";
-import { toolsFor } from "@/core/tools";
+import { TOOLS } from "@/core/tools";
 import { addAgent, resetAgentToken, saveAgentTools, setAgentPublish, setAgentStatus } from "../../actions";
 import { requireOwner } from "../../auth";
 import { CopyBlock } from "../../copy";
@@ -25,7 +25,7 @@ async function Agents() {
   const codexConfig = `[mcp_servers.galley]\nurl = "${mcpUrl}"\nbearer_token_env_var = "GALLEY_TOKEN"\ndefault_tools_approval_mode = "approve"`;
   const db = getDb();
   const agents = listAgents(db);
-  const tools = toolsFor("galley");
+  const tools = TOOLS;
   const groups = [...new Set(tools.map((tool) => tool.group))];
   const calls = recentAgentCalls(db, 50);
   const now = new Date();

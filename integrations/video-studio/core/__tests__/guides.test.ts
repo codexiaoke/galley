@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { guidesSchema, resolveGuidePlan, validateBeatGuides } from "../studio-guides";
-import type { Beat, Voice } from "../studio-types";
+import { guidesSchema, resolveGuidePlan, validateBeatGuides } from "../guides";
+import type { Beat, Voice } from "../types";
 
 const beat: Beat = { id: "scene.1", kind: "step", page: 1, title: null, section: null, text: "先看页面，然后挪进 Worker。", suggestedMs: 6000, minMs: 1000, targets: [{ id: "scene:page", label: "页面" }, { id: "scene:worker", label: "Worker" }], guides: [{ targetId: "scene:page", phrase: "先看页面" }, { targetId: "scene:worker", phrase: "然后挪进 Worker" }] };
 const voice: Voice = { id: beat.id, hash: "test", audio: "test.wav", durationMs: 6500, cues: [{ start: 0, end: 1.6, text: "先看页面，" }, { start: 2.2, end: 6.5, text: "然后挪进 Worker。" }] };

@@ -6,7 +6,7 @@ import { ModalForm } from "../../src/app/admin/modal";
 import { Select } from "../../src/app/admin/select";
 import { ToastProvider } from "../../src/app/admin/toast";
 import { GalleyMark } from "../../src/app/admin/mark";
-import type { StudioProject, StudioProjectDetail } from "../../src/core/studio-types";
+import type { StudioProject, StudioProjectDetail } from "./core/types";
 import { request, run } from "./actions";
 import { ExportHistory, type ExportRecord } from "./history";
 import { ProjectView, ReviewBadge } from "./project-view";

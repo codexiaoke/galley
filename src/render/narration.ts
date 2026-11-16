@@ -1,4 +1,4 @@
-import type { Beat } from "../core/studio-types";
+import type { Beat } from "../contract/narration";
 import { visit } from "unist-util-visit";
 import { parseToTree } from "@/core/markup/parse";
 import { readScene } from "@/core/markup/structure";

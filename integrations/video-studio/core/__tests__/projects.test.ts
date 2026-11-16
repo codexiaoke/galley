@@ -2,15 +2,15 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { OWNER, type Actor } from "../actor";
-import { openDb, type Db } from "../db/client";
-import { StudioProjects, voiceHash, voicesReady } from "../studio-projects";
-import { StudioAccess, STUDIO_COOKIE, requireStudioOwner } from "../studio-access";
-import { StudioConnection } from "../studio-connection";
-import { studioConnection } from "../db/schema";
-import { authenticateAgent, createAgent, setAgentCanPublish, setAgentDisabled } from "../services/agents";
-import type { StudioSource, Voice } from "../studio-types";
-import type { StudioExport } from "../studio-exports";
+import { OWNER, type Actor } from "../../../../src/core/actor";
+import { openDb, type Db } from "../../../../src/core/db/client";
+import { StudioProjects, voiceHash, voicesReady } from "../projects";
+import { StudioAccess, STUDIO_COOKIE, requireStudioOwner } from "../access";
+import { StudioConnection } from "../connection";
+import { studioConnection } from "../../../../src/core/db/schema";
+import { authenticateAgent, createAgent, setAgentCanPublish, setAgentDisabled } from "../../../../src/core/services/agents";
+import type { StudioSource, Voice } from "../types";
+import type { StudioExport } from "../exports";
 
 const source: StudioSource = { galley: "https://blog.example.com", slug: "scene-demo", title: "演示", present: "/posts/scene-demo/present", revisedAt: null, version: "a".repeat(64), beats: [
   { id: "cover", kind: "cover", page: 0, title: "演示", section: null, text: "开头", minMs: 100, suggestedMs: 1000 },

@@ -1,7 +1,7 @@
-import type { Voice } from "../../core/studio-types";
+import type { Voice } from "../types";
 import { describe, expect, it } from "vitest";
-import { assertTimeline, missingGuides, subtitleFile } from "../../../integrations/video-studio/export";
-import { beatLength } from "../../../integrations/video-studio/timing.js";
+import { assertTimeline, missingGuides, subtitleFile } from "../../export";
+import { beatLength } from "../../timing.js";
 
 describe("视频工坊的时间轴", () => {
   it("给配音留停顿，同时保证动画有时间放完", () => {

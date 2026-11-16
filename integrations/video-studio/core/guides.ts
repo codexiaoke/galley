@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { invalid } from "./errors";
-import type { Beat, GuidePlan, Voice } from "./studio-types";
+import { invalid } from "../../../src/core/errors";
+import type { Beat, GuidePlan, Voice } from "./types";
 
-const targetId = z.string().min(1).max(160);
-export const guideEmphasisSchema = z.enum(["point", "focus", "zoom"]);
+import { guideEmphasisSchema, guideTargetId as targetId } from "../../../src/contract/narration";
+export { guideEmphasisSchema, guidePlanSchema } from "../../../src/contract/narration";
 export const GUIDE_EMPHASIS = [
   { value: "point", label: "指示 · 仅显示边框" },
   { value: "focus", label: "聚焦 · 突出目标" },
@@ -17,9 +17,6 @@ export const narrationEditSchema = z.object({
   suggestedMs: z.number().min(0).max(120000).optional(),
   guides: guidesSchema.optional().describe("讲解指向，按讲稿顺序排列。targetId 取自本拍 targets；phrase 是本拍讲稿中唯一出现的一段原话。空数组清除指向。"),
 });
-export const guidePlanSchema = z.array(z.object({ id: z.string().max(100), cues: z.array(z.object({
-  targetId, emphasis: guideEmphasisSchema, startMs: z.number().finite().min(0).max(600000), endMs: z.number().finite().min(0).max(600000),
-})).max(12) })).max(2000);
 
 /** 聚焦框淡入要几帧才算显示出来；目标至少要在这句话结束前这么久出现。 */
 const APPEAR_MARGIN_MS = 150;

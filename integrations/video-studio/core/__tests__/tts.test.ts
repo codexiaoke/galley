@@ -3,9 +3,9 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Server } from "node:http";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { createTtsBridge } from "../../../integrations/video-studio/tts-bridge";
-import { StudioVoice } from "../../../integrations/video-studio/voice";
-import { studioFetchUrl } from "../../../integrations/video-studio/site-url";
+import { createTtsBridge } from "../../tts-bridge";
+import { StudioVoice } from "../../voice";
+import { studioFetchUrl } from "../../site-url";
 
 let dir: string, server: Server;
 let url: string;
