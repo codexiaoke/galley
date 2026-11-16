@@ -8,13 +8,22 @@
  */
 import { z } from "zod";
 
-/** appearsMs：场景元素在这一拍开始后多久才画出来（一开始就在时不写）。 */
-export type GuideTarget = { id: string; label: string; appearsMs?: number };
+/**
+ * appearsMs：场景元素在这一拍开始后多久才画出来（一开始就在时不写）。
+ * anchor：按内容算的锚点，工坊同步时靠它把旧指向对到新目标上（id 会随页码、场景代码变）。
+ */
+export type GuideTarget = { id: string; label: string; appearsMs?: number; anchor?: string };
 export type GuideEmphasis = "point" | "focus" | "zoom";
 export type GuideCue = { targetId: string; phrase: string; emphasis?: GuideEmphasis };
 export type GuidePlan = { id: string; cues: { targetId: string; startMs: number; endMs: number; emphasis: GuideEmphasis }[] }[];
+/**
+ * 一拍。id 是演示页认的名字（计时参数 timing、画面上的标记都用它），会随页码、场景代码变；
+ * anchor 按内容算，工坊同步时先按它对；步骤的 anchor 对不上时再按 fallback（同一场景里的第几步）兜底。
+ */
 export type Beat = {
   id: string;
+  anchor?: string;
+  fallback?: string;
   kind: "cover" | "page" | "step" | "ending";
   page: number;
   title: string | null;

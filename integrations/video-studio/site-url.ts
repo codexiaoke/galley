@@ -4,3 +4,9 @@ export function studioFetchUrl(value: string) {
   if (process.env.STUDIO_LOCAL_SITE_HOST && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) url.hostname = process.env.STUDIO_LOCAL_SITE_HOST;
   return url.toString();
 }
+
+/** 演示页只放和这份来源对得上的画面：有结构指纹按结构比，旧项目按内容指纹比 */
+export function presentationCheck(url: URL, source: { version: string; structure?: string }) {
+  if (source.structure) url.searchParams.set("structure", source.structure);
+  else url.searchParams.set("version", source.version);
+}

@@ -8,7 +8,8 @@ import { sceneKey } from "@/core/scene/shared";
 import type { SceneResult } from "@/core/scene/types";
 import { defaultPageStay, speakingTime } from "./captions";
 import { splitSlides } from "./slides";
-import { proseGuideTargets, sceneGuideTargets } from "./guide-targets";
+import { fingerprint, proseGuideTargets, sceneGuideTargets } from "./guide-targets";
+import type { GuideTarget } from "../contract/narration";
 
 /**
  * 一篇文章做成视频时的"拍"：演示按顺序走过的每一段，以及这一段要说的话。
@@ -33,17 +34,43 @@ const SELF_PACED = new Set(["code-steps", "algo", "race", "trace"]);
 
 type Directive = { type: string; name?: string };
 
+/** 同一组里内容相同的，按出现顺序加 -2、-3 */
+function numbered() {
+  const seen = new Map<string, number>();
+  return (key: string) => {
+    const count = (seen.get(key) ?? 0) + 1;
+    seen.set(key, count);
+    return count > 1 ? `${key}-${count}` : key;
+  };
+}
+
+/** 给场景元素加锚点：所在场景的锚点，加上元素的文字（含类型）；文字相同的按顺序编号 */
+function anchorSceneTargets(targets: GuideTarget[], scene: string): GuideTarget[] {
+  const name = numbered();
+  return targets.map((target) => ({ ...target, anchor: `${scene}/${name(fingerprint(target.label))}` }));
+}
+
+/**
+ * 每一拍除了 id，还有按内容算的锚点（工坊同步时用，见 contract/narration.ts）：
+ * - 页：所属的二级、三级标题，加上同一标题下的第几页。小节标题不改，页就对得上；
+ * - 场景：页的锚点加上它是这一页里的第几个场景；
+ * - 步骤：场景的锚点加上画面上那句话的指纹；那句话改了，按 fallback（第几步）兜底；
+ * - 正文元素：页的锚点加上这段源文的指纹；场景元素：场景的锚点加上元素的文字。
+ */
 export function narrationBeats(body: string, scenes: Record<string, SceneResult>): Beat[] {
-  const beats: Beat[] = [{ id: "p0", kind: "cover", page: 0, title: null, section: null, text: "", suggestedMs: TITLE_PAGE_MS, minMs: TITLE_PAGE_MS, targets: [{ id: "p0:title", label: "封面标题" }] }];
+  const beats: Beat[] = [{ id: "p0", anchor: "cover", kind: "cover", page: 0, title: null, section: null, text: "", suggestedMs: TITLE_PAGE_MS, minMs: TITLE_PAGE_MS, targets: [{ id: "p0:title", label: "封面标题", anchor: "cover/title" }] }];
   const slides = splitSlides(body);
+  const pageName = numbered();
   slides.forEach((slide, i) => {
     const page = i + 1;
     const title = slide.title ?? null;
     const section = slide.section ?? null;
+    const pageAnchor = `page:${pageName(fingerprint(`${section ?? ""}\n${title ?? ""}`))}`;
     const steps: Beat[] = [];
     const tree = parseToTree(slide.source);
-    const targets = proseGuideTargets(tree, page, slide.source).map(({ target }) => target);
+    const targets: GuideTarget[] = proseGuideTargets(tree, page, slide.source).map(({ target }) => ({ ...target, anchor: `${pageAnchor}/${target.id.slice(target.id.indexOf(":") + 1)}` }));
     let selfPaced = false;
+    let sceneIndex = 0;
     visit(tree, (node) => {
       const d = node as Directive;
       if (d.type !== "containerDirective" && d.type !== "leafDirective") return;
@@ -51,20 +78,24 @@ export function narrationBeats(body: string, scenes: Record<string, SceneResult>
       if (d.name !== "scene") return;
       const sc = readScene(node as never);
       if (sc.code === undefined) return;
+      const sceneAnchor = `${pageAnchor}/scene${++sceneIndex}`;
       const key = sceneKey(sc.code, sc.ratio);
       const result = scenes[key];
       if (!result?.ok) return;
-      targets.push(...sceneGuideTargets(result.scene, key, -1));
+      targets.push(...anchorSceneTargets(sceneGuideTargets(result.scene, key, -1), sceneAnchor));
+      const stepName = numbered();
       result.scene.steps.forEach((step, k) => {
         steps.push({
           id: `${key}.${k}`,
+          anchor: `${sceneAnchor}/step:${stepName(fingerprint(step.text))}`,
+          fallback: `${sceneAnchor}/#${k}`,
           kind: "step",
           page,
           title,
           section,
           text: step.say ?? "",
           written: step.text,
-          targets: sceneGuideTargets(result.scene, key, k),
+          targets: anchorSceneTargets(sceneGuideTargets(result.scene, key, k), sceneAnchor),
           // 和播放器自己的算法一致：有讲稿时等动画放完、话说完；没有讲稿时动画放完再留出读那句文字的时间
           suggestedMs: Math.round(step.say ? Math.max(step.duration, speakingTime(step.say)) + 500 : step.duration + readingTime(step.text)),
           minMs: step.duration,
@@ -75,6 +106,7 @@ export function narrationBeats(body: string, scenes: Record<string, SceneResult>
     const notesChars = slide.notes.replace(/\s+/g, "").length;
     beats.push({
       id: `p${page}`,
+      anchor: pageAnchor,
       kind: "page",
       page,
       title,
@@ -88,7 +120,7 @@ export function narrationBeats(body: string, scenes: Record<string, SceneResult>
     });
     beats.push(...steps);
   });
-  beats.push({ id: `p${slides.length + 1}`, kind: "ending", page: slides.length + 1, title: null, section: null, text: "", suggestedMs: TITLE_PAGE_MS, minMs: TITLE_PAGE_MS, targets: [{ id: `p${slides.length + 1}:title`, label: "结尾标题" }] });
+  beats.push({ id: `p${slides.length + 1}`, anchor: "ending", kind: "ending", page: slides.length + 1, title: null, section: null, text: "", suggestedMs: TITLE_PAGE_MS, minMs: TITLE_PAGE_MS, targets: [{ id: `p${slides.length + 1}:title`, label: "结尾标题", anchor: "ending/title" }] });
   return beats;
 }
 

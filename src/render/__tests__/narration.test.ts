@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { runScenes } from "@/core/scene/run";
 import { sceneKey } from "@/core/scene/shared";
 import { narrationBeats, parseTiming } from "../narration";
+import { structureFingerprint } from "@/core/presentation-version";
 
 const SCENE = `const a = box("甲")
 step("写给读者的第一句。", () => { say("讲的时候说的第一句。"); show(a) })
@@ -70,6 +71,33 @@ describe("讲稿清单", () => {
     const beats = narrationBeats(BODY, await runScenes(BODY));
     expect(beats.find((b) => b.id === "p4")).toMatchObject({ selfPaced: true, title: "第二节" });
     expect(beats.filter((b) => b.selfPaced).map((b) => b.id)).toEqual(["p4"]);
+  });
+
+  it("锚点按内容算：前面插一页、场景代码改了，原来的页、步骤和元素还对得上", async () => {
+    const before = narrationBeats(BODY, await runScenes(BODY));
+    const inserted = BODY.replace("## 第二节", "## 新加的一节\n\n新加的内容。\n\n## 第二节").replace("const a = box(\"甲\")", "const z = box(\"新\")\nconst a = box(\"甲\")");
+    const after = narrationBeats(inserted, await runScenes(inserted));
+    const pick = (beats: typeof before, kind: string) => beats.filter((b) => b.kind === kind);
+    // 编号变了：页码往后挪，场景代码改了指纹也变了
+    expect(pick(after, "step").map((b) => b.id)).not.toEqual(pick(before, "step").map((b) => b.id));
+    expect(after.find((b) => b.title === "第二节")!.id).not.toBe(before.find((b) => b.title === "第二节")!.id);
+    // 锚点没变
+    for (const kind of ["cover", "step", "ending"]) expect(pick(after, kind).map((b) => b.anchor)).toEqual(pick(before, kind).map((b) => b.anchor));
+    for (const title of ["第一节", "第二节"]) expect(after.find((b) => b.title === title)!.anchor).toBe(before.find((b) => b.title === title)!.anchor);
+    const step = (beats: typeof before) => pick(beats, "step")[0].targets!.find((t) => t.label.includes("甲"))!;
+    expect(step(after).anchor).toBe(step(before).anchor);
+    expect(step(after).id).not.toBe(step(before).id);
+    // 步骤还带着"第几步"的兜底
+    expect(pick(before, "step").map((b) => b.fallback!.split("/").at(-1))).toEqual(["#0", "#1"]);
+  });
+
+  it("结构指纹不看讲稿：只改页的讲稿不变，改了画面上的字就变", async () => {
+    const base = structureFingerprint(narrationBeats(BODY, await runScenes(BODY)));
+    // 场景里的 say 写在场景代码里，改了会连带场景的编号一起变；第 4 步把讲稿移出文章后就没有这个问题
+    const narration = BODY.replace("这一页的讲稿，说给人听的。", "换一种说法。");
+    expect(structureFingerprint(narrationBeats(narration, await runScenes(narration)))).toBe(base);
+    const written = BODY.replace("写给读者的第一句。", "画面上换了一句。");
+    expect(structureFingerprint(narrationBeats(written, await runScenes(written)))).not.toBe(base);
   });
 
   it("时长参数：名字加毫秒，写错的条目跳过", () => {

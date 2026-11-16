@@ -4,6 +4,7 @@ import { buttonClass } from "../../src/app/admin/ui";
 import type { StudioRevision } from "./core/types";
 import { resolveGuidePlan } from "./core/guides";
 import { timingParam, type Production } from "./core/production";
+import { presentationCheck } from "./site-url";
 
 /** 审查预览使用当前讲稿的时长和不可变音频；来源版本变化时页面会拒绝加载。 */
 export const PresentationPreview = memo(function PresentationPreview({ revision, production }: { revision: StudioRevision; production: Production }) {
@@ -14,7 +15,7 @@ export const PresentationPreview = memo(function PresentationPreview({ revision,
   const current = useRef<{ id: string; audio: HTMLAudioElement } | null>(null);
   const running = useRef(false);
   const url = new URL(revision.source.present, revision.source.galley);
-  url.searchParams.set("version", revision.source.version); url.searchParams.set("controlled", "1"); url.searchParams.set("captions", "space");
+  presentationCheck(url, revision.source); url.searchParams.set("controlled", "1"); url.searchParams.set("captions", "space");
   url.searchParams.set("timing", timingParam(revision.beats, revision.voices, production));
   useEffect(() => {
     const audio = new Map(revision.voices.map((voice) => { const player = new Audio(voice.audio); player.preload = "auto"; return [voice.id, player]; }));

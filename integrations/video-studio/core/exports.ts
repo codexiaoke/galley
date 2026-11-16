@@ -11,10 +11,12 @@ const recordSchema = z.object({
   phase: z.enum(["preparing", "rendering", "encoding"]), frames: z.number().nonnegative(), timeMs: z.number().nonnegative(), estimatedMs: z.number().nonnegative(),
   bytes: z.number().nonnegative(), error: z.string().optional(),
   projectId: z.string().nullable(), revisionId: z.string().nullable(), sourceVersion: z.string().nullable(),
+  /** 导出时来源的结构指纹（第 3 步以前的记录没有） */
+  sourceStructure: z.string().nullable().optional(),
 });
 export type StudioExport = z.infer<typeof recordSchema>;
 type StudioSource = { slug: string; title: string; beats: { id: string; text: string }[]; voices: { id: string }[] };
-export type ExportBinding = { projectId: string; revisionId: string; sourceVersion: string };
+export type ExportBinding = { projectId: string; revisionId: string; sourceVersion: string; sourceStructure?: string | null };
 
 export class StudioExportError extends Error {
   constructor(message: string, readonly status = 400) { super(message); }

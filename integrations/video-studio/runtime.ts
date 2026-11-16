@@ -9,7 +9,7 @@ import { StudioProjects, studioSourceSchema } from "./core/projects";
 import type { StudioSource } from "./core/types";
 import { exportVideo } from "./export";
 import { StudioVoice } from "./voice";
-import { studioFetchUrl } from "./site-url";
+import { presentationCheck, studioFetchUrl } from "./site-url";
 
 export class StudioRuntime {
   readonly db;
@@ -102,7 +102,7 @@ export class StudioRuntime {
     this.projects.checkRenderSource(revision, source);
     this.projects.prepareRender(actor, id, revisionId);
     const production = this.projects.production(actor, id);
-    const job = this.exports.create({ ...source, beats: revision.beats, voices: revision.voices }, name, { projectId: id, revisionId, sourceVersion: source.version });
+    const job = this.exports.create({ ...source, beats: revision.beats, voices: revision.voices }, name, { projectId: id, revisionId, sourceVersion: source.version, sourceStructure: source.structure ?? null });
     const output = this.exports.output(job.id);
     try {
       this.projects.attachRender(actor, id, revisionId, job.id);
@@ -114,7 +114,8 @@ export class StudioRuntime {
       throw error;
     }
     const controller = new AbortController(); this.activeExport = { id: job.id, controller };
-    const url = new URL(source.present, source.galley); url.searchParams.set("version", source.version);
+    // 结构指纹对上就放：文章的字句、博客的代码变了，只要演示结构没变，审过的讲稿照样能用
+    const url = new URL(source.present, source.galley); presentationCheck(url, source);
     void exportVideo({ url: studioFetchUrl(url.toString()), beats: revision.beats, voices: revision.voices, production,
       audioPath: (beatId) => this.voice.file(revision.voices.find((voice) => voice.id === beatId)!.audio), output, signal: controller.signal,
       progress: (progress) => this.exports.progress(job.id, progress),

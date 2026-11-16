@@ -11,7 +11,7 @@ export const GUIDE_EMPHASIS = [
   { value: "zoom", label: "放大聚焦 · 推近重点" },
 ] as const;
 export const guideEmphasisLabel = (value: string | undefined) => GUIDE_EMPHASIS.find((item) => item.value === (value ?? "focus"))!.label;
-export const guideTargetsSchema = z.array(z.object({ id: targetId, label: z.string().min(1).max(200), appearsMs: z.number().int().nonnegative().max(600000).optional() })).max(240);
+export const guideTargetsSchema = z.array(z.object({ id: targetId, label: z.string().min(1).max(200), appearsMs: z.number().int().nonnegative().max(600000).optional(), anchor: z.string().max(300).optional() })).max(240);
 export const guidesSchema = z.array(z.object({ targetId, phrase: z.string().trim().min(1).max(2000), emphasis: guideEmphasisSchema.optional().describe("point 仅显示目标边框；focus 聚焦目标（默认）；zoom 放大并聚焦重点。不宜每句都推近。") })).max(12);
 export const narrationEditSchema = z.object({
   id: z.string(), text: z.string().trim().max(2000).optional(),

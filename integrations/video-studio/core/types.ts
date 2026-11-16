@@ -1,14 +1,20 @@
 /** 视频工坊自己的数据：项目、版本、配音、批注。演示的拍点和指向目标是和博客共用的约定，见 src/contract/narration.ts。 */
-import type { Beat } from "../../../src/contract/narration";
+import type { Beat, GuideCue } from "../../../src/contract/narration";
 import type { Production, ProductionOverride } from "./production";
 export type { Beat, GuideCue, GuideEmphasis, GuidePlan, GuideTarget } from "../../../src/contract/narration";
 
 export type Voice = { id: string; hash: string; audio: string; durationMs: number; cues: { start: number; end: number; text: string }[] };
-export type StudioSource = { galley: string; slug: string; title: string; present: string; version: string; revisedAt: string | null; beats: Beat[] };
+/** structure：博客给的结构指纹（第 3 步以前建的项目没有，按 version 比） */
+export type StudioSource = { galley: string; slug: string; title: string; present: string; version: string; structure?: string; revisedAt: string | null; beats: Beat[] };
+/** 工坊里的一拍：check 为 "fallback" 表示同步时只按"第几步"对上，讲稿要人核对一遍（改过这一拍就清掉） */
+export type StudioBeat = Beat & { check?: "fallback" };
+/** 同步时消失的拍点：讲稿和指向留在这里，不悄悄丢掉 */
+export type RemovedBeat = { id: string; kind: Beat["kind"]; title: string | null; section: string | null; written?: string; text: string; guides: GuideCue[] };
 export type ReviewStatus = "draft" | "in_review" | "approved" | "rejected";
 export type StudioRevisionData = {
   source: StudioSource;
-  beats: Beat[];
+  beats: StudioBeat[];
+  removed?: RemovedBeat[];
   voices: Voice[];
   scriptStatus: ReviewStatus;
   videoStatus: ReviewStatus;

@@ -1,13 +1,13 @@
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { prepareRender } from "@/core/prepare";
-import { presentationVersion } from "@/core/presentation-version";
 import { Presentation } from "@/render/client/present";
 import { parseTiming } from "@/render/narration";
 import { presentSlides } from "@/render/present-slides";
 import { loadPublishedDocument } from "../../../data";
 import { loadSite } from "../../../site";
 import { isOwner } from "../../../admin/auth";
+import { presentationSource } from "../../../presentation-source";
 
 /**
  * 演示模式：文章变成全屏的幻灯片。
@@ -21,6 +21,7 @@ import { isOwner } from "../../../admin/auth";
  * - durations=3000,5200,…：每一页至少停留多少毫秒（按朗读的长度）
  * - timing=p1:5200,p2:3000,1x9abc.0:4100,…：每一拍停多少毫秒。拍的名字从 narration.json 里来
  *   （页是 p<页码>，场景的步骤是 <场景的指纹>.<第几步>），细到场景的每一步，比 durations 准
+ * - structure=<结构指纹>：视频工坊用。和 structure.json 里的对不上就返回 404，不放和讲稿对不上的画面
  * - print=1：所有页排好后打开打印对话框，存成 PDF
  */
 export default function PresentPage({ params, searchParams }: PageProps<"/posts/[slug]/present">) {
@@ -36,8 +37,12 @@ async function Present({ params, searchParams }: { params: Promise<{ slug: strin
   const query = await searchParams;
   const [doc, site] = await Promise.all([loadPublishedDocument(slug), loadSite()]);
   if (!doc || doc.kind !== "article") notFound();
-  // 工坊审查的是明确的来源版本。上线内容改变后停止旧项目渲染，不能悄悄换成新内容。
-  if (typeof query.version === "string" && query.version !== presentationVersion(doc, site)) notFound();
+  // 工坊审查的是明确的来源。structure：结构指纹对不上（拍点、画面文字、可指元素变了）就不放，讲稿会对不上；
+  // version：旧版工坊用的内容指纹，文章一改就不放。
+  if (typeof query.structure === "string" || typeof query.version === "string") {
+    const source = await presentationSource(doc, site);
+    if ((typeof query.structure === "string" && query.structure !== source.structure) || (typeof query.version === "string" && query.version !== source.version)) notFound();
+  }
   const prepared = await prepareRender(doc.body);
   // 讲稿只给登录的站长看（演讲者提词、讲稿字幕）；别的访客拿到的演示页里没有讲稿
   const narration = await isOwner();

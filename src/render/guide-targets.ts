@@ -5,7 +5,7 @@ import type { Scene } from "../core/scene/types";
 import type { GuideTarget } from "../contract/narration";
 
 /** FNV-1a：前台和服务端都能算，不依赖 node:crypto。 */
-function fingerprint(text: string) {
+export function fingerprint(text: string) {
   let hash = 0x811c9dc5;
   for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 0x01000193);
   return (hash >>> 0).toString(36).padStart(7, "0");
