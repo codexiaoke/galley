@@ -1,14 +1,17 @@
 import { runTraces } from "./algo/trace";
 import { checkMermaid } from "./markup/mermaid";
 import { runScenes } from "./scene/run";
+import { removeNarration } from "./markup/narration";
 
 /**
  * 保存正文之前要先做的异步准备：运行演示代码和场景代码、检查 Mermaid 图。
  * 结果都放在缓存里，紧接着的同步检查（saveDocument → parseMarkup）直接取，
  * 这样 Agent 和站长保存时就能看到这些错误，而不是等到页面上才发现。
  * 所有保存正文的地方（MCP 的 save_document / edit_document、后台的保存和实时预览）都先调用它。
+ * 讲稿（:::notes、say()）保存时会被去掉（见 markup/narration.ts），所以按去掉之后的正文准备，场景的检查才对得上。
  */
-export async function prepareBody(body: string) {
+export async function prepareBody(source: string) {
+  const body = removeNarration(source).body;
   const [traces, scenes] = await Promise.all([runTraces(body), runScenes(body), checkMermaid(body)]);
   return { traces, scenes };
 }

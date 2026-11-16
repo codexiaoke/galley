@@ -30,7 +30,7 @@ describe("讲稿归视频工坊：文章里不放讲稿", () => {
   });
 
   it("保存时去掉讲稿并提醒一句，到工坊里写", async () => {
-    await prepareBody(removeNarration(BODY).body);
+    await prepareBody(BODY);
     const cs = openChangeSet(db, agent, { kind: "article", title: "讲稿" });
     const saved = saveDocument(db, agent, { changeSetId: cs.id, kind: "article", slug: "narration", title: "讲稿", body: BODY });
     expect(saved.saved).toBe(true);
