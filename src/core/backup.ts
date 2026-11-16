@@ -115,8 +115,10 @@ export function restoreBackup(actor: Actor, archive: Buffer): { manifest: Manife
     const previous = path.join(root, `before-restore-${stamp}`);
     fs.mkdirSync(previous, { recursive: true });
     for (const name of ["galley.db", "galley.db-wal", "galley.db-shm", "media"]) {
-      const from = path.join(root, name);
-      if (fs.existsSync(from)) fs.renameSync(from, path.join(previous, name));
+      // 数据目录是运行时才知道的（GALLEY_DATA_DIR）。不加 turbopackIgnore，构建时会以为这里可能读项目里的任何文件，
+      // 把整个项目（源码、文档、脚本）都打进运行镜像。
+      const from = path.join(/*turbopackIgnore: true*/ root, name);
+      if (fs.existsSync(/*turbopackIgnore: true*/ from)) fs.renameSync(from, path.join(previous, name));
     }
     fs.renameSync(path.join(staging, "galley.db"), dbFile());
     fs.renameSync(path.join(staging, "media"), mediaDir());
