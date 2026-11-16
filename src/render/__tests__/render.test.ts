@@ -152,6 +152,25 @@ describe("可以运行的代码块", () => {
   });
 });
 
+describe("演示页里的讲稿", () => {
+  it("默认不带讲稿：每页的 :::notes 和场景里的 say 都不进页面", async () => {
+    const { presentSlides } = await import("../present-slides");
+    const { runScenes } = await import("@/core/scene/run");
+    const body = ':::scene\n```js\nconst a = box("甲")\nstep("写给读者的。", () => { say("只在讲的时候说。"); show(a) })\n```\n:::\n\n:::notes\n这一页的提词\n:::';
+    const prepared = { traces: {}, scenes: await runScenes(body) } as never;
+    const sent = (narration?: boolean) => {
+      scenesSent.length = 0;
+      const slides = presentSlides({ body, blocks: {}, posts: {} } as never, prepared, narration === undefined ? undefined : { narration });
+      for (const s of slides) renderToStaticMarkup(createElement("div", null, s.content));
+      return JSON.stringify({ notes: slides.map((s) => s.notes), scenes: scenesSent });
+    };
+    expect(sent()).not.toContain("这一页的提词");
+    expect(sent()).not.toContain("只在讲的时候说");
+    expect(sent(true)).toContain("这一页的提词");
+    expect(sent(true)).toContain("只在讲的时候说");
+  });
+});
+
 describe("场景动画", () => {
   const body = ':::scene{title="页面和 Worker"}\n```js\nconst a = box("页面", { tone: "c2" })\nconst b = box("Worker", { rightOf: a })\nconst link = arrow(a, b, { label: "消息" })\nshow(a)\nstep("把任务发过去。", () => { show(b); show(link); send(link) })\n```\n:::';
 

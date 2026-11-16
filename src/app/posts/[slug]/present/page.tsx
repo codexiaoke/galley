@@ -7,6 +7,7 @@ import { parseTiming } from "@/render/narration";
 import { presentSlides } from "@/render/present-slides";
 import { loadPublishedDocument } from "../../../data";
 import { loadSite } from "../../../site";
+import { isOwner } from "../../../admin/auth";
 
 /**
  * 演示模式：文章变成全屏的幻灯片。
@@ -38,6 +39,8 @@ async function Present({ params, searchParams }: { params: Promise<{ slug: strin
   // 工坊审查的是明确的来源版本。上线内容改变后停止旧项目渲染，不能悄悄换成新内容。
   if (typeof query.version === "string" && query.version !== presentationVersion(doc, site)) notFound();
   const prepared = await prepareRender(doc.body);
+  // 讲稿只给登录的站长看（演讲者提词、讲稿字幕）；别的访客拿到的演示页里没有讲稿
+  const narration = await isOwner();
   const one = (k: string) => (typeof query[k] === "string" ? (query[k] as string) : undefined);
   const durations = one("durations")
     ?.split(",")
@@ -66,7 +69,7 @@ async function Present({ params, searchParams }: { params: Promise<{ slug: strin
           date: date ? `${date.getFullYear()} 年 ${date.getMonth() + 1} 月 ${date.getDate()} 日` : undefined,
           url: site.url ?? undefined,
         }}
-        slides={presentSlides(doc, prepared)}
+        slides={presentSlides(doc, prepared, { narration })}
       />
     </>
   );

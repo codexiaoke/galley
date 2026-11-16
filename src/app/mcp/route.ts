@@ -22,7 +22,9 @@ export async function POST(request: Request) {
   }
 
   const server = createMcpServer(db, actor, {
-    onPublicChange: () => revalidateTag(PUBLIC_CONTENT_TAG, "max"),
+    // 不能用 "max"：那是先把旧内容发出去、后台再更新，Agent 发布后第一个来的读者和视频工坊会拿到旧版。
+    // 路由处理函数里用不了 updateTag，按 Next.js 文档传 { expire: 0 }，让下一次请求直接拿到新内容。
+    onPublicChange: () => revalidateTag(PUBLIC_CONTENT_TAG, { expire: 0 }),
   });
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
