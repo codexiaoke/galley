@@ -139,11 +139,13 @@ export class StudioProjects {
   synchronize(actor: Actor, id: string, revisionId: string, source: StudioSource) {
     const revision = this.current(actor, id, revisionId);
     if (source.version === revision.source.version && source.structure === revision.source.structure) throw conflict("来源文章没有变化，无需同步。");
+    if (revision.scriptStatus === "in_review" || revision.videoStatus === "in_review") throw conflict("请先撤回待审版本，或等待站长打回后再同步。");
+    if (revision.voiceJob.state === "running") throw conflict("配音正在生成，请等它结束后再同步。");
     const parsed = studioSourceSchema.safeParse(source);
     if (!parsed.success || new Set(source.beats.map((beat) => beat.id)).size !== source.beats.length) throw invalid("站点没有返回完整的演示版本，请先更新线上 Galley。");
     if (source.galley !== revision.source.galley || source.slug !== revision.source.slug) throw invalid("同步不能替换项目所属的站点或文章。");
     const result = matchSource(revision.beats, revision.source.beats, parsed.data.beats, revision.voices, voiceHash);
-    if (revision.voiceJob.state !== "running" && sameNarration(revision.beats, revision.voices, result)) {
+    if (sameNarration(revision.beats, revision.voices, result)) {
       const now = new Date();
       this.db.update(studioRevisions).set({ data: { ...revision, source: parsed.data, beats: result.beats, voices: result.voices }, updatedAt: now }).where(eq(studioRevisions.id, revisionId)).run();
       this.db.update(studioProjects).set({ updatedAt: now }).where(eq(studioProjects.id, id)).run();

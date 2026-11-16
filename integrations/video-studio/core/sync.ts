@@ -58,12 +58,16 @@ export function matchSource(current: StudioBeat[], originals: Beat[], next: Beat
   return { beats, voices: nextVoices, removed, review, added, droppedGuides };
 }
 
-/** 对完以后什么都没变（只是补上了锚点、换了来源的内容指纹）：不用建新版本，也不用重新审查 */
+/**
+ * 对完以后讲稿这边什么都没变：每一拍的讲稿、指向、时长、核对标记和配音都一样，没有新增、移除、兜底和丢掉的指向。
+ * 画面那边的变化（补上锚点、目标清单、动画时长）不算：讲稿和指向审的是"说什么、指哪里"，
+ * 指向还指不指得到，导出前会按新的目标清单再检查一遍；画面细节交给成片审查。
+ * 这种情况不用建新版本，也不用重新审查。
+ */
 export function sameNarration(before: StudioBeat[], beforeVoices: Voice[], after: SyncResult) {
-  // 锚点不算：旧项目补上锚点不是改动
-  const plain = (beats: StudioBeat[]) => canonical(beats.map((beat) => ({ ...beat, anchor: undefined, fallback: undefined, guides: beat.guides ?? [], targets: beat.targets?.map((target) => ({ ...target, anchor: undefined })) })));
+  const said = (beats: StudioBeat[]) => canonical(beats.map((beat) => ({ id: beat.id, text: beat.text, suggestedMs: beat.suggestedMs, guides: beat.guides ?? [], check: beat.check })));
   const voices = (list: Voice[]) => JSON.stringify(list.map((voice) => [voice.id, voice.hash, voice.audio]).sort());
-  return !after.removed.length && !after.added && !after.review && !after.droppedGuides && plain(before) === plain(after.beats) && voices(beforeVoices) === voices(after.voices);
+  return !after.removed.length && !after.added && !after.review && !after.droppedGuides && said(before) === said(after.beats) && voices(beforeVoices) === voices(after.voices);
 }
 
 /** 键按字母排好再转成文字：同样的内容，字段先后不同也算一样 */

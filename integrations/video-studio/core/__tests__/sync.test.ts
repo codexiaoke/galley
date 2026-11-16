@@ -47,6 +47,18 @@ describe("按锚点同步来源", () => {
     expect(result.revision.voices).toHaveLength(p.revision.voices.length);
   });
 
+  it("画面那边变了、讲稿这边没变（目标清单、动画时长）：不建新版本；待审期间不能同步", () => {
+    const before = article();
+    const p = start(before, source(before, V1, S1));
+    const after = article().map((beat) => beat.kind === "cover" ? { ...beat, minMs: 800 } : beat.targets ? { ...beat, targets: [...beat.targets, { id: "extra", label: "新元素", anchor: "page:s/extra" }] } : beat);
+    const synced = projects.synchronize(OWNER, p.id, p.currentRevisionId, source(after, V2, S2));
+    expect(synced.revision).toMatchObject({ number: p.revision.number, scriptStatus: "approved", source: { structure: S2 } });
+    expect(synced.revision.beats[0].minMs).toBe(800);
+    const fresh = projects.revise(OWNER, p.id, synced.currentRevisionId, [], "再改一版");
+    projects.submit(OWNER, p.id, fresh.currentRevisionId, "script");
+    expect(() => projects.synchronize(OWNER, p.id, fresh.currentRevisionId, source(article({ key: "k3" }), V1, S1))).toThrow("撤回待审");
+  });
+
   it("前面插了一页、场景代码改了：编号全变，讲稿、指向、配音跟着锚点走", () => {
     const before = article();
     const p = start(before, source(before, V1, S1));
