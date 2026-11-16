@@ -59,14 +59,26 @@ describe("按锚点同步来源", () => {
     expect(() => projects.synchronize(OWNER, p.id, fresh.currentRevisionId, source(article({ key: "k3" }), V1, S1))).toThrow("撤回待审");
   });
 
-  it("前面插了一页、场景代码改了：编号全变，讲稿、指向、配音跟着锚点走", () => {
+  it("旧项目（没有锚点）的场景代码变了：按每一步画面上的字认出同一个场景，讲稿、指向、配音跟着换编号，不用重新审查", () => {
+    const old = article({ anchors: false });
+    const p = start(old, source(old, V1));
+    const renamed = article({ key: "k9" });
+    const result = projects.synchronize(OWNER, p.id, p.currentRevisionId, source(renamed, V2, S1)).revision;
+    expect(result).toMatchObject({ number: p.revision.number, scriptStatus: "approved" });
+    expect(result.beats.map((beat) => beat.id)).toEqual(["p0", "p1", "k9.0", "k9.1", "p2"]);
+    expect(result.beats[2]).toMatchObject({ text: "工坊改过的解说，指向甲", guides: [{ targetId: "k9:b1", phrase: "指向甲" }] });
+    expect(result.voices.map((voice) => voice.id).sort()).toEqual(["k9.1", "p1"]);
+    expect(result.removed).toBeUndefined();
+  });
+
+  it("前面插了一页、场景代码改了：编号全变，讲稿、指向、配音跟着锚点走，不用重新审查", () => {
     const before = article();
     const p = start(before, source(before, V1, S1));
     const after = article({ key: "k2", page: 2 });
     const result = projects.synchronize(OWNER, p.id, p.currentRevisionId, source(after, V2, S2)).revision;
-    // 编号变了，所以要建新版本重新审查
-    expect(result.number).toBe(p.revision.number + 1);
-    expect(result.scriptStatus).toBe("draft");
+    // 只是重新编号，讲的内容都对上了：沿用这个版本和审查结果
+    expect(result.number).toBe(p.revision.number);
+    expect(result.scriptStatus).toBe("approved");
     expect(result.beats.map((beat) => beat.id)).toEqual(["p0", "p2", "k2.0", "k2.1", "p3"]);
     expect(result.beats[2]).toMatchObject({ text: "工坊改过的解说，指向甲", guides: [{ targetId: "k2:b1", phrase: "指向甲" }] });
     expect(result.beats.some((beat) => beat.check)).toBe(false);
