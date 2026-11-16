@@ -177,6 +177,14 @@ export const COMPONENTS: ComponentDef[] = [
     params: z.object({}),
   },
   {
+    name: "present",
+    form: "container",
+    description:
+      "在演示和视频里也要显示的文字。演示以图形为主：一节里有场景、图、表、代码这些图形时，普通段落只留在文章里，演示页只放图形；某句结论、某段说明想在演示里也出现，就包进 :::present。文章里照常显示，和别的段落一样。一节里没有任何图形时，演示照旧显示文字，不用加这个标记。",
+    example: ":::present\n两条笔记在图里是挨着的一条路，不用再碰运气。\n:::",
+    params: z.object({}),
+  },
+  {
     name: "notes",
     form: "container",
     description:

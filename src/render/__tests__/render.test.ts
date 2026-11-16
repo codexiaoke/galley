@@ -56,6 +56,11 @@ describe("正文渲染", () => {
     expect(html).toContain("galley-article-only");
     expect(html).toContain("只在文章里出现的一段。");
   });
+  it(":::present 的内容在文章里照常显示", () => {
+    const html = render("## 结论\n\n:::present\n演示里也要出现的一句。\n:::");
+    expect(html).toContain("galley-present-also");
+    expect(html).toContain("演示里也要出现的一句。");
+  });
   it("小节标题的编号和目录一致，重名的依次加序号", () => {
     const body = "## 为什么\n\n文字\n\n### Step One\n\n## 为什么\n";
     const toc = extractToc(body);

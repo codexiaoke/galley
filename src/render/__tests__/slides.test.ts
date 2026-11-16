@@ -33,7 +33,7 @@ describe("演示和代码演变", () => {
   });
 
   it("一页里有几个大块时一个大块一页，冒号结尾的引子跟着下一个走", () => {
-    const body = "## 查询\n\n从张三出发：\n\n::algo{type=graph-bfs input=\"A-B\"}\n\n图上一目了然。\n\n换成代码是这样的：\n\n```sql\nSELECT 1;\n```\n\n:::notes\n讲稿\n:::";
+    const body = "## 查询\n\n:::present\n从张三出发：\n:::\n\n::algo{type=graph-bfs input=\"A-B\"}\n\n:::present\n图上一目了然。\n:::\n\n:::present\n换成代码是这样的：\n:::\n\n```sql\nSELECT 1;\n```\n\n:::notes\n讲稿\n:::";
     const slides = splitSlides(body);
     expect(slides).toHaveLength(2);
     expect(slides[0].title).toBe("查询");
@@ -49,12 +49,12 @@ describe("演示和代码演变", () => {
 describe("Mermaid 演示分页", () => {
   const graph = "```mermaid\nflowchart TB\nA --> B\n```";
   it("长篇说明与图各自分页，原图方向和前后正文保持完整", () => {
-    const slides = splitSlides(`## 支付流程\n\n前置说明。\n\n${graph}\n\n后续说明。`);
+    const slides = splitSlides(`## 支付流程\n\n:::present\n前置说明。\n:::\n\n${graph}\n\n:::present\n后续说明。\n:::`);
     expect(slides).toHaveLength(3);
     expect(slides[0].source).toContain("前置说明。");
     expect(slides[1].source).toBe(graph);
     expect(slides[1].section).toBe("支付流程");
-    expect(slides[2].source).toBe("后续说明。");
+    expect(slides[2].source).toContain("后续说明。");
   });
   it("仅有标题和图时不生成空页，图后的讲稿仍归属于图", () => {
     const slides = splitSlides(`## 支付流程\n\n${graph}\n\n:::notes\n图的讲稿\n:::`);
@@ -68,13 +68,30 @@ describe("Mermaid 演示分页", () => {
 describe("场景动画演示分页", () => {
   const scene = ':::scene{title="通信"}\n```js\nconst a = box("甲")\nstep("出现。", () => show(a))\n```\n:::';
   it("场景独占一页，前后的说明留在相邻的页上", () => {
-    const slides = splitSlides(`## 三道墙\n\n先看一个动画。\n\n${scene}\n\n三道墙各管一件事。`);
+    const slides = splitSlides(`## 三道墙\n\n:::present\n先看一个动画。\n:::\n\n${scene}\n\n:::present\n三道墙各管一件事。\n:::`);
     expect(slides).toHaveLength(3);
     expect(slides[0].title).toBe("三道墙");
     expect(slides[0].source).toContain("先看一个动画。");
     expect(slides[1].source).toBe(scene);
     expect(slides[1].section).toBe("三道墙");
-    expect(slides[2].source).toBe("三道墙各管一件事。");
+    expect(slides[2].source).toContain("三道墙各管一件事。");
+  });
+  it("演示以图形为主：有图形的一节，没标 :::present 的段落、列表只留在文章里", () => {
+    const slides = splitSlides(`## 三道墙\n\n这段话只在文章里。\n\n- 列表也只在文章里\n\n${scene}\n\n:::present\n这句演示里也有。\n:::\n\n![示意图](/media/a.png)\n\n收尾的一段也只在文章里。`);
+    const all = slides.map((s) => s.source).join("\n");
+    expect(all).not.toContain("这段话只在文章里");
+    expect(all).not.toContain("列表也只在文章里");
+    expect(all).not.toContain("收尾的一段");
+    expect(all).toContain("这句演示里也有");
+    expect(all).toContain("/media/a.png");
+    expect(slides.some((s) => s.source === scene)).toBe(true);
+  });
+  it("一节里没有任何图形时，演示照旧显示文字", () => {
+    const slides = splitSlides("## 只有文字\n\n第一段。\n\n- 一项\n- 两项\n\n## 有代码\n\n这段不进演示。\n\n```js\nlet a = 1\n```");
+    expect(slides[0].source).toContain("第一段。");
+    expect(slides[0].source).toContain("两项");
+    expect(slides[1].source).not.toContain("这段不进演示");
+    expect(slides[1].source).toContain("let a = 1");
   });
   it(":::article 只属于文章：标题下的引子不会拆出一张只有字的页，只有 article 的一节不进演示", () => {
     const slides = splitSlides(`## 三道墙\n\n:::article\n引用的依据。\n:::\n\n${scene}\n\n:::notes\n开场\n:::\n\n## 附录\n\n:::article\n完整代码\n:::`);

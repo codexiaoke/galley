@@ -10,7 +10,10 @@ import { stripNarration } from "@/core/scene/shared";
  *   页面上方用小字标出它属于哪个二级标题；二级标题下面直接就是小节时，不单独留一页空的；
  * - 单独一行的 --- 也分页；
  * - 二级标题前面的开场白单独成一页；
- * - :::article 里的内容只属于文章，不进幻灯片。
+ * - :::article 里的内容只属于文章，不进幻灯片；
+ * - 演示以图形为主：一节里有图形（场景、图、表、代码、组件、单独成段的图片、公式）时，
+ *   普通段落、列表、引用留在文章里，演示页只放图形；要在演示里也显示的文字包进 :::present。
+ *   一节里没有任何图形时照旧显示文字，不会剩下一张只有标题的页。
  * 页里的 :::notes 是讲稿，从页面上拿掉，单独放在 notes 里
  * （演讲者视图里显示，导出视频时当成字幕的内容）。
  */
@@ -53,8 +56,10 @@ export function splitSlides(body: string): Slide[] {
   }
   flush();
 
+  // 有图形的小节，演示里只放图形和标了 :::present 的文字
+  const graphic = slides.map(graphicsFirst);
   // 一页里有好几个大块（代码演变、算法动画、图、表格……）时，一个大块一页
-  const pages = slides.flatMap((d) => splitHeavy(d, body)).flatMap(splitSolo);
+  const pages = graphic.flatMap((d) => splitHeavy(d, body)).flatMap(splitSolo);
 
   const slice = (n: Node) => body.slice(n.position?.start.offset ?? 0, n.position?.end.offset ?? 0);
   return pages.map((s) => {
@@ -71,13 +76,33 @@ export function splitSlides(body: string): Slide[] {
 /** 占地方的东西：组件、代码块、表格、整块嵌入。提示框和讲稿不算。 */
 function isHeavy(n: Node): boolean {
   if (n.type === "code" || n.type === "table") return true;
-  if (n.type === "containerDirective") return n.name !== "notes" && n.name !== "callout";
+  if (n.type === "containerDirective") return n.name !== "notes" && n.name !== "callout" && n.name !== "present";
   if (n.type === "leafDirective") return true;
   return false;
 }
 
+/** 图形：大块之外，单独成段的图片和整块公式也算 */
+function isGraphic(n: Node): boolean {
+  if (isPresent(n) || isNotes(n)) return false;
+  if (isHeavy(n) || n.type === "math") return true;
+  return n.type === "paragraph" && (n.children ?? []).length === 1 && n.children![0].type === "image";
+}
+
+const isNotes = (n: Node) => n.type === "containerDirective" && n.name === "notes";
+const isPresent = (n: Node) => n.type === "containerDirective" && n.name === "present";
+
+/** 演示里一定留着的：标题、讲稿、图形、标了 :::present 的文字。其余的文字只在文章里。 */
+function graphicsFirst(d: { title?: string; section?: string; parts: Node[]; headingOnly?: boolean }) {
+  if (!d.parts.some(isGraphic)) return d;
+  return { ...d, parts: d.parts.filter((n) => n.type === "heading" || isNotes(n) || isPresent(n) || isGraphic(n)) };
+}
+
 /** 以冒号结尾的段落是在引出下一个东西（"写出来是这样的："），跟着下一页走 */
 function leadsIntoNext(n: Node, body: string): boolean {
+  if (isPresent(n)) {
+    const last = (n.children ?? []).at(-1);
+    return !!last && leadsIntoNext(last, body);
+  }
   if (n.type !== "paragraph") return false;
   const text = body.slice(n.position?.start.offset ?? 0, n.position?.end.offset ?? 0).trim();
   return /[：:]$/.test(text);
@@ -120,7 +145,6 @@ function splitSolo(d: DraftPage): DraftPage[] {
   const pages: DraftPage[] = [];
   let pending: Node[] = [];
   const section = d.title ?? d.section;
-  const isNotes = (n: Node) => n.type === "containerDirective" && n.name === "notes";
   const flushText = () => {
     if (!pending.some((n) => n.type !== "heading" && !isNotes(n))) return;
     pages.push(pages.length ? { section, parts: pending } : { ...d, parts: pending });
