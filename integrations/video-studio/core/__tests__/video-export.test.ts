@@ -1,13 +1,25 @@
 import type { Voice } from "../types";
 import { describe, expect, it } from "vitest";
 import { assertTimeline, missingGuides, subtitleFile } from "../../export";
-import { beatLength } from "../../timing.js";
+import { beatLength, PRODUCTION_DEFAULTS } from "../production";
 
 describe("视频工坊的时间轴", () => {
   it("给配音留停顿，同时保证动画有时间放完", () => {
-    expect(beatLength({ minMs: 1200, suggestedMs: 5000 }, { durationMs: 2000 })).toBe(2350);
-    expect(beatLength({ minMs: 4000, suggestedMs: 5000 }, { durationMs: 2000 })).toBe(4000);
-    expect(beatLength({ minMs: 1200, suggestedMs: 5000 }, undefined)).toBe(5000);
+    const step = { kind: "step" as const };
+    expect(beatLength({ ...step, minMs: 1200, suggestedMs: 5000 }, { durationMs: 2000 }, PRODUCTION_DEFAULTS)).toBe(2350);
+    expect(beatLength({ ...step, minMs: 4000, suggestedMs: 5000 }, { durationMs: 2000 }, PRODUCTION_DEFAULTS)).toBe(4000);
+    expect(beatLength({ ...step, minMs: 1200, suggestedMs: 5000 }, undefined, PRODUCTION_DEFAULTS)).toBe(5000);
+    // 说完后留多久按成片设置
+    expect(beatLength({ ...step, minMs: 1200, suggestedMs: 5000 }, { durationMs: 2000 }, { ...PRODUCTION_DEFAULTS, speechTailMs: 800 })).toBe(2800);
+  });
+
+  it("封面、结尾停多久只看成片设置，不看博客给的时长", () => {
+    const cover = { kind: "cover" as const, minMs: 1000, suggestedMs: 1000 };
+    expect(beatLength(cover, undefined, { ...PRODUCTION_DEFAULTS, coverMs: 500 })).toBe(500);
+    expect(beatLength(cover, undefined, { ...PRODUCTION_DEFAULTS, coverMs: 2500 })).toBe(2500);
+    expect(beatLength({ ...cover, kind: "ending" }, undefined, { ...PRODUCTION_DEFAULTS, endingMs: 3000 })).toBe(3000);
+    // 封面上有配音时，至少等话说完
+    expect(beatLength(cover, { durationMs: 2000 }, PRODUCTION_DEFAULTS)).toBe(2350);
   });
 
   it("字幕跟实际拍点对齐，前面自走节奏的播放器不会造成字幕偏移", () => {

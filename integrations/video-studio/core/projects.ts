@@ -8,6 +8,8 @@ import { agents, studioComments, studioEvents, studioProjects, studioRevisions }
 import { conflict, forbidden, invalid, notFound } from "../../../src/core/errors";
 import { newId } from "../../../src/core/ids";
 import type { StudioExport } from "./exports";
+import { effectiveProduction, productionOverrideSchema, type Production, type ProductionOverride } from "./production";
+import { StudioSettings } from "./settings";
 import type { Beat, StudioProject, StudioProjectDetail, StudioRevision, StudioRevisionData, StudioSource, Voice } from "./types";
 
 type Guide = NonNullable<Beat["guides"]>[number];
@@ -25,7 +27,13 @@ const cleanName = (name: string) => {
 
 /** 项目、版本和审查的唯一业务入口；网页与 MCP 共用。 */
 export class StudioProjects {
-  constructor(readonly db: Db) {}
+  readonly settings;
+  constructor(readonly db: Db) { this.settings = new StudioSettings(db); }
+
+  /** 这个项目实际用的成片设置 */
+  production(actor: Actor, id: string): Production {
+    return effectiveProduction(this.settings.production(), this.project(actor, id).production);
+  }
 
   recover() {
     for (const row of this.db.select().from(studioRevisions).all()) {
@@ -61,7 +69,7 @@ export class StudioProjects {
     const revisions = this.db.select({ id: studioRevisions.id }).from(studioRevisions).where(eq(studioRevisions.projectId, id)).orderBy(desc(studioRevisions.number)).all().map((item) => this.revision(item.id));
     const comments = this.db.select().from(studioComments).where(eq(studioComments.projectId, id)).orderBy(desc(studioComments.createdAt)).all().map((item) => ({ ...item, createdAt: item.createdAt.getTime() }));
     const events = this.db.select().from(studioEvents).where(eq(studioEvents.projectId, id)).orderBy(desc(studioEvents.createdAt)).all().map((item) => ({ ...item, createdAt: item.createdAt.getTime() }));
-    return { ...row, createdAt: row.createdAt.getTime(), updatedAt: row.updatedAt.getTime(), revision: this.revision(row.currentRevisionId), revisions, comments, events };
+    return { ...row, createdAt: row.createdAt.getTime(), updatedAt: row.updatedAt.getTime(), productionInUse: effectiveProduction(this.settings.production(), row.production), revision: this.revision(row.currentRevisionId), revisions, comments, events };
   }
 
   private event(actor: Actor, revision: StudioRevision, action: string, note = "") {
@@ -98,9 +106,16 @@ export class StudioProjects {
     });
   }
 
-  configure(actor: Actor, id: string, name: string, assignedAgentId: string | null) {
+  /** production：这个项目单独改的成片设置，没写的项跟着工坊默认值；不传表示不动，null 表示全部跟默认值 */
+  configure(actor: Actor, id: string, name: string, assignedAgentId: string | null, production?: ProductionOverride | null) {
     ownerOnly(actor); const project = this.project(actor, id); this.checkAssignee(assignedAgentId);
-    this.db.update(studioProjects).set({ name: cleanName(name), assignedAgentId, updatedAt: new Date() }).where(eq(studioProjects.id, id)).run();
+    let saved = project.production;
+    if (production !== undefined) {
+      const parsed = productionOverrideSchema.nullable().safeParse(production);
+      if (!parsed.success) throw invalid("成片设置的数值超出范围。", parsed.error.flatten());
+      saved = parsed.data && Object.keys(parsed.data).length ? parsed.data : null;
+    }
+    this.db.update(studioProjects).set({ name: cleanName(name), assignedAgentId, production: saved, updatedAt: new Date() }).where(eq(studioProjects.id, id)).run();
     this.event(actor, this.revision(project.currentRevisionId), "更新项目设置");
     return this.get(actor, id);
   }
@@ -264,7 +279,7 @@ export class StudioProjects {
     const revision = this.current(actor, id, revisionId);
     if (revision.scriptStatus !== "approved" || !voicesReady(revision) || revision.voiceJob.state === "running") throw conflict("讲稿需先通过审查，且配音需要全部生成完成。");
     if (revision.videoStatus === "in_review" || revision.videoStatus === "approved") throw conflict("样片已送审或定稿，请先撤回或建立修订版本。");
-    resolveGuidePlan(revision.beats, revision.voices);
+    resolveGuidePlan(revision.beats, revision.voices, { leadMs: this.production(actor, id).guideLeadMs });
     return revision;
   }
 

@@ -615,9 +615,11 @@ export function Presentation({
     // 先让这一页显示出来、动画开始，再开始往下走。
     // 文字一条一条出现的页：一进来就在的那几条，先留出它们那一份时间。
     // 工具给了这一页的时长（这一页讲稿的配音有多长）：先把这一页的话说完，再走页里的步骤
+    // 工具给了这一页的时长、页上也没有要一条条出现的文字：就照给的时长走（封面只停一秒也行），不再至少停 1.2 秒
     const share = firstShare(slideRefs.current[page]);
-    const lead = share > 0 ? reading * share : timing?.[`p${page}`] !== undefined ? reading : 0;
-    after(Math.max(1200 / speed, lead), tick);
+    const given = timing?.[`p${page}`] !== undefined;
+    const lead = share > 0 ? reading * share : given ? reading : 0;
+    after(given && share === 0 ? lead : Math.max(1200 / speed, lead), tick);
     return () => {
       cancelled = true;
       clearTimeout(timer);

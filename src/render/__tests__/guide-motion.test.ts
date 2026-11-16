@@ -6,6 +6,9 @@ describe("讲解聚焦镜头", () => {
     const target = { x: 950, y: 220, width: 200, height: 140 };
     const camera = guideCameraFor(target, 1600, 900);
     expect(camera.scale).toBe(1.55);
+    // 放大上限由工坊的成片设置传进来
+    expect(guideCameraFor(target, 1600, 900, 1.2).scale).toBe(1.2);
+    expect(guideCameraFor(target, 1600, 900, 3).scale).toBeGreaterThan(1.55);
     const projected = projectRect(target, camera);
     expect(projected.x).toBeGreaterThan(0);
     expect(projected.x + projected.width).toBeLessThan(1600);

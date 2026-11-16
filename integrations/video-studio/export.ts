@@ -6,7 +6,7 @@ import ffmpegPath from "ffmpeg-static";
 import type { Beat, GuidePlan, Voice } from "./core/types";
 import { resolveGuidePlan } from "./core/guides";
 import type { GuideReport } from "../../src/render/client/guide-focus";
-import { beatLength } from "./timing.js";
+import { timingParam, totalLength, type Production } from "./core/production";
 import type { ExportProgress } from "./core/exports";
 
 export type TimelineEntry = { id: string; at: number };
@@ -14,6 +14,8 @@ export type ExportInput = {
   url: string;
   beats: Beat[];
   voices: Voice[];
+  /** 这个项目实际用的成片设置 */
+  production: Production;
   audioPath: (id: string) => string;
   output: string;
   signal: AbortSignal;
@@ -81,7 +83,7 @@ export function assertTimeline(beats: Pick<Beat, "id">[], timeline: TimelineEntr
 export async function exportVideo(input: ExportInput): Promise<{ frames: number; durationMs: number; timeline: TimelineEntry[] }> {
   const { signal } = input;
   signal.throwIfAborted();
-  const estimatedMs = input.beats.reduce((sum, beat) => sum + beatLength(beat, input.voices.find((v) => v.id === beat.id)), 0);
+  const estimatedMs = totalLength(input.beats, input.voices, input.production);
   input.progress({ phase: "preparing", frames: 0, timeMs: 0, estimatedMs });
   await mkdir(path.dirname(input.output), { recursive: true });
   const temp = await mkdtemp(path.join(path.dirname(input.output), ".render-"));
@@ -108,7 +110,7 @@ export async function exportVideo(input: ExportInput): Promise<{ frames: number;
     url.searchParams.set("offline", "1");
     url.searchParams.set("orientation", "landscape");
     url.searchParams.set("captions", "space");
-    url.searchParams.set("timing", input.beats.map((b) => `${b.id}:${beatLength(b, input.voices.find((v) => v.id === b.id))}`).join(","));
+    url.searchParams.set("timing", timingParam(input.beats, input.voices, input.production));
     const response = await page.goto(url.toString(), { waitUntil: "domcontentloaded", timeout: 60000 });
     if (!response?.ok()) throw new Error(`演示页面读取失败：${response?.status()}`);
     await page.waitForSelector(".galley-present-stage[data-ready]", { timeout: 30000 });
@@ -171,8 +173,9 @@ export async function exportVideo(input: ExportInput): Promise<{ frames: number;
         },
       };
     }, input.voices);
-    const guides = resolveGuidePlan(input.beats, input.voices);
-    await page.evaluate((plan) => window.dispatchEvent(new MessageEvent("message", { source: window, data: { source: "galley-studio", type: "guides", plan } })), guides);
+    const guides = resolveGuidePlan(input.beats, input.voices, { leadMs: input.production.guideLeadMs });
+    const camera = { zoomMax: input.production.zoomMax };
+    await page.evaluate(({ plan, camera }) => window.dispatchEvent(new MessageEvent("message", { source: window, data: { source: "galley-studio", type: "guides", plan, camera } })), { plan: guides, camera });
     await page.evaluate(() => window.dispatchEvent(new MessageEvent("message", { source: window, data: { source: "galley-studio", type: "start" } })));
     const cdp = await page.context().newCDPSession(page);
     const video = path.join(temp, "video.mp4");

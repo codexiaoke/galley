@@ -6,6 +6,7 @@ import { OWNER, type Actor } from "../../../../src/core/actor";
 import type { Db } from "../../../../src/core/db/client";
 import { openStudioDb } from "../db";
 import { StudioProjects, voiceHash, voicesReady } from "../projects";
+import { PRODUCTION_DEFAULTS } from "../production";
 import { StudioAccess, STUDIO_COOKIE, requireStudioOwner } from "../access";
 import { StudioConnection } from "../connection";
 import { studioConnection } from "../schema";
@@ -134,6 +135,26 @@ describe("Studio 讲稿、审查与成片", () => {
     const withGuide = projects.revise(agent, p.id, synced.id, [{ id: "cover", guides: [{ targetId: "title", phrase: "新的开头" }] }], "加指向");
     const again = projects.synchronize(agent, p.id, withGuide.currentRevisionId, { ...updated, version: "c".repeat(64), beats: [{ ...updated.beats[0], text: "再次改过的封面" }, updated.beats[1]] }).revision;
     expect(again.beats[0]).toMatchObject({ text: "再次改过的封面", guides: [] });
+  });
+});
+
+describe("成片设置", () => {
+  it("工坊默认值只有站长能改，项目可以单独改其中几项，留空的跟着默认值", () => {
+    const p = create();
+    expect(projects.get(agent, p.id).productionInUse).toEqual(PRODUCTION_DEFAULTS);
+    expect(() => projects.settings.saveProduction(agent, { ...PRODUCTION_DEFAULTS, coverMs: 2000 })).toThrow("只有站长");
+    expect(() => projects.settings.saveProduction(OWNER, { ...PRODUCTION_DEFAULTS, coverMs: 50 })).toThrow("超出范围");
+    projects.settings.saveProduction(OWNER, { ...PRODUCTION_DEFAULTS, coverMs: 2000, speechTailMs: 500 });
+    expect(projects.production(agent, p.id)).toMatchObject({ coverMs: 2000, speechTailMs: 500 });
+
+    projects.configure(OWNER, p.id, "视频", agent.id, { coverMs: 600 });
+    expect(projects.get(agent, p.id)).toMatchObject({ production: { coverMs: 600 }, productionInUse: { coverMs: 600, speechTailMs: 500 } });
+    // 只改名字不动成片设置；传 null 全部跟回默认值
+    projects.configure(OWNER, p.id, "新名字", agent.id);
+    expect(projects.get(agent, p.id).production).toEqual({ coverMs: 600 });
+    projects.configure(OWNER, p.id, "新名字", agent.id, null);
+    expect(projects.get(agent, p.id)).toMatchObject({ production: null, productionInUse: { coverMs: 2000 } });
+    expect(() => projects.configure(OWNER, p.id, "视频", agent.id, { zoomMax: 9 })).toThrow("超出范围");
   });
 });
 

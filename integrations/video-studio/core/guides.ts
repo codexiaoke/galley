@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { invalid } from "../../../src/core/errors";
 import type { Beat, GuidePlan, Voice } from "./types";
+import { PRODUCTION_DEFAULTS } from "./production";
 
 import { guideEmphasisSchema, guideTargetId as targetId } from "../../../src/contract/narration";
 export { guideEmphasisSchema, guidePlanSchema } from "../../../src/contract/narration";
@@ -36,8 +37,11 @@ export function validateBeatGuides(beat: Beat) {
   }
 }
 
-/** 用真实字幕的起止时间定位原话。字幕段内按字数插值，跨段保留停顿；草稿明确使用估时。 */
-export function resolveGuidePlan(beats: Beat[], voices: Voice[], draft = false): GuidePlan {
+/**
+ * 用真实字幕的起止时间定位原话。字幕段内按字数插值，跨段保留停顿；草稿明确使用估时。
+ * leadMs：指向比说到那句话提前多久出现、说完后多久离开（成片设置里的镜头指向提前量）。
+ */
+export function resolveGuidePlan(beats: Beat[], voices: Voice[], { draft = false, leadMs = PRODUCTION_DEFAULTS.guideLeadMs }: { draft?: boolean; leadMs?: number } = {}): GuidePlan {
   return beats.filter((beat) => beat.guides?.length).map((beat) => {
     validateBeatGuides(beat);
     const voice = voices.find((voice) => voice.id === beat.id);
@@ -58,7 +62,7 @@ export function resolveGuidePlan(beats: Beat[], voices: Voice[], draft = false):
     };
     const cues = (beat.guides ?? []).map((guide) => {
       const phrase = spoken(guide.phrase), at = text.indexOf(phrase);
-      return { targetId: guide.targetId, emphasis: guide.emphasis ?? "focus", startMs: Math.max(0, Math.round(timeAt(at, false) - 450)), endMs: Math.min(duration, Math.round(timeAt(at + phrase.length, true) + 450)) };
+      return { targetId: guide.targetId, emphasis: guide.emphasis ?? "focus", startMs: Math.max(0, Math.round(timeAt(at, false) - leadMs)), endMs: Math.min(duration, Math.round(timeAt(at + phrase.length, true) + leadMs)) };
     });
     cues.forEach((cue, i) => { if (cues[i + 1]) cue.endMs = Math.min(cue.endMs, cues[i + 1].startMs); });
     // 场景元素要等动画画出来才能指；按真实配音算出时机还早于它，导出时一定指不到。草稿估时不准，只在预览时提示。

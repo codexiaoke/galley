@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
-import { guidePlanSchema, type GuidePlan } from "../../contract/narration";
+import { GUIDE_ZOOM_MAX, guideCameraSchema, guidePlanSchema, type GuidePlan } from "../../contract/narration";
 import { clamp, guideCameraFor, guideEase, HOME_CAMERA, mix, mixCamera, mixRect, projectRect, unprojectRect, type GuideCamera, type GuideRect } from "../guide-motion";
 
 export type GuideReport = { seen: string[]; missing: string[] };
@@ -38,7 +38,7 @@ export function GuideFocus() {
       const text = typeof value === "number" ? value.toFixed(3) : value;
       if (element.getAttribute(name) !== text) element.setAttribute(name, text);
     };
-    let plan: GuidePlan = [], beat: { id: string; at: number } | null = null;
+    let plan: GuidePlan = [], zoomMax = GUIDE_ZOOM_MAX, beat: { id: string; at: number } | null = null;
     let currentKey = "", arrival = 0, frame = 0, exiting: number | null = null;
     let camera = HOME_CAMERA, cameraFrom = camera, exitCamera = camera;
     let focus: GuideRect | null = null, focusFrom: GuideRect | null = null;
@@ -73,7 +73,8 @@ export function GuideFocus() {
       if (event.source !== window.parent || event.data?.source !== "galley-studio" || event.data.type !== "guides") return;
       const parsed = guidePlanSchema.safeParse(event.data.plan);
       if (!parsed.success) return;
-      plan = parsed.data; beat = null; reset(); seen.clear(); missing.clear(); report();
+      plan = parsed.data; zoomMax = guideCameraSchema.safeParse(event.data.camera).data?.zoomMax ?? GUIDE_ZOOM_MAX;
+      beat = null; reset(); seen.clear(); missing.clear(); report();
     };
     const onBeat = (event: Event) => {
       const next = (event as CustomEvent<{ id: string; at: number }>).detail;
@@ -114,7 +115,7 @@ export function GuideFocus() {
         currentKey = key; arrival = now; cameraFrom = camera; focusFrom = focus; focusAlphaFrom = focusAlpha; shadeAlphaFrom = shadeAlpha; exiting = null;
       }
       const age = now - arrival, settle = reduced ? 1 : guideEase(age / 680);
-      const desired = cue.emphasis === "zoom" && !reduced ? guideCameraFor(base, stage.clientWidth, stage.clientHeight) : HOME_CAMERA;
+      const desired = cue.emphasis === "zoom" && !reduced ? guideCameraFor(base, stage.clientWidth, stage.clientHeight, zoomMax) : HOME_CAMERA;
       paintCamera(mixCamera(cameraFrom, desired, settle));
       const focusTarget = { x: base.x - 16, y: base.y - 16, width: Math.max(24, base.width) + 32, height: Math.max(24, base.height) + 32 };
       focus = mixRect(focusFrom ?? focusTarget, focusTarget, reduced ? 1 : guideEase(age / 440));

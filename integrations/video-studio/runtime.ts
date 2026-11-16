@@ -31,7 +31,7 @@ export class StudioRuntime {
     } : undefined);
   }
 
-  config() { return { ...this.connection.public(), ttsServer: this.voice.serverName, ttsFound: this.voice.configured(), dir: this.directory }; }
+  config() { return { ...this.connection.public(), production: this.projects.settings.production(), ttsServer: this.voice.serverName, ttsFound: this.voice.configured(), dir: this.directory }; }
 
   private async remote(route: string, connection = this.connection.read()) {
     if (!connection.token) throw invalid("请先在工坊设置中填写站点地址和访问密钥。");
@@ -101,12 +101,13 @@ export class StudioRuntime {
     const source = await this.source(revision.source.slug);
     this.projects.checkRenderSource(revision, source);
     this.projects.prepareRender(actor, id, revisionId);
+    const production = this.projects.production(actor, id);
     const job = this.exports.create({ ...source, beats: revision.beats, voices: revision.voices }, name, { projectId: id, revisionId, sourceVersion: source.version });
     const output = this.exports.output(job.id);
     try {
       this.projects.attachRender(actor, id, revisionId, job.id);
       mkdirSync(path.dirname(output), { recursive: true });
-      writeFileSync(output.replace(/\.mp4$/, ".manifest.json"), JSON.stringify({ projectId: id, revisionId, source, beats: revision.beats, voices: revision.voices, width: 3840, height: 2160, fps: 30 }, null, 2));
+      writeFileSync(output.replace(/\.mp4$/, ".manifest.json"), JSON.stringify({ projectId: id, revisionId, source, beats: revision.beats, voices: revision.voices, production, width: 3840, height: 2160, fps: 30 }, null, 2));
     } catch (error) {
       // 渲染器还没接手；不结束这条记录，它会一直占着“正在导出”，之后的导出全被挡住。
       this.exports.fail(job.id, error instanceof Error ? error.message : String(error), false);
@@ -114,7 +115,7 @@ export class StudioRuntime {
     }
     const controller = new AbortController(); this.activeExport = { id: job.id, controller };
     const url = new URL(source.present, source.galley); url.searchParams.set("version", source.version);
-    void exportVideo({ url: studioFetchUrl(url.toString()), beats: revision.beats, voices: revision.voices,
+    void exportVideo({ url: studioFetchUrl(url.toString()), beats: revision.beats, voices: revision.voices, production,
       audioPath: (beatId) => this.voice.file(revision.voices.find((voice) => voice.id === beatId)!.audio), output, signal: controller.signal,
       progress: (progress) => this.exports.progress(job.id, progress),
     }).then(() => { this.exports.complete(job.id); }, (error: unknown) => {

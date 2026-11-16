@@ -33,3 +33,11 @@ export const guideEmphasisSchema = z.enum(["point", "focus", "zoom"]);
 export const guidePlanSchema = z.array(z.object({ id: z.string().max(100), cues: z.array(z.object({
   targetId: guideTargetId, emphasis: guideEmphasisSchema, startMs: z.number().finite().min(0).max(600000), endMs: z.number().finite().min(0).max(600000),
 })).max(12) })).max(2000);
+
+/**
+ * 镜头参数，和指向计划一起由工坊传给演示页（成片设置里改，不用部署博客）。
+ * zoomMax：放大聚焦最多放大几倍；不传按 GUIDE_ZOOM_MAX。
+ */
+export const GUIDE_ZOOM_MAX = 1.55;
+export const guideCameraSchema = z.object({ zoomMax: z.number().finite().min(1).max(3) });
+export type GuideCameraSettings = z.infer<typeof guideCameraSchema>;

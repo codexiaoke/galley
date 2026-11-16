@@ -3,10 +3,10 @@ import { LoaderCircle, Play, Square } from "lucide-react";
 import { buttonClass } from "../../src/app/admin/ui";
 import type { StudioRevision } from "./core/types";
 import { resolveGuidePlan } from "./core/guides";
-import { beatLength } from "./timing.js";
+import { timingParam, type Production } from "./core/production";
 
 /** 审查预览使用当前讲稿的时长和不可变音频；来源版本变化时页面会拒绝加载。 */
-export const PresentationPreview = memo(function PresentationPreview({ revision }: { revision: StudioRevision }) {
+export const PresentationPreview = memo(function PresentationPreview({ revision, production }: { revision: StudioRevision; production: Production }) {
   const iframe = useRef<HTMLIFrameElement>(null);
   const [ready, setReady] = useState(false), [playing, setPlaying] = useState(false), [error, setError] = useState(""), [subtitle, setSubtitle] = useState("");
   const [sequence, setSequence] = useState(0);
@@ -15,7 +15,7 @@ export const PresentationPreview = memo(function PresentationPreview({ revision 
   const running = useRef(false);
   const url = new URL(revision.source.present, revision.source.galley);
   url.searchParams.set("version", revision.source.version); url.searchParams.set("controlled", "1"); url.searchParams.set("captions", "space");
-  url.searchParams.set("timing", revision.beats.map((beat) => `${beat.id}:${beatLength(beat, revision.voices.find((voice) => voice.id === beat.id))}`).join(","));
+  url.searchParams.set("timing", timingParam(revision.beats, revision.voices, production));
   useEffect(() => {
     const audio = new Map(revision.voices.map((voice) => { const player = new Audio(voice.audio); player.preload = "auto"; return [voice.id, player]; }));
     players.current = audio;
@@ -49,8 +49,8 @@ export const PresentationPreview = memo(function PresentationPreview({ revision 
   const reset = () => { running.current = false; players.current.forEach((audio) => { audio.pause(); audio.currentTime = 0; }); current.current = null; setPlaying(false); setSubtitle(""); setReady(false); setError(""); setSequence((value) => value + 1); };
   const play = () => {
     try {
-      const plan = resolveGuidePlan(revision.beats, revision.voices, true);
-      iframe.current?.contentWindow?.postMessage({ source: "galley-studio", type: "guides", plan }, new URL(revision.source.galley).origin);
+      const plan = resolveGuidePlan(revision.beats, revision.voices, { draft: true, leadMs: production.guideLeadMs });
+      iframe.current?.contentWindow?.postMessage({ source: "galley-studio", type: "guides", plan, camera: { zoomMax: production.zoomMax } }, new URL(revision.source.galley).origin);
       running.current = true; setPlaying(true); setError("");
       iframe.current?.contentWindow?.postMessage({ source: "galley-studio", type: "start" }, new URL(revision.source.galley).origin);
     } catch (error) { setError(error instanceof Error ? error.message : String(error)); }
@@ -64,4 +64,4 @@ export const PresentationPreview = memo(function PresentationPreview({ revision 
     {revision.beats.some((beat) => beat.guides?.length && !revision.voices.some((voice) => voice.id === beat.id)) && <p className="mt-2 text-xs text-a-muted">尚未配音的拍点按讲稿估时预览；配音后指针将随实际字幕时间对齐。</p>}
     {ready && error && <p className="mt-2 text-xs text-a-danger">{error}</p>}
   </>;
-}, (before, after) => before.revision.id === after.revision.id && before.revision.voices.map((voice) => voice.audio).join() === after.revision.voices.map((voice) => voice.audio).join());
+}, (before, after) => before.revision.id === after.revision.id && before.revision.voices.map((voice) => voice.audio).join() === after.revision.voices.map((voice) => voice.audio).join() && JSON.stringify(before.production) === JSON.stringify(after.production));

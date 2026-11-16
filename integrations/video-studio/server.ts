@@ -6,6 +6,7 @@ import path from "node:path";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
 import { narrationEditSchema } from "./core/guides";
+import { productionOverrideSchema } from "./core/production";
 import { OWNER } from "../../src/core/actor";
 import { GalleyError, invalid, notFound } from "../../src/core/errors";
 import { StudioAccess, STUDIO_COOKIE, requireStudioOwner } from "./core/access";
@@ -116,6 +117,7 @@ const server = createServer(async (req, res) => {
       if (req.method === "GET") return json(res, 200, runtime.config());
       if (req.method === "PATCH") { const data = await input(req, z.object({ url: z.string(), token: z.string() })); await runtime.connect(actor, data.url, data.token); return json(res, 200, runtime.config()); }
     }
+    if (req.method === "PUT" && route === "/api/settings/production") { runtime.projects.settings.saveProduction(actor, await body(req)); return json(res, 200, runtime.config()); }
     if (req.method === "GET" && route === "/api/articles") return json(res, 200, await runtime.articles());
     if (route === "/api/projects") {
       if (req.method === "GET") return json(res, 200, runtime.projects.list(actor));
@@ -125,7 +127,7 @@ const server = createServer(async (req, res) => {
     if (projectRoute) {
       const [, id, operation] = projectRoute;
       if (req.method === "GET" && !operation) return json(res, 200, runtime.projects.get(actor, id));
-      if (req.method === "PATCH" && !operation) { const data = await input(req, z.object({ name, assignedAgentId: z.string().nullable() })); return json(res, 200, runtime.projects.configure(actor, id, data.name, data.assignedAgentId)); }
+      if (req.method === "PATCH" && !operation) { const data = await input(req, z.object({ name, assignedAgentId: z.string().nullable(), production: productionOverrideSchema.nullable().optional() })); return json(res, 200, runtime.projects.configure(actor, id, data.name, data.assignedAgentId, data.production)); }
       if (req.method === "POST") {
         if (operation === "revise") { const data = await input(req, z.object({ ...revision, edits: z.array(narrationEditSchema).max(2000), note: z.string().max(2000) })); return json(res, 200, runtime.projects.revise(actor, id, data.revisionId, data.edits, data.note)); }
         if (operation === "sync") { const data = await input(req, z.object(revision)); return json(res, 200, await runtime.sync(actor, id, data.revisionId)); }

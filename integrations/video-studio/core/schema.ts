@@ -1,4 +1,5 @@
 import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import type { ProductionOverride, Production } from "./production";
 import type { StudioRevisionData } from "./types";
 
 /**
@@ -18,6 +19,8 @@ export const studioProjects = sqliteTable("studio_projects", {
   name: text("name").notNull(),
   assignedAgentId: text("assigned_agent_id"),
   currentRevisionId: text("current_revision_id").notNull(),
+  /** 这个项目单独改过的成片设置；没改的项跟着工坊的默认值 */
+  production: text("production", { mode: "json" }).$type<ProductionOverride>(),
   createdAt: createdAt(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 });
@@ -59,3 +62,9 @@ export const studioConnection = sqliteTable("studio_connection", {
   token: text("token").notNull(),
 });
 
+
+/** 工坊的成片设置默认值，只有一行（id = 1） */
+export const studioSettings = sqliteTable("studio_settings", {
+  id: integer("id").primaryKey(),
+  production: text("production", { mode: "json" }).$type<Production>().notNull(),
+});
