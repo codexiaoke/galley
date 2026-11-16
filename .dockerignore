@@ -14,3 +14,6 @@ deploy.sh
 release.sh
 deploy
 .dockerignore
+# 博客的镜像不带视频工坊：工坊有自己的镜像（integrations/video-studio/Dockerfile，忽略规则见同目录的 Dockerfile.dockerignore），
+# 工坊的代码出错不该拦住博客部署。
+integrations

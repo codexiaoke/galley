@@ -7,7 +7,7 @@ import { openStudioDb } from "../db";
 function shape(sqlite: Database.Database, table: string) {
   // 列的先后不比：博客的列是一次次加上去的，工坊的迁移一次建好，顺序会不同，但列应该一样
   const columns = (sqlite.prepare(`PRAGMA table_info(${table})`).all() as Record<string, unknown>[])
-    .map((column) => ({ ...column, cid: undefined }))
+    .map((column): Record<string, unknown> => ({ ...column, cid: undefined }))
     .sort((x, y) => String(x.name).localeCompare(String(y.name)));
   const foreignKeys = (sqlite.prepare(`PRAGMA foreign_key_list(${table})`).all() as Record<string, unknown>[]).map((k) => ({ ...k, id: undefined, seq: undefined }));
   const indexes = (sqlite.prepare(`PRAGMA index_list(${table})`).all() as { name: string; unique: number }[])

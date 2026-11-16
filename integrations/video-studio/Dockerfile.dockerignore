@@ -1,0 +1,17 @@
+# 工坊镜像的忽略规则（BuildKit 按"Dockerfile 名.dockerignore"认它，优先于仓库根目录的 .dockerignore）。
+# 和根目录的规则一样，只是不排除 integrations：工坊自己的代码要进镜像。
+node_modules
+.next
+.git
+.claude
+data
+.env*
+!.env.example
+*.tsbuildinfo
+next-env.d.ts
+Dockerfile
+docker-compose.yml
+deploy.sh
+release.sh
+deploy
+.dockerignore
