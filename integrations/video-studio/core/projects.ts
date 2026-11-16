@@ -12,6 +12,7 @@ import { effectiveProduction, productionOverrideSchema, type Production, type Pr
 import { StudioSettings } from "./settings";
 import type { RemovedBeat, StudioBeat, StudioProject, StudioProjectDetail, StudioRevision, StudioRevisionData, StudioSource, Voice } from "./types";
 import { matchSource, sameNarration } from "./sync";
+import { narrationChecks } from "./checks";
 
 const textSchema = z.string().trim().max(2000);
 const beatSchema = z.object({ id: z.string().min(1).max(100), anchor: z.string().max(300).optional(), fallback: z.string().max(300).optional(), check: z.literal("fallback").optional(), kind: z.enum(["cover", "page", "step", "ending"]), page: z.number().int().nonnegative(), title: z.string().nullable(), section: z.string().nullable(), text: textSchema.default(""), written: z.string().optional(), suggestedMs: z.number().min(0).max(120000), minMs: z.number().min(0).max(120000), selfPaced: z.literal(true).optional(), targets: guideTargetsSchema.optional(), guides: guidesSchema.optional() });
@@ -72,7 +73,8 @@ export class StudioProjects {
     const revisions = this.db.select({ id: studioRevisions.id }).from(studioRevisions).where(eq(studioRevisions.projectId, id)).orderBy(desc(studioRevisions.number)).all().map((item) => this.revision(item.id));
     const comments = this.db.select().from(studioComments).where(eq(studioComments.projectId, id)).orderBy(desc(studioComments.createdAt)).all().map((item) => ({ ...item, createdAt: item.createdAt.getTime() }));
     const events = this.db.select().from(studioEvents).where(eq(studioEvents.projectId, id)).orderBy(desc(studioEvents.createdAt)).all().map((item) => ({ ...item, createdAt: item.createdAt.getTime() }));
-    return { ...row, createdAt: row.createdAt.getTime(), updatedAt: row.updatedAt.getTime(), productionInUse: effectiveProduction(this.settings.production(), row.production), revision: this.revision(row.currentRevisionId), revisions, comments, events };
+    const revision = this.revision(row.currentRevisionId);
+    return { ...row, createdAt: row.createdAt.getTime(), updatedAt: row.updatedAt.getTime(), productionInUse: effectiveProduction(this.settings.production(), row.production), checks: narrationChecks(revision.beats), revision, revisions, comments, events };
   }
 
   private event(actor: Actor, revision: StudioRevision, action: string, note = "") {
