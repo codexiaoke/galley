@@ -8,7 +8,7 @@ import type { Beat, GuideCue, RemovedBeat, StudioBeat, Voice } from "./types";
  * 1. 锚点相同：讲稿、指向原样保留；
  * 2. 旧来源还没有锚点（第 3 步以前建的项目）：按 id 对，相当于原来的做法；
  * 3. 步骤的锚点对不上（画面上那句话改了），按"同一场景里的第几步"兜底：保留讲稿，标成"请核对"；
- * 4. 新出现的拍点：用文章里的讲稿当初稿（讲稿迁出文章以前）；
+ * 4. 新出现的拍点：讲稿留空，在工坊里写；
  * 5. 消失的拍点：写过讲稿或指向的，收进"已移除"，不悄悄丢掉。
  *
  * 指向的目标也一样：按目标的锚点找到新 id；找不到、或原话已不在讲稿里的指向不再保留，记下条数。
@@ -29,10 +29,10 @@ export function matchSource(current: StudioBeat[], originals: Beat[], next: Beat
   const nextVoices: Voice[] = [];
   const beats = next.map((beat, i): StudioBeat => {
     const match = exact[i] ?? fallback[i];
-    if (!match) { added++; return { ...beat }; }
+    if (!match) { added++; return { ...beat, text: beat.text ?? "" }; }
     const { beat: old, original } = match;
-    // 工坊没改过的讲稿和时长跟着文章走；改过的保留
-    const text = original && old.text === original.text ? beat.text : old.text;
+    // 讲稿归工坊，原样保留；建议时长没在工坊里改过的，跟着博客的新估计走
+    const text = old.text;
     const suggestedMs = original && old.suggestedMs === original.suggestedMs ? beat.suggestedMs : old.suggestedMs;
     const guides: GuideCue[] = [];
     for (const guide of old.guides ?? []) {

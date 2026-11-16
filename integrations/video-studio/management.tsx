@@ -39,12 +39,12 @@ export function readProduction(form: FormData, partial = false) {
 
 export function Settings({ config, refresh }: { config: Config; refresh: () => Promise<void> }) {
   return <Modal triggerLabel={<><Settings2 size={15} />工坊设置</>} title="工坊设置">
-    <dl className="space-y-4"><DetailRow label="连接站点"><span className="break-all">{config.galley || "未连接，请配置线上站点"}</span></DetailRow><DetailRow label="访问密钥"><Badge tone={config.hasToken ? "green" : "amber"}>{config.hasToken ? "已配置" : "未配置"}</Badge></DetailRow><DetailRow label="配音服务">{config.ttsServer} · {config.ttsFound ? "已配置" : "未找到"}</DetailRow><DetailRow label="文件位置"><span className="break-all text-xs">{config.dir}</span></DetailRow><DetailRow label="成片设置"><span className="text-xs">{PRODUCTION_FIELDS.map((field) => `${field.label} ${shown(field.key, config.production[field.key])}`).join(" · ")}</span></DetailRow></dl>
+    <dl className="space-y-4"><DetailRow label="连接站点"><span className="break-all">{config.galley || "未连接，请配置线上站点"}</span></DetailRow><DetailRow label="访问密钥"><Badge tone={config.hasToken ? "green" : "neutral"}>{config.hasToken ? "已配置" : "未配置（选填）"}</Badge></DetailRow><DetailRow label="配音服务">{config.ttsServer} · {config.ttsFound ? "已配置" : "未找到"}</DetailRow><DetailRow label="文件位置"><span className="break-all text-xs">{config.dir}</span></DetailRow><DetailRow label="成片设置"><span className="text-xs">{PRODUCTION_FIELDS.map((field) => `${field.label} ${shown(field.key, config.production[field.key])}`).join(" · ")}</span></DetailRow></dl>
     <div className="mt-5 flex flex-wrap gap-3 border-t border-a-border pt-4">
       <ModalForm triggerLabel="配置站点" title="连接 Galley 站点" submitLabel="测试并保存" successMessage="站点已连接" action={(_, form) => run(async () => { await request("/api/config", "PATCH", { url: String(form.get("url")), token: String(form.get("token")) }); await refresh(); })}>
         <Field label="站点根地址"><input name="url" type="url" className={INPUT} defaultValue={config.galley} required placeholder="https://blog.example.com" /></Field>
-        <Field label="站点访问密钥"><input name="token" type="password" className={INPUT} autoComplete="new-password" placeholder="同一站点留空则保留现有密钥" /></Field>
-        <p className="text-xs text-a-muted">使用线上 Galley 后台「MCP 管理」生成的密钥。切换站点必须填写新密钥；保存前会验证文章接口。已有项目仍属于原站点。</p>
+        <Field label="站点访问密钥（选填）"><input name="token" type="password" className={INPUT} autoComplete="new-password" placeholder="同一站点留空则保留现有密钥" /></Field>
+        <p className="text-xs text-a-muted">文章的演示结构是公开的，不填密钥也能建项目。密钥是线上 Galley 后台「MCP 管理」生成的，以后读未发布的版本时要用。保存前会验证文章接口。已有项目仍属于原站点。</p>
       </ModalForm>
       <ModalForm triggerLabel="成片设置" title="成片设置（所有项目的默认值）" submitLabel="保存" successMessage="成片设置已保存" action={(_, form) => run(async () => { await request("/api/settings/production", "PUT", readProduction(form)); await refresh(); })}>
         <ProductionFields value={config.production} />

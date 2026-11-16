@@ -23,7 +23,7 @@ export class StudioConnection {
   read() {
     const row = this.db.select().from(studioConnection).where(eq(studioConnection.id, 1)).get()!;
     const token = decryptSecret(row.token, this.directory);
-    if (token === null) throw invalid("站点密钥无法解密，请在工坊设置中重新填写。");
+    if (token === null) throw invalid("站点密钥无法解密，请在工坊设置中重新填写，或者留空。");
     return { url: row.url, token };
   }
   public() {
@@ -34,9 +34,8 @@ export class StudioConnection {
     if (actor.kind !== "owner") throw forbidden("只有站长可以修改连接站点。");
     const normalized = studioSiteUrl(url);
     const saved = this.db.select().from(studioConnection).where(eq(studioConnection.id, 1)).get()!;
-    if (normalized !== saved.url && !token.trim()) throw invalid("切换站点时请填写新站点的访问密钥。");
-    const key = token.trim() || decryptSecret(saved.token, this.directory);
-    if (!key) throw invalid("请填写线上 Galley 后台生成的访问密钥。");
+    // 密钥是选填的：演示结构公开，不用密钥也能读。切换站点时不沿用原站点的密钥
+    const key = token.trim() || (normalized === saved.url ? decryptSecret(saved.token, this.directory) ?? "" : "");
     return { url: normalized, token: key };
   }
   save(actor: Actor, connection: { url: string; token: string }) {

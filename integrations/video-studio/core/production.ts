@@ -49,7 +49,7 @@ export function beatLength(beat: Pick<Beat, "kind" | "minMs" | "suggestedMs">, v
   return Math.max(beat.minMs, voice ? spoken : beat.suggestedMs);
 }
 
-/** 演示页网址参数 timing 的值：拍点:毫秒，逗号隔开（格式见博客 render/narration.ts 的 parseTiming） */
+/** 演示页网址参数 timing 的值：拍点:毫秒，逗号隔开（格式见博客 render/beats.ts 的 parseTiming） */
 export function timingParam(beats: Beat[], voices: Voice[], production: Production): string {
   return beats.map((beat) => `${beat.id}:${beatLength(beat, voices.find((voice) => voice.id === beat.id), production)}`).join(",");
 }

@@ -11,7 +11,7 @@ const player = (n: number) => {
       const next = index + dir;
       if (next < 0 || next > n) return null;
       index = next;
-      return { caption: `第 ${index} 步` };
+      return { wait: index };
     },
   };
   return { stop, at: () => index };
@@ -62,8 +62,8 @@ describe("页内一条一条出现", () => {
     const p = player(2);
     const stops: BuildStop[] = [a, b, p.stop, c];
     expect(advance(stops, 1)).toEqual({ chars: 10 }); // 播放器前面的那条文字
-    expect(advance(stops, 1)).toEqual({ player: { caption: "第 1 步" } });
-    expect(advance(stops, 1)).toEqual({ player: { caption: "第 2 步" } });
+    expect(advance(stops, 1)).toEqual({ player: { wait: 1 } });
+    expect(advance(stops, 1)).toEqual({ player: { wait: 2 } });
     expect(advance(stops, 1)).toEqual({ chars: 3 }); // 播放器走完了，轮到后面的文字
     expect(advance(stops, 1)).toBeNull();
     // 原路退回

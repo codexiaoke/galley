@@ -1,4 +1,3 @@
-import type { Beat } from "../contract/narration";
 import { visit } from "unist-util-visit";
 import { parseToTree } from "@/core/markup/parse";
 import { readScene } from "@/core/markup/structure";
@@ -6,27 +5,23 @@ import { plainText } from "@/core/markup/text";
 import { readingTime } from "@/core/scene/frame";
 import { sceneKey } from "@/core/scene/shared";
 import type { SceneResult } from "@/core/scene/types";
-import { defaultPageStay, speakingTime } from "./captions";
+import { defaultPageStay } from "./pacing";
 import { splitSlides } from "./slides";
 import { fingerprint, proseGuideTargets, sceneGuideTargets } from "./guide-targets";
-import type { GuideTarget } from "../contract/narration";
+import type { GuideTarget, StructureBeat } from "../contract/narration";
 
 /**
- * 一篇文章做成视频时的"拍"：演示按顺序走过的每一段，以及这一段要说的话。
+ * 一篇文章做成视频时的"拍"：演示按顺序走过的每一段。博客只给画面这一边（结构），讲稿由视频工坊逐拍写。
  *
- * 做视频的工具拿着这份清单：给每一拍的讲稿配音，得到每一拍的时长，再把时长传回演示页
+ * 视频工坊拿着这份清单（structure.json）写讲稿、配音，得到每一拍的时长，再把时长传回演示页
  * （网址参数 timing，见 app/posts/[slug]/present/page.tsx），演示就按声音的长短走。
  *
  * 一拍是什么：
  * - 封面、结尾各一拍；
- * - 每一页一拍，讲稿是这一页的 :::notes；
- * - 场景动画的每一步一拍，讲稿是这一步的 say。
- * 顺序就是播放的顺序：先是这一页（讲稿说完），再是这一页里场景的每一步。
- *
- * 讲稿不是公开的内容（见 slides.ts 的 publicSlideSource），所以这份清单只给站长和接入的 Agent 读。
+ * - 每一页一拍；
+ * - 场景动画的每一步一拍。
+ * 顺序就是播放的顺序：先是这一页，再是这一页里场景的每一步。
  */
-
-
 const MIN_PAGE_MS = 1200;
 /** 封面和结尾只停一秒：标题一闪就进正文，视频不拖沓 */
 const TITLE_PAGE_MS = 1000;
@@ -57,8 +52,8 @@ function anchorSceneTargets(targets: GuideTarget[], scene: string): GuideTarget[
  * - 步骤：场景的锚点加上画面上那句话的指纹；那句话改了，按 fallback（第几步）兜底；
  * - 正文元素：页的锚点加上这段源文的指纹；场景元素：场景的锚点加上元素的文字。
  */
-export function narrationBeats(body: string, scenes: Record<string, SceneResult>): Beat[] {
-  const beats: Beat[] = [{ id: "p0", anchor: "cover", kind: "cover", page: 0, title: null, section: null, text: "", suggestedMs: TITLE_PAGE_MS, minMs: TITLE_PAGE_MS, targets: [{ id: "p0:title", label: "封面标题", anchor: "cover/title" }] }];
+export function presentationBeats(body: string, scenes: Record<string, SceneResult>): StructureBeat[] {
+  const beats: StructureBeat[] = [{ id: "p0", anchor: "cover", kind: "cover", page: 0, title: null, section: null, suggestedMs: TITLE_PAGE_MS, minMs: TITLE_PAGE_MS, targets: [{ id: "p0:title", label: "封面标题", anchor: "cover/title" }] }];
   const slides = splitSlides(body);
   const pageName = numbered();
   slides.forEach((slide, i) => {
@@ -66,7 +61,7 @@ export function narrationBeats(body: string, scenes: Record<string, SceneResult>
     const title = slide.title ?? null;
     const section = slide.section ?? null;
     const pageAnchor = `page:${pageName(fingerprint(`${section ?? ""}\n${title ?? ""}`))}`;
-    const steps: Beat[] = [];
+    const steps: StructureBeat[] = [];
     const tree = parseToTree(slide.source);
     const targets: GuideTarget[] = proseGuideTargets(tree, page, slide.source).map(({ target }) => ({ ...target, anchor: `${pageAnchor}/${target.id.slice(target.id.indexOf(":") + 1)}` }));
     let selfPaced = false;
@@ -93,17 +88,15 @@ export function narrationBeats(body: string, scenes: Record<string, SceneResult>
           page,
           title,
           section,
-          text: step.say ?? "",
           written: step.text,
           targets: anchorSceneTargets(sceneGuideTargets(result.scene, key, k), sceneAnchor),
-          // 和播放器自己的算法一致：有讲稿时等动画放完、话说完；没有讲稿时动画放完再留出读那句文字的时间
-          suggestedMs: Math.round(step.say ? Math.max(step.duration, speakingTime(step.say)) + 500 : step.duration + readingTime(step.text)),
+          // 和播放器自己的算法一致：动画放完再留出读那句文字的时间
+          suggestedMs: Math.round(step.duration + readingTime(step.text)),
           minMs: step.duration,
         });
       });
     });
     const textChars = plainText(slide.source).replace(/\s+/g, "").length;
-    const notesChars = slide.notes.replace(/\s+/g, "").length;
     beats.push({
       id: `p${page}`,
       anchor: pageAnchor,
@@ -111,16 +104,15 @@ export function narrationBeats(body: string, scenes: Record<string, SceneResult>
       page,
       title,
       section,
-      text: slide.notes,
       targets,
-      // 有讲稿：按讲稿估；没有讲稿但页里有步骤：这一页本身只是亮个相，马上开始走步骤；纯文字的页：按文字估
-      suggestedMs: Math.round(notesChars ? defaultPageStay(notesChars, 0) : steps.length || selfPaced ? MIN_PAGE_MS : defaultPageStay(0, textChars)),
+      // 页里有步骤：这一页本身只是亮个相，马上开始走步骤；纯文字的页：按文字估
+      suggestedMs: Math.round(steps.length || selfPaced ? MIN_PAGE_MS : defaultPageStay(textChars)),
       minMs: MIN_PAGE_MS,
       ...(selfPaced ? { selfPaced: true as const } : {}),
     });
     beats.push(...steps);
   });
-  beats.push({ id: `p${slides.length + 1}`, anchor: "ending", kind: "ending", page: slides.length + 1, title: null, section: null, text: "", suggestedMs: TITLE_PAGE_MS, minMs: TITLE_PAGE_MS, targets: [{ id: `p${slides.length + 1}:title`, label: "结尾标题", anchor: "ending/title" }] });
+  beats.push({ id: `p${slides.length + 1}`, anchor: "ending", kind: "ending", page: slides.length + 1, title: null, section: null, suggestedMs: TITLE_PAGE_MS, minMs: TITLE_PAGE_MS, targets: [{ id: `p${slides.length + 1}:title`, label: "结尾标题", anchor: "ending/title" }] });
   return beats;
 }
 

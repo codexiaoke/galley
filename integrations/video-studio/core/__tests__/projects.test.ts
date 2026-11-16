@@ -119,7 +119,7 @@ describe("Studio 讲稿、审查与成片", () => {
     const next = projects.revise(agent, p.id, p.currentRevisionId, [], "来源变化", { ...source, version: "b".repeat(64) });
     expect(next.revision.source.version).toBe("b".repeat(64)); expect(next.revision.scriptStatus).toBe("draft");
   });
-  it("同步来源时，工坊没改过的拍点采用文章新讲稿，改过的保留，失效的指向移除", () => {
+  it("同步来源时讲稿以工坊为准，建议时长没改过的跟着博客走，失效的指向移除", () => {
     const targets = [{ id: "title", label: "标题" }];
     const p = projects.create(agent, { ...source, beats: source.beats.map((beat) => ({ ...beat, targets })) }, "视频", null, voices);
     const edited = projects.revise(agent, p.id, p.currentRevisionId, [{ id: "p1", text: "工坊改写的正文", suggestedMs: 4000, guides: [{ targetId: "title", phrase: "改写" }] }], "改稿");
@@ -128,13 +128,14 @@ describe("Studio 讲稿、审查与成片", () => {
       { ...source.beats[1], text: "文章里新的正文", suggestedMs: 3000, targets },
     ] };
     const synced = projects.synchronize(agent, p.id, edited.currentRevisionId, updated).revision;
-    expect(synced.beats[0]).toMatchObject({ text: "文章里新的开头", suggestedMs: 2000 });
+    // 讲稿归工坊：来源里带来的文字不覆盖工坊的
+    expect(synced.beats[0]).toMatchObject({ text: "开头", suggestedMs: 2000 });
     expect(synced.beats[1]).toMatchObject({ text: "工坊改写的正文", suggestedMs: 4000, guides: [{ targetId: "title", phrase: "改写" }] });
-    expect(synced.voices.map((voice) => voice.id)).toEqual([]);
+    expect(synced.voices.map((voice) => voice.id)).toEqual(["cover"]);
 
-    const withGuide = projects.revise(agent, p.id, synced.id, [{ id: "cover", guides: [{ targetId: "title", phrase: "新的开头" }] }], "加指向");
-    const again = projects.synchronize(agent, p.id, withGuide.currentRevisionId, { ...updated, version: "c".repeat(64), beats: [{ ...updated.beats[0], text: "再次改过的封面" }, updated.beats[1]] }).revision;
-    expect(again.beats[0]).toMatchObject({ text: "再次改过的封面", guides: [] });
+    const withGuide = projects.revise(agent, p.id, synced.id, [{ id: "cover", guides: [{ targetId: "title", phrase: "开头" }] }], "加指向");
+    const again = projects.synchronize(agent, p.id, withGuide.currentRevisionId, { ...updated, version: "c".repeat(64), beats: [{ ...updated.beats[0], targets: [] }, updated.beats[1]] }).revision;
+    expect(again.beats[0]).toMatchObject({ text: "开头", guides: [] });
   });
 });
 
@@ -170,12 +171,12 @@ describe("Studio 管理身份与连接配置", () => {
     expect(access.isOwner(`${STUDIO_COOKIE}=9999999999999.${"中".repeat(64)}`)).toBe(false);
     expect(access.isOwner(cookie.replace(/.$/, "x"))).toBe(false);
   });
-  it("站点密钥加密且不返回浏览器，切换站点不能沿用旧密钥", () => {
+  it("站点密钥加密且不返回浏览器，切换站点不沿用旧密钥；密钥是选填的", () => {
     const connection = new StudioConnection(db, dir, { url: "https://blog.example.com", token: "secret-original" });
     expect(connection.public()).toEqual({ galley: source.galley, hasToken: true });
     expect(db.select().from(studioConnection).get()!.token).not.toContain("secret-original");
     expect(connection.candidate(OWNER, source.galley, "").token).toBe("secret-original");
-    expect(() => connection.candidate(OWNER, "https://other.example.com", "")).toThrow("新站点");
+    expect(connection.candidate(OWNER, "https://other.example.com", "")).toEqual({ url: "https://other.example.com", token: "" });
     expect(() => connection.candidate(agent, source.galley, "stolen")).toThrow("只有站长");
     const candidate = connection.candidate(OWNER, "https://other.example.com", "new-secret"); connection.save(OWNER, candidate);
     expect(new StudioConnection(db, dir, { url: source.galley, token: "old-env" }).read()).toEqual(candidate);

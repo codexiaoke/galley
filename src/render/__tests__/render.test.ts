@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { Markdown } from "../Markdown";
 import { extractToc } from "../toc";
-import { narrationBeats } from "../narration";
+import { presentationBeats } from "../beats";
 import { splitSlides } from "../slides";
 
 const render = (body: string) => renderToStaticMarkup(createElement(Markdown, { body, blocks: {} }));
@@ -42,9 +42,9 @@ vi.mock("../client/lazy", async () => ({
 const renderAll = async (body: string) => render(body);
 
 describe("正文渲染", () => {
-  it("讲稿清单的正文目标都有准确渲染锚点，不把讲稿本身列为目标", () => {
+  it("拍点清单的正文目标都有准确渲染锚点，历史版本里的讲稿不列为目标", () => {
     const body = "## 页面标题\n\n解释 **线程**。\n\n- 第一项\n- 第二项\n\n:::notes\n这里是私有讲稿\n:::";
-    const page = narrationBeats(body, {})[1];
+    const page = presentationBeats(body, {})[1];
     const html = renderToStaticMarkup(createElement(Markdown, { body: splitSlides(body)[0].source, blocks: {}, guidePage: 1 }));
     expect(page.targets).toHaveLength(4);
     for (const target of page.targets!) expect(html).toContain(`data-galley-target="${target.id}"`);
@@ -152,22 +152,22 @@ describe("可以运行的代码块", () => {
   });
 });
 
-describe("演示页里的讲稿", () => {
-  it("默认不带讲稿：每页的 :::notes 和场景里的 say 都不进页面", async () => {
+describe("演示页里没有讲稿", () => {
+  it("讲稿归视频工坊：历史版本里留着的 :::notes 和场景里的 say 都不进演示页", async () => {
     const { presentSlides } = await import("../present-slides");
     const { runScenes } = await import("@/core/scene/run");
-    const body = ':::scene\n```js\nconst a = box("甲")\nstep("写给读者的。", () => { say("只在讲的时候说。"); show(a) })\n```\n:::\n\n:::notes\n这一页的提词\n:::';
+    const { removeNarration } = await import("@/core/markup/narration");
+    const raw = ':::scene\n```js\nconst a = box("甲")\nstep("写给读者的。", () => { say("只在讲的时候说。"); show(a) })\n```\n:::\n\n:::notes\n这一页的提词\n:::';
+    // 读文章时已经摘掉讲稿（services/documents.ts 的 assemble），场景按摘掉后的代码准备
+    const body = removeNarration(raw).body;
     const prepared = { traces: {}, scenes: await runScenes(body) } as never;
-    const sent = (narration?: boolean) => {
-      scenesSent.length = 0;
-      const slides = presentSlides({ body, blocks: {}, posts: {} } as never, prepared, narration === undefined ? undefined : { narration });
-      for (const s of slides) renderToStaticMarkup(createElement("div", null, s.content));
-      return JSON.stringify({ notes: slides.map((s) => s.notes), scenes: scenesSent });
-    };
-    expect(sent()).not.toContain("这一页的提词");
-    expect(sent()).not.toContain("只在讲的时候说");
-    expect(sent(true)).toContain("这一页的提词");
-    expect(sent(true)).toContain("只在讲的时候说");
+    scenesSent.length = 0;
+    const slides = presentSlides({ body, blocks: {}, posts: {} } as never, prepared);
+    const html = slides.map((s) => renderToStaticMarkup(createElement("div", null, s.content))).join("");
+    const sent = JSON.stringify(scenesSent) + html;
+    expect(sent).not.toContain("这一页的提词");
+    expect(sent).not.toContain("只在讲的时候说");
+    expect(sent).toContain("写给读者的。");
   });
 });
 
@@ -201,7 +201,6 @@ describe("场景动画", () => {
     expect(sent({})).toContain("写给读者的文字。");
     expect(sent({})).not.toContain("讲的时候说的话");
     expect(sent({ review: true })).not.toContain("讲的时候说的话");
-    expect(sent({ narration: true })).toContain("讲的时候说的话");
   });
 
   it("有读者能调的东西时才把代码交给浏览器，而且先摘掉讲稿", async () => {

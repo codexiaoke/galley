@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { lineIdentities } from "../code-diff";
-import { splitSlides, publicSlideSource } from "../slides";
+import { splitSlides } from "../slides";
 import { turnKind } from "../turn";
 
 describe("演示和代码演变", () => {
-  it("每个二级标题一页，--- 也分页，讲稿从页面上拿出来", () => {
+  it("每个二级标题一页，--- 也分页，历史版本里的讲稿不进页面", () => {
     const slides = splitSlides("开场白。\n\n## 第一页\n\n内容一\n\n:::notes\n讲稿一\n:::\n\n---\n\n分开的一页\n\n## 第三页\n\n内容三");
     expect(slides.map((s) => s.title)).toEqual([undefined, "第一页", undefined, "第三页"]);
-    expect(slides[1].notes).toBe("讲稿一");
     expect(slides[1].source).not.toContain("notes");
+    expect(slides[1].source).not.toContain("讲稿一");
   });
 
   it("三级标题各成一页，标出所属的二级标题；二级标题下面直接是小节时不留空页", () => {
@@ -41,7 +41,6 @@ describe("演示和代码演变", () => {
     expect(slides[0].source).not.toContain("换成代码");
     expect(slides[1].section).toBe("查询");
     expect(slides[1].source).toContain("换成代码是这样的");
-    expect(slides[1].notes).toBe("讲稿");
   });
 });
 
@@ -56,12 +55,11 @@ describe("Mermaid 演示分页", () => {
     expect(slides[1].section).toBe("支付流程");
     expect(slides[2].source).toContain("后续说明。");
   });
-  it("仅有标题和图时不生成空页，图后的讲稿仍归属于图", () => {
+  it("仅有标题和图时不生成空页", () => {
     const slides = splitSlides(`## 支付流程\n\n${graph}\n\n:::notes\n图的讲稿\n:::`);
     expect(slides).toHaveLength(1);
     expect(slides[0].source).toBe(graph);
     expect(slides[0].section).toBe("支付流程");
-    expect(slides[0].notes).toBe("图的讲稿");
   });
 });
 
@@ -98,46 +96,30 @@ describe("场景动画演示分页", () => {
     expect(slides).toHaveLength(1);
     expect(slides[0].source).toBe(scene);
     expect(slides[0].section).toBe("三道墙");
-    expect(slides[0].notes).toBe("开场");
     expect(slides.some((s) => s.source.includes("引用的依据") || s.source.includes("完整代码"))).toBe(false);
   });
-  it("标题下面直接是场景时不留空页，场景后的讲稿跟着场景", () => {
+  it("标题下面直接是场景时不留空页", () => {
     const slides = splitSlides(`## 三道墙\n\n${scene}\n\n:::notes\n讲到沙箱时停一下\n:::`);
     expect(slides).toHaveLength(1);
     expect(slides[0].source).toBe(scene);
     expect(slides[0].section).toBe("三道墙");
-    expect(slides[0].notes).toBe("讲到沙箱时停一下");
   });
 });
 
-describe("场景里的讲稿不进公开的接口", () => {
-  it("say 整句摘掉，写给读者的文字和动作都留着", () => {
-    const source = ':::scene\n```js\nconst a = box("甲")\nstep("写给读者的文字。", () => {\n  say("讲的时候说的话。")\n  show(a)\n})\n```\n:::';
-    const out = publicSlideSource(`前面一句 say("这不是代码")。\n\n${source}`);
-    expect(out).not.toContain("讲的时候说的话");
-    expect(out).toContain("写给读者的文字。");
-    expect(out).toContain("show(a)");
-    // 场景外面的正文不动
-    expect(out).toContain('前面一句 say("这不是代码")。');
+describe("讲稿归视频工坊：历史版本里留着的讲稿不进演示", () => {
+  it("场景里的 say 整句摘掉，写给读者的文字和动作都留着，场景外面提到 say 的正文不动", () => {
+    const scene = ':::scene\n```js\nconst a = box("甲")\nstep("写给读者的文字。", () => {\n  say("讲的时候说的话。")\n  show(a)\n})\n```\n:::';
+    const [slide] = splitSlides(`## 一节\n\n:::present\n前面一句 say("这不是代码")。\n:::\n\n${scene}`).filter((s) => s.source.includes("scene"));
+    expect(slide.source).not.toContain("讲的时候说的话");
+    expect(slide.source).toContain("写给读者的文字。");
+    expect(slide.source).toContain("show(a)");
+    expect(splitSlides(`## 一节\n\n前面一句 say("这不是代码")。`)[0].source).toContain('say("这不是代码")');
   });
-});
 
-describe("讲稿和正文分开", () => {
-  it("讲稿从页面内容里摘出来，不留在 source 里", () => {
-    const slides = splitSlides(`## 一节\n\n正文一句。\n\n:::notes\n这是我演讲时自己看的提词\n:::\n\n正文第二句。`);
+  it(":::notes 整段去掉，前后的正文留着", () => {
+    const slides = splitSlides(`## 一节\n\n正文一句。\n\n:::notes\n第一段\n:::\n\n正文第二句。\n\n:::notes\n第二段\n:::`);
     expect(slides).toHaveLength(1);
-    expect(slides[0].notes).toBe("这是我演讲时自己看的提词");
-    // present.json 把 source 公开出去，讲稿绝不能混在里面
-    expect(slides[0].source).not.toContain("notes");
-    expect(slides[0].source).not.toContain("提词");
-    expect(slides[0].source).toContain("正文一句。");
-    expect(slides[0].source).toContain("正文第二句。");
-  });
-
-  it("一页里写了好几段讲稿时合在一起", () => {
-    const slides = splitSlides(`## 一节\n\n正文。\n\n:::notes\n第一段\n:::\n\n:::notes\n第二段\n:::`);
-    expect(slides[0].notes).toBe("第一段\n第二段");
-    expect(slides[0].source).toBe("## 一节\n\n正文。");
+    expect(slides[0].source).toBe("## 一节\n\n正文一句。\n\n正文第二句。");
   });
 });
 

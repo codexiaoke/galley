@@ -1,7 +1,6 @@
 import { toString } from "mdast-util-to-string";
-import { visit } from "unist-util-visit";
 import { parseToTree } from "@/core/markup/parse";
-import { stripNarration } from "@/core/scene/shared";
+import { removeNarration } from "@/core/markup/narration";
 
 /**
  * 把一篇文章切成幻灯片：
@@ -14,14 +13,15 @@ import { stripNarration } from "@/core/scene/shared";
  * - 演示以图形为主：一节里有图形（场景、图、表、代码、组件、单独成段的图片、公式）时，
  *   普通段落、列表、引用留在文章里，演示页只放图形；要在演示里也显示的文字包进 :::present。
  *   一节里没有任何图形时照旧显示文字，不会剩下一张只有标题的页。
- * 页里的 :::notes 是讲稿，从页面上拿掉，单独放在 notes 里
+ * 讲稿归视频工坊：历史版本里还留着的 :::notes 和场景里的 say() 先摘掉（core/markup/narration.ts）
  * （演讲者视图里显示，导出视频时当成字幕的内容）。
  */
-export type Slide = { title?: string; section?: string; source: string; notes: string };
+export type Slide = { title?: string; section?: string; source: string };
 
 type Node = { type: string; depth?: number; name?: string; lang?: string; position?: { start: { offset?: number }; end: { offset?: number } }; children?: Node[] };
 
-export function splitSlides(body: string): Slide[] {
+export function splitSlides(source: string): Slide[] {
+  const body = removeNarration(source).body;
   const tree = parseToTree(body) as unknown as Node;
   const top = tree.children ?? [];
   type Draft = { title?: string; section?: string; parts: Node[]; headingOnly?: boolean };
@@ -51,7 +51,7 @@ export function splitSlides(body: string): Slide[] {
       current = { title: toString(node as never), section, parts: [node] };
       continue;
     }
-    if (current.headingOnly && !(node.type === "containerDirective" && node.name === "notes")) current.headingOnly = false;
+    if (current.headingOnly) current.headingOnly = false;
     current.parts.push(node);
   }
   flush();
@@ -62,39 +62,30 @@ export function splitSlides(body: string): Slide[] {
   const pages = graphic.flatMap((d) => splitHeavy(d, body)).flatMap(splitSolo);
 
   const slice = (n: Node) => body.slice(n.position?.start.offset ?? 0, n.position?.end.offset ?? 0);
-  return pages.map((s) => {
-    const notes: string[] = [];
-    const kept: string[] = [];
-    for (const n of s.parts) {
-      if (n.type === "containerDirective" && n.name === "notes") notes.push((n.children ?? []).map((c) => toString(c as never)).join("\n"));
-      else kept.push(slice(n));
-    }
-    return { title: s.title, section: s.title === s.section ? undefined : s.section, source: kept.join("\n\n"), notes: notes.join("\n").trim() };
-  });
+  return pages.map((s) => ({ title: s.title, section: s.title === s.section ? undefined : s.section, source: s.parts.map(slice).join("\n\n") }));
 }
 
-/** 占地方的东西：组件、代码块、表格、整块嵌入。提示框和讲稿不算。 */
+/** 占地方的东西：组件、代码块、表格、整块嵌入。提示框不算。 */
 function isHeavy(n: Node): boolean {
   if (n.type === "code" || n.type === "table") return true;
-  if (n.type === "containerDirective") return n.name !== "notes" && n.name !== "callout" && n.name !== "present";
+  if (n.type === "containerDirective") return n.name !== "callout" && n.name !== "present";
   if (n.type === "leafDirective") return true;
   return false;
 }
 
 /** 图形：大块之外，单独成段的图片和整块公式也算 */
 function isGraphic(n: Node): boolean {
-  if (isPresent(n) || isNotes(n)) return false;
+  if (isPresent(n)) return false;
   if (isHeavy(n) || n.type === "math") return true;
   return n.type === "paragraph" && (n.children ?? []).length === 1 && n.children![0].type === "image";
 }
 
-const isNotes = (n: Node) => n.type === "containerDirective" && n.name === "notes";
 const isPresent = (n: Node) => n.type === "containerDirective" && n.name === "present";
 
-/** 演示里一定留着的：标题、讲稿、图形、标了 :::present 的文字。其余的文字只在文章里。 */
+/** 演示里一定留着的：标题、图形、标了 :::present 的文字。其余的文字只在文章里。 */
 function graphicsFirst(d: { title?: string; section?: string; parts: Node[]; headingOnly?: boolean }) {
   if (!d.parts.some(isGraphic)) return d;
-  return { ...d, parts: d.parts.filter((n) => n.type === "heading" || isNotes(n) || isPresent(n) || isGraphic(n)) };
+  return { ...d, parts: d.parts.filter((n) => n.type === "heading" || isPresent(n) || isGraphic(n)) };
 }
 
 /** 以冒号结尾的段落是在引出下一个东西（"写出来是这样的："），跟着下一页走 */
@@ -146,42 +137,20 @@ function splitSolo(d: DraftPage): DraftPage[] {
   let pending: Node[] = [];
   const section = d.title ?? d.section;
   const flushText = () => {
-    if (!pending.some((n) => n.type !== "heading" && !isNotes(n))) return;
+    if (!pending.some((n) => n.type !== "heading")) return;
     pages.push(pages.length ? { section, parts: pending } : { ...d, parts: pending });
     pending = [];
   };
   for (const node of d.parts) {
     if (isSolo(node)) {
       flushText();
-      pages.push({ section, parts: [...pending.filter(isNotes), node] });
+      pages.push({ section, parts: [node] });
       pending = [];
-    } else if (isNotes(node) && pending.length === 0 && pages.length) {
-      pages[pages.length - 1].parts.push(node);
     } else {
       pending.push(node);
     }
   }
   flushText();
-  // 标题和讲稿没有正文时不制造空页，但也不丢弃末尾讲稿。
-  if (pending.length && pages.length) pages[pages.length - 1].parts.push(...pending.filter(isNotes));
   return pages;
 }
 
-/**
- * 一页的正文里可以公开的部分：场景代码里的讲稿（say）摘掉。
- * 讲稿和 :::notes 一样，是作者讲的时候自己说的话，不放进公开的幻灯片接口（present.json）。
- */
-export function publicSlideSource(source: string): string {
-  let out = source;
-  // 从后往前改，前面的位置不会被挪动
-  const scenes: Node[] = [];
-  visit(parseToTree(source), (n) => {
-    if (n.type === "containerDirective" && (n as unknown as Node).name === "scene") scenes.push(n as unknown as Node);
-  });
-  for (const scene of scenes.reverse()) {
-    const start = scene.position?.start.offset ?? 0;
-    const end = scene.position?.end.offset ?? 0;
-    out = out.slice(0, start) + stripNarration(out.slice(start, end)) + out.slice(end);
-  }
-  return out;
-}

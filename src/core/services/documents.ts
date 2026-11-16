@@ -1,3 +1,4 @@
+import { narrationRemovedMessage, removeNarration } from "../markup/narration";
 import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { actorColumns, type Actor } from "../actor";
 import type { Db } from "../db/client";
@@ -182,9 +183,12 @@ function resolvePostCards(db: Db, posts: ParsedPostRef[]): Record<string, PostCa
   return Object.fromEntries(rows.map((row) => [row.slug, row]));
 }
 
-export function checkDocumentBody(db: Db, changeSetId: string, body: string): MarkupIssue[] {
+export function checkDocumentBody(db: Db, changeSetId: string, source: string): MarkupIssue[] {
+  const narration = removeNarration(source);
+  const body = narration.body;
   const parsed = parseMarkup(body);
   return [
+    ...(narration.removed ? [{ level: "warning" as const, message: narrationRemovedMessage(narration.removed) }] : []),
     ...parsed.issues,
     ...checkRefs(db, changeSetId, parsed.refs).issues,
     ...checkImages(db, parsed.images),
@@ -236,6 +240,9 @@ export function saveDocument(db: Db, actor: Actor, input: SaveDocumentInput): Sa
 
   const tags = input.tags === undefined ? undefined : normalizeTags(input.tags);
   const series = input.series === undefined ? undefined : normalizeSeries(input.series);
+  // 讲稿归视频工坊：正文里的 :::notes 和场景里的 say() 不保存，提醒一句
+  const narration = removeNarration(input.body);
+  input = { ...input, body: narration.body };
   const parsed = parseMarkup(input.body);
   const checked = checkRefs(db, input.changeSetId, parsed.refs);
   const issues = [
@@ -244,6 +251,7 @@ export function saveDocument(db: Db, actor: Actor, input: SaveDocumentInput): Sa
     ...checkImages(db, parsed.images),
     ...checkPostRefs(db, parsed.posts),
     ...citationStyleWarnings(input.body, parsed.refs),
+    ...(narration.removed ? [{ level: "warning" as const, message: narrationRemovedMessage(narration.removed) }] : []),
   ];
   if (issues.some((i) => i.level === "error")) return { saved: false, issues };
 
@@ -480,7 +488,8 @@ function assemble(
     slug: doc.slug,
     title: rev.title,
     summary: rev.summary,
-    body: rev.body,
+    // 讲稿归视频工坊：历史版本里还留着的 :::notes、say() 不拿去显示。所有显示的地方（文章、演示、预览）用的是同一份，场景的编号才对得上
+    body: removeNarration(rev.body).body,
     revNo: rev.revNo,
     category: category ?? null,
     tags: rev.tags,

@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { advance, leadsOn, planBuild, type BuildState, type BuildStop } from "../build";
-import { captionParts, captionWidth, defaultPageStay, speakingTime } from "../captions";
+import { defaultPageStay } from "../pacing";
 import { download, prepareRecording, recordingSupport, type Recording, type RecordingSupport } from "./recorder";
 import { formatSpeed, PresentSpeed, SPEEDS } from "./speed";
 import { printWhenDiagramsReady } from "../print-readiness";
@@ -28,7 +28,7 @@ import { GuideFocus } from "./guide-focus";
  * 幻灯片按固定的设计尺寸排版（横屏 1600×900，竖屏 900×1600），整体缩放到窗口大小，
  * 所以在什么屏幕上看、录成视频，排版都一样。内容太多放不下时整页缩小一点。
  *
- * 按声音走：做视频的工具把每一拍配音的时长传进来（timing，名字见 render/narration.ts），
+ * 按声音走：做视频的工具把每一拍配音的时长传进来（timing，名字见 render/beats.ts），
  * 自动播放时这一页、这一步就按那个时长停。一页的讲稿说完，才开始走这一页里的步骤。
  * 演示同时把每一拍实际开始的时刻记下来（window.__galleyTimeline，并通知外层页面），
  * 工具可以按它把声音对到画面上；在这里录的视频，录完可以下载这份时间轴。
@@ -40,12 +40,12 @@ import { GuideFocus } from "./guide-focus";
  * 可以自动播放，也可以自己翻页、同时用麦克风配音。录完直接下载，不上传。
  */
 
-export type PresentSlide = { title?: string; section?: string; notes: string; text: number; content: ReactNode };
+export type PresentSlide = { title?: string; section?: string; text: number; content: ReactNode };
 export type Cover = { title: string; summary?: string; site: string; date?: string; url?: string };
 type Orientation = "landscape" | "portrait";
 
-type StepDetail = { dir: number; wait?: number; caption?: string; beat?: string; anim?: number };
-/** 实际走过的时间轴：每一拍（见 render/narration.ts）是什么时候开始的 */
+type StepDetail = { dir: number; wait?: number; beat?: string; anim?: number };
+/** 实际走过的时间轴：每一拍（见 render/beats.ts）是什么时候开始的 */
 type TimelineEntry = { id: string; at: number };
 
 type TransitionDocument = Document & { startViewTransition?: (update: () => void) => { finished: Promise<void>; ready: Promise<void> } };
@@ -114,7 +114,8 @@ type RecState = "idle" | "setup" | "countdown" | "recording" | "saving" | "done"
  * space 是给"字幕由做视频的工具后期加上去"用的：画面本身不带字幕，底部那一条空着，
  * 工具把字幕压上去时不会盖住内容，也不用给视频另加黑边。
  */
-export type CaptionMode = "off" | "on" | "space";
+/** space：画面底部留出字幕的位置（字幕由视频工坊或后期加）；off：内容用满整个画面。讲稿归视频工坊，博客不显示讲稿字幕 */
+export type CaptionMode = "off" | "space";
 type RecOptions = { orientation: Orientation; captions: CaptionMode; mic: boolean; pacing: "auto" | "manual"; speed: number };
 
 const DESIGN = { landscape: { w: 1600, h: 900 }, portrait: { w: 900, h: 1600 } };
@@ -151,7 +152,7 @@ export function Presentation({
   captions?: CaptionMode;
   /** 每一页至少停留多久（毫秒） */
   durations?: number[];
-  /** 每一拍停多久（毫秒）：名字是 p<页码> 或者 <场景的指纹>.<第几步>，见 render/narration.ts */
+  /** 每一拍停多久（毫秒）：名字是 p<页码> 或者 <场景的指纹>.<第几步>，见 render/beats.ts */
   timing?: Record<string, number>;
   /** 打印（存成 PDF）：所有页一页接一页排好，打开浏览器的打印对话框 */
   print?: boolean;
@@ -174,9 +175,6 @@ export function Presentation({
   const changeSpeed = (dir: number) => setSpeed((v) => SPEEDS[Math.max(0, Math.min(SPEEDS.length - 1, SPEEDS.indexOf(v) + dir))]);
   const [scale, setScale] = useState(1);
   const [chrome, setChrome] = useState(!autoParam);
-  const [showNotes, setShowNotes] = useState(false);
-  // 字幕：这一页有讲稿时用讲稿，没有时用页里动画当前这一步的说明
-  const [stepCaption, setStepCaption] = useState<{ page: number; text: string; wait?: number } | null>(null);
   const slideRefs = useRef<(HTMLElement | null)[]>([]);
   const stageRef = useRef<HTMLDivElement>(null);
   const size = DESIGN[orientation];
@@ -371,7 +369,7 @@ export function Presentation({
   const pageStay = useCallback(
     (p: number) => {
       const slide = p >= 1 && p <= slides.length ? slides[p - 1] : null;
-      const fallback = p >= total - 1 ? 1000 : slide ? defaultPageStay(slide.notes.length, slide.text) : 1000;
+      const fallback = p >= total - 1 ? 1000 : slide ? defaultPageStay(slide.text) : 1000;
       return (timing?.[`p${p}`] ?? durations?.[p] ?? fallback) / speed;
     },
     [timing, durations, slides, speed, total],
@@ -418,13 +416,12 @@ export function Presentation({
       const inner = stepInside(dir);
       if (inner) {
         if (inner.beat) logBeat(inner.beat);
-        if (inner.caption) setStepCaption({ page, text: inner.caption, wait: stepWait(inner) });
         return inner;
       }
       turnTo(page + dir);
       return null;
     },
-    [stepInside, turnTo, page, logBeat, stepWait],
+    [stepInside, turnTo, page, logBeat],
   );
 
   const stopRecording = useCallback(async () => {
@@ -461,8 +458,6 @@ export function Presentation({
       // 从头开始：回到封面，所有动画重新挂载
       turnTo(0, false);
       setRun((n) => n + 1);
-      setStepCaption(null);
-      setShowNotes(false);
       setCountdown(3);
       setRec("countdown");
     } catch (e) {
@@ -540,8 +535,7 @@ export function Presentation({
         else if (e.key === "f" || e.key === "F") {
           if (document.fullscreenElement) void document.exitFullscreen();
           else void document.documentElement.requestFullscreen?.();
-        } else if (e.key === "n" || e.key === "N") setShowNotes((v) => !v);
-        else if (e.key === "c" || e.key === "C") setCaptions((v) => (v === "on" ? "off" : "on"));
+        }
       }
     };
     window.addEventListener("keydown", onKey);
@@ -599,7 +593,6 @@ export function Presentation({
       if (inner) {
         const wait = stepWait(inner);
         if (inner.beat) logBeat(inner.beat);
-        if (inner.caption) setStepCaption({ page, text: inner.caption, wait });
         // 页里动画给的等待时间已经按速度算过了（它们也在用同一个速度）
         after(wait ?? 600, tick);
         return;
@@ -634,10 +627,6 @@ export function Presentation({
     if (!turning || (i !== turning.from && i !== turning.to)) return { hidden: !print && page !== i };
     return { hidden: false, "data-turn": turning.kind, "data-dir": turning.dir, "data-leaving": i === turning.from || undefined };
   };
-  const current = page >= 1 && page <= slides.length ? slides[page - 1] : null;
-  const caption = current ? current.notes || (stepCaption?.page === page ? stepCaption.text : null) : null;
-  // 这句字幕大概会在屏幕上停多久：几段字幕按各自的长短分摊这段时间
-  const captionSpan = !caption ? 0 : current?.notes ? (durations?.[page] ?? speakingTime(caption)) / speed : (stepCaption?.wait ?? speakingTime(caption) / speed);
   const idle = rec === "idle";
 
   return (
@@ -686,7 +675,6 @@ export function Presentation({
         </div>
         </PresentSpeed.Provider>
         {controlled && !print && <GuideFocus />}
-        {captions === "on" && caption && <Caption key={`${page}:${caption}`} text={caption} span={captionSpan} />}
       </div>
 
       {print && (
@@ -729,12 +717,6 @@ export function Presentation({
                 +
               </button>
             </span>
-            <button type="button" onClick={() => setShowNotes((v) => !v)} aria-pressed={showNotes} title="讲稿（N）">
-              讲稿
-            </button>
-            <button type="button" onClick={() => setCaptions((v) => (v === "on" ? "off" : "on"))} aria-pressed={captions === "on"} title="把讲稿显示成字幕（C）">
-              字幕
-            </button>
             <button
               type="button"
               onClick={() => (document.fullscreenElement ? void document.exitFullscreen() : void document.documentElement.requestFullscreen?.())}
@@ -758,13 +740,6 @@ export function Presentation({
               <i aria-hidden="true" /> 录制
             </button>
           </nav>
-          {showNotes && (
-            <aside className="galley-present-notes">
-              <strong>{current ? (current.title ?? `第 ${page} 页`) : page === 0 ? "封面" : "结尾"}</strong>
-              {/* 这一页的讲稿；没有时显示页里动画当前这一步的讲稿（场景动画的 say） */}
-              <p>{current ? current.notes || (stepCaption?.page === page ? stepCaption.text : "") || "这一页没有讲稿。" : ""}</p>
-            </aside>
-          )}
         </>
       )}
 
@@ -809,7 +784,6 @@ export function Presentation({
                 value={recOptions.captions}
                 options={[
                   { value: "space", label: "留出位置", hint: "画面不带字幕，底部空出一条，后期用工具加" },
-                  { value: "on", label: "直接显示", hint: "把讲稿录进画面里" },
                   { value: "off", label: "不要", hint: "内容用满整个画面" },
                 ]}
                 onChange={(captions) => setRecOptions((o) => ({ ...o, captions }))}
@@ -893,26 +867,6 @@ export function Presentation({
         </div>
       )}
     </div>
-  );
-}
-
-/**
- * 字幕：一次只显示一小段（见 render/captions.ts），几段依次出现。
- * 整句讲稿一起放上去会排成两三行的一大块，压住上面的画面。
- */
-function Caption({ text, span }: { text: string; span: number }) {
-  const parts = useMemo(() => captionParts(text), [text]);
-  const [index, setIndex] = useState(0);
-  useEffect(() => {
-    if (index >= parts.length - 1) return;
-    const total = parts.reduce((sum, part) => sum + captionWidth(part), 0) || 1;
-    const timer = setTimeout(() => setIndex(index + 1), Math.max(700, (span * captionWidth(parts[index])) / total));
-    return () => clearTimeout(timer);
-  }, [index, parts, span]);
-  return (
-    <p key={index} className="galley-present-caption">
-      {parts[Math.min(index, parts.length - 1)]}
-    </p>
   );
 }
 

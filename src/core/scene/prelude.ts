@@ -4,7 +4,7 @@
  * 作者的代码做两件事：
  * 1. 摆东西：box、circle、text、code、frame、arrow、line、image、path（以及 axes 画出来的坐标系和函数图像）
  *    各建一个东西，返回它的"把手"；
- * 2. 写步骤：step(写给读者的一句话, () => { say(讲的时候说的话); show(a); move(b, { x: 300 }); send(link) })。
+ * 2. 写步骤：step(写给读者的一句话, () => { show(a); move(b, { x: 300 }); send(link) })。
  *
  * 这里不画任何东西，只记账：每个东西一开始的属性，以及每一步里
  * "谁的哪个属性、在这一步的第几毫秒、用多久、变成多少"。最后 __finish() 把账本交出去。
@@ -586,7 +586,7 @@ function step(note, fn) {
   if (s.say !== undefined) out.say = s.say;
   __steps.push(out);
 }
-/** 讲这一步时说的话：口语的讲稿。文章里不出现，演示里是字幕和提词 */
+/** 讲这一步时说的话。讲稿已经归视频工坊，保存时会从正文里去掉；这里只为了历史版本里留着的还能跑 */
 function say(words) {
   if (!__cur) __fail("say() 要写在 step(文字, () => { ... }) 的函数里面：它是讲这一步时说的话。");
   if (typeof words !== "string" || !words.trim()) __fail("say() 的括号里直接写讲这一步时说的话（一两句口语）。");

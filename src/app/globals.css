@@ -5252,28 +5252,6 @@ html[data-slide-turn="cover"][data-slide-dir="back"] {
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
-.galley-present-notes {
-  position: absolute;
-  right: 18px;
-  bottom: 70px;
-  width: min(420px, 90vw);
-  max-height: 40vh;
-  overflow: auto;
-  border-radius: 12px;
-  padding: 16px 18px;
-  background: var(--paper-raised);
-  box-shadow: 0 0 0 1px var(--rule), 0 14px 40px -18px rgba(0, 0, 0, 0.35);
-  font-family: var(--font-ui);
-  font-size: 15px;
-  line-height: 1.7;
-}
-.galley-present-notes strong {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  color: var(--ink-faint);
-}
 /* 正文渲染自带一层 galley-prose（有自己的字号），在幻灯片里跟随幻灯片的字号 */
 .galley-slide-body .galley-prose {
   font-size: inherit;

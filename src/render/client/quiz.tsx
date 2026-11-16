@@ -52,7 +52,7 @@ export function Quiz({ title, correct, children }: { title?: string; correct: nu
     if (!root || !root.closest(".galley-present")) return;
     root.dataset.steppable = "true";
     const onStep = (e: Event) => {
-      const detail = (e as CustomEvent<{ dir: number; wait?: number; caption?: string }>).detail;
+      const detail = (e as CustomEvent<{ dir: number; wait?: number }>).detail;
       const revealed = root.dataset.state === "revealed";
       if ((detail.dir > 0 && revealed) || (detail.dir < 0 && !revealed)) return;
       e.preventDefault();
@@ -60,7 +60,6 @@ export function Quiz({ title, correct, children }: { title?: string; correct: nu
         setSelected(correct);
         setState("revealed");
         detail.wait = 4000;
-        detail.caption = root.querySelector(".galley-quiz-explain")?.textContent?.trim() || undefined;
       } else {
         setSelected([]);
         setState("answering");

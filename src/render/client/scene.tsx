@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type SVGProps } from "react";
 import { isBlend, readingTime, sceneFrame, sceneTargetVisible, type FrameValue, type NodeFrame, type SceneFrame } from "@/core/scene/frame";
 import type { Scene, SceneNode, SceneParam, SceneRatio } from "@/core/scene/types";
-import { speakingTime } from "../captions";
 import { arrowHead, curveDirection, curvePath, curvePoint, linkCurve, mixPoints, parsePoints, shapePath, type Curve, type End } from "../scene-geometry";
 import { prefersReducedMotion, useInView, useVisible } from "./in-view";
 import { SPEEDS, usePresentSpeed } from "./speed";
@@ -520,23 +519,19 @@ export function ScenePlayer({
     const el = ref.current;
     if (!el) return;
     const onStep = (e: Event) => {
-      const detail = (e as CustomEvent<{ dir: number; wait?: number; caption?: string; beat?: string; anim?: number }>).detail;
+      const detail = (e as CustomEvent<{ dir: number; wait?: number; beat?: string; anim?: number }>).detail;
       const next = index + (detail.dir > 0 ? 1 : -1);
       if (next < -1 || next > last) return;
       e.preventDefault();
       setPlaying(false);
-      // 字幕用讲稿（讲的时候说的话）；这一步没写讲稿时才用画面下面那句文字
-      const spoken = (i: number) => current.steps[i].say ?? current.steps[i].text;
       if (detail.dir > 0) {
         const step = current.steps[next];
-        // 有讲稿时：边放动画边讲，动画放完、话也说完了才走下一步；没有讲稿时：动画放完再留出读那句文字的时间
-        detail.wait = (step.say ? Math.max(step.duration, speakingTime(step.say)) + 500 : step.duration + readingTime(step.text)) / rate;
-        detail.caption = spoken(next);
+        // 动画放完，再留出读那句文字的时间
+        detail.wait = (step.duration + readingTime(step.text)) / rate;
         detail.beat = beat ? `${beat}.${next}` : undefined;
         detail.anim = step.duration / rate;
         go(next, true);
       } else {
-        detail.caption = next >= 0 ? spoken(next) : undefined;
         go(next, false);
       }
     };

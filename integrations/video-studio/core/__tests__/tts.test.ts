@@ -60,8 +60,8 @@ it("模型失败不会被缓存，修复后的配音可以继续生成", async (
 it("只替换后端请求中的本机主机名，保留站点端口、路径和线上地址", () => {
   vi.stubEnv("STUDIO_LOCAL_SITE_HOST", "host.docker.internal");
   expect(studioFetchUrl("http://localhost:3222/posts/demo/present?version=abc")).toBe("http://host.docker.internal:3222/posts/demo/present?version=abc");
-  expect(studioFetchUrl("http://127.0.0.1:3000/narration.json")).toBe("http://host.docker.internal:3000/narration.json");
-  expect(studioFetchUrl("https://blog.example.com/narration.json")).toBe("https://blog.example.com/narration.json");
+  expect(studioFetchUrl("http://127.0.0.1:3000/structure.json")).toBe("http://host.docker.internal:3000/structure.json");
+  expect(studioFetchUrl("https://blog.example.com/structure.json")).toBe("https://blog.example.com/structure.json");
 });
 it("配音进程中途退出时立即报错，不等 20 分钟超时，之后会重新启动", async () => {
   // 只会握手的假配音服务：收到 tools/call 就直接退出。

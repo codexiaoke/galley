@@ -1,7 +1,7 @@
 import { runScenes } from "@/core/scene/run";
 import { presentationVersion, structureFingerprint } from "@/core/presentation-version";
 import type { RenderableDocument } from "@/core/services/documents";
-import { narrationBeats } from "@/render/narration";
+import { presentationBeats } from "@/render/beats";
 
 /**
  * 一篇文章的演示结构（给视频工坊用）：一拍一拍的清单，加上两个指纹。
@@ -9,6 +9,6 @@ import { narrationBeats } from "@/render/narration";
  * - structure：结构指纹，只看有哪些拍、画面上写什么、能指向什么（见 core/presentation-version.ts）。
  */
 export async function presentationSource(doc: RenderableDocument & { body: string }, site: { name: string; url: string | null; theme: string }) {
-  const beats = narrationBeats(doc.body, await runScenes(doc.body));
+  const beats = presentationBeats(doc.body, await runScenes(doc.body));
   return { version: presentationVersion(doc, site), structure: structureFingerprint(beats), beats };
 }

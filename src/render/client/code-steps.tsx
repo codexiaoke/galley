@@ -90,12 +90,11 @@ export function CodeStepsPlayer({
     const el = ref.current;
     if (!el) return;
     const onStep = (e: Event) => {
-      const detail = (e as CustomEvent<{ dir: number; wait?: number; caption?: string }>).detail;
+      const detail = (e as CustomEvent<{ dir: number; wait?: number }>).detail;
       const next = index + detail.dir;
       if (next < 0 || next > last) return;
       e.preventDefault();
       detail.wait = steps[next].duration / rate;
-      detail.caption = texts[next];
       setPlaying(false);
       setFrom(index);
       setIndex(next);

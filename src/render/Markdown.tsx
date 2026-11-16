@@ -292,7 +292,7 @@ const formatDate = (d: Date) => new Date(d).toISOString().slice(0, 10);
  * 正文里只保留读者关心的东西（内容本身和数据的出处）。
  * 这些系统信息只在后台的审阅预览里显示，由 Markdown 的 review 参数打开。
  */
-type Ctx = { blocks: Record<string, BlockView>; posts: Record<string, PostCard>; review: boolean; traces: Record<string, TraceResult>; scenes: Record<string, SceneResult>; narration: boolean; terms: Map<string, Term> };
+type Ctx = { blocks: Record<string, BlockView>; posts: Record<string, PostCard>; review: boolean; traces: Record<string, TraceResult>; scenes: Record<string, SceneResult>; terms: Map<string, Term> };
 
 function Sources({ block }: { block: BlockView }) {
   if (block.sources.length === 0) return null;
@@ -665,7 +665,7 @@ function SceneView({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
     // 场景里有读者能调的东西时，把代码也交给播放器：读者一动，浏览器要带着新的数值重新运行。
     // 交出去的代码先摘掉讲稿；没有可调的东西时不交代码，读者的浏览器只拿到运行结果。
     const source = result.scene.params?.length ? stripNarration(code) : undefined;
-    return <ScenePlayer key={id} scene={ctx.narration ? result.scene : withoutNarration(result.scene)} title={title || undefined} source={source} ratio={ratio} beat={id} />;
+    return <ScenePlayer key={id} scene={withoutNarration(result.scene)} title={title || undefined} source={source} ratio={ratio} beat={id} />;
   }
   return ctx.review ? <p className="galley-trace-error">{result ? `场景代码出错，${result.error}` : "场景代码还没有运行。"}</p> : null;
 }
@@ -686,7 +686,6 @@ export function Markdown({
   review = false,
   traces = {},
   scenes = {},
-  narration = false,
   terms = [],
   guidePage,
 }: {
@@ -700,13 +699,11 @@ export function Markdown({
   traces?: Record<string, TraceResult>;
   /** 场景代码的运行结果（prepareRender 的返回值）。服务端渲染时也可以省略，直接从缓存取。 */
   scenes?: Record<string, SceneResult>;
-  /** 演示模式：场景动画带上每一步的讲稿（字幕和提词用）。文章页面上不带。 */
-  narration?: boolean;
   /** 站点上的术语（见 core/services/knowledge.ts 的 listTerms）。给了才标，正文里每个术语只标第一次出现 */
   terms?: Term[];
   guidePage?: number;
 }) {
-  const ctx: Ctx = { blocks, posts, review, traces, scenes, narration, terms: new Map(terms.map((t) => [t.id, t])) };
+  const ctx: Ctx = { blocks, posts, review, traces, scenes, terms: new Map(terms.map((t) => [t.id, t])) };
   const processor = unified()
     .use(remarkParse)
     .use(remarkGfm)

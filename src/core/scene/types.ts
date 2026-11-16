@@ -70,9 +70,8 @@ export type SceneStep = {
   /** 写给读者看的一句话：文章里显示在画面下面，是正文的一部分 */
   text: string;
   /**
-   * 讲这一步时说的话（口语的讲稿），和上面那句不是一回事：写出来给人读的句子，照着念出来是不对的。
-   * 只在演示里用（字幕、演讲者的提词）。文章页面上不带它（见 scene/shared.ts 的 withoutNarration），
-   * 公开的幻灯片接口里也不带（见 render/slides.ts 的 publicSlideSource）。
+   * 讲这一步时说的话。讲稿已经归视频工坊，保存和显示时都会从正文里去掉（core/markup/narration.ts），
+   * 只有直接跑历史版本的场景代码时才会有；显示时也不带（见 scene/shared.ts 的 withoutNarration）。
    */
   say?: string;
   tweens: SceneTween[];

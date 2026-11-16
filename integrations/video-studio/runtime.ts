@@ -34,8 +34,10 @@ export class StudioRuntime {
   config() { return { ...this.connection.public(), production: this.projects.settings.production(), ttsServer: this.voice.serverName, ttsFound: this.voice.configured(), dir: this.directory }; }
 
   private async remote(route: string, connection = this.connection.read()) {
-    if (!connection.token) throw invalid("请先在工坊设置中填写站点地址和访问密钥。");
-    const response = await fetch(studioFetchUrl(`${connection.url}${route}`), { headers: { Authorization: `Bearer ${connection.token}` }, signal: AbortSignal.timeout(20000), redirect: "error" });
+    if (!connection.url) throw invalid("请先在工坊设置中填写站点地址。");
+    // 演示结构是公开的，不需要密钥；填了密钥就带上（以后读未发布的版本时要用）
+    const headers: Record<string, string> = connection.token ? { Authorization: `Bearer ${connection.token}` } : {};
+    const response = await fetch(studioFetchUrl(`${connection.url}${route}`), { headers, signal: AbortSignal.timeout(20000), redirect: "error" });
     if (!response.headers.get("content-type")?.includes("application/json")) throw invalid(`站点接口没有返回 JSON（${response.status}），请确认地址和线上 Galley 版本。`);
     const data = await response.json();
     if (!response.ok) throw invalid(data.error ?? `站点返回了 ${response.status}。`);
@@ -44,17 +46,17 @@ export class StudioRuntime {
 
   async connect(actor: Actor, url: string, token: string) {
     const candidate = this.connection.candidate(actor, url, token);
-    const data = await this.remote("/narration.json", candidate);
+    const data = await this.remote("/structure.json", candidate);
     if (!Array.isArray(data.articles)) throw invalid("这个站点没有返回文章清单，请更新线上 Galley。");
     return this.connection.save(actor, candidate);
   }
 
-  async articles() { return this.remote("/narration.json") as Promise<{ articles: { slug: string; title: string; narrated: number }[] }>; }
+  async articles() { return this.remote("/structure.json") as Promise<{ articles: { slug: string; title: string }[] }>; }
 
   async source(slug: string): Promise<StudioSource> {
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw invalid("文章别名无效。");
     const connection = this.connection.read();
-    const data = await this.remote(`/posts/${slug}/narration.json`, connection);
+    const data = await this.remote(`/posts/${slug}/structure.json`, connection);
     const parsed = studioSourceSchema.safeParse({ ...data, galley: connection.url });
     if (!parsed.success) throw invalid("线上 Galley 尚未提供演示版本信息，请部署当前版本后再建立项目。");
     return parsed.data;

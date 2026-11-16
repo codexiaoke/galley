@@ -2,11 +2,10 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { prepareRender } from "@/core/prepare";
 import { Presentation } from "@/render/client/present";
-import { parseTiming } from "@/render/narration";
+import { parseTiming } from "@/render/beats";
 import { presentSlides } from "@/render/present-slides";
 import { loadPublishedDocument } from "../../../data";
 import { loadSite } from "../../../site";
-import { isOwner } from "../../../admin/auth";
 import { presentationSource } from "../../../presentation-source";
 
 /**
@@ -17,9 +16,9 @@ import { presentationSource } from "../../../presentation-source";
  * - controlled=1：等外层视频工坊收到 ready 后发 start，再从封面开始播放
  * - offline=1：本机逐帧导出，由渲染器控制时间，跳过原生视图过渡
  * - orientation=portrait：竖屏（9:16）
- * - captions=1：把讲稿当字幕显示；captions=space：不显示字幕，但每一页在底部留出字幕的位置（字幕由后期加）
- * - durations=3000,5200,…：每一页至少停留多少毫秒（按朗读的长度）
- * - timing=p1:5200,p2:3000,1x9abc.0:4100,…：每一拍停多少毫秒。拍的名字从 narration.json 里来
+ * - captions=space：不显示字幕，但每一页在底部留出字幕的位置（字幕由视频工坊或后期加）。讲稿归视频工坊，博客不显示讲稿
+ * - durations=3000,5200,…：每一页至少停留多少毫秒
+ * - timing=p1:5200,p2:3000,1x9abc.0:4100,…：每一拍停多少毫秒。拍的名字从 structure.json 里来
  *   （页是 p<页码>，场景的步骤是 <场景的指纹>.<第几步>），细到场景的每一步，比 durations 准
  * - structure=<结构指纹>：视频工坊用。和 structure.json 里的对不上就返回 404，不放和讲稿对不上的画面
  * - print=1：所有页排好后打开打印对话框，存成 PDF
@@ -44,8 +43,6 @@ async function Present({ params, searchParams }: { params: Promise<{ slug: strin
     if ((typeof query.structure === "string" && query.structure !== source.structure) || (typeof query.version === "string" && query.version !== source.version)) notFound();
   }
   const prepared = await prepareRender(doc.body);
-  // 讲稿只给登录的站长看（演讲者提词、讲稿字幕）；别的访客拿到的演示页里没有讲稿
-  const narration = await isOwner();
   const one = (k: string) => (typeof query[k] === "string" ? (query[k] as string) : undefined);
   const durations = one("durations")
     ?.split(",")
@@ -63,7 +60,7 @@ async function Present({ params, searchParams }: { params: Promise<{ slug: strin
         controlled={one("controlled") === "1"}
         offline={one("offline") === "1"}
         orientation={one("orientation") === "portrait" ? "portrait" : one("orientation") === "landscape" ? "landscape" : undefined}
-        captions={one("captions") === "1" ? "on" : one("captions") === "space" ? "space" : "off"}
+        captions={one("captions") === "space" ? "space" : "off"}
         durations={durations?.length ? durations : undefined}
         timing={parseTiming(one("timing"))}
         print={one("print") === "1"}
@@ -74,7 +71,7 @@ async function Present({ params, searchParams }: { params: Promise<{ slug: strin
           date: date ? `${date.getFullYear()} 年 ${date.getMonth() + 1} 月 ${date.getDate()} 日` : undefined,
           url: site.url ?? undefined,
         }}
-        slides={presentSlides(doc, prepared, { narration })}
+        slides={presentSlides(doc, prepared)}
       />
     </>
   );

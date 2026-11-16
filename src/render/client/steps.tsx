@@ -43,14 +43,13 @@ export function StepsController({ children }: { children: ReactNode }) {
     // 演示模式里没有滚动：方向键一步一步切换（见 present.tsx 的 "galley-step"）
     let current = 0;
     const onStep = (e: Event) => {
-      const detail = (e as CustomEvent<{ dir: number; wait?: number; caption?: string }>).detail;
+      const detail = (e as CustomEvent<{ dir: number; wait?: number }>).detail;
       const next = current + detail.dir;
       if (next < 0 || next >= items.length) return;
       e.preventDefault();
       current = next;
       activate(next);
       detail.wait = 3500;
-      detail.caption = items[next].textContent?.trim();
     };
     if (root.closest(".galley-present")) {
       root.dataset.steppable = "true";

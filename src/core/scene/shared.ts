@@ -42,8 +42,8 @@ export function rememberScene(key: string, result: SceneResult) {
 }
 
 /**
- * 讲稿（每一步的 say）和写给读者的文字是两回事：讲稿是作者讲的时候自己说的话，
- * 和 :::notes 一样只在演示里用，不出现在文章页面和公开的接口里。下面三个函数管这件事。
+ * 讲稿（以前写在每一步的 say 里）归视频工坊，文章里不再放。保存时会把 say() 摘掉（core/markup/narration.ts），
+ * 下面几个函数管这件事；历史版本里还留着的，显示时也不带出去。
  */
 
 /** 去掉讲稿的场景：文章页面上用这一份，讲稿不会被送到读者的浏览器里 */
@@ -65,7 +65,12 @@ export function narrationIsLiteral(code: string): boolean {
   return calls === (code.match(new RegExp(SAY_CALL, "g"))?.length ?? 0);
 }
 
-/** 从场景代码里摘掉讲稿：公开的幻灯片接口给出的是这一份 */
+/** 场景代码里直接写着一句话的 say() 有几处 */
+export function narrationCalls(code: string): number {
+  return code.match(new RegExp(SAY_CALL, "g"))?.length ?? 0;
+}
+
+/** 从场景代码里摘掉讲稿（见 core/markup/narration.ts） */
 export function stripNarration(code: string): string {
   return code
     .replace(new RegExp(String.raw`^[ \t]*` + SAY_CALL + String.raw`[ \t]*\r?\n`, "gm"), "")
