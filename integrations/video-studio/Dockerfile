@@ -25,7 +25,6 @@ RUN pnpm exec playwright install --with-deps --only-shell chromium \
 # Studio 复用后台组件，首次请求时打包；数据库迁移和技能也在运行时读取。
 COPY src ./src
 COPY integrations/video-studio ./integrations/video-studio
-COPY drizzle ./drizzle
 COPY skills ./skills
 ENV NODE_ENV=production STUDIO_DIR=/data STUDIO_HOST=0.0.0.0 STUDIO_PORT=4321
 # 容器里的 localhost 不是宿主机；站点地址写本机时，后台请求改走宿主机。线上地址不受影响，设为空可关闭。

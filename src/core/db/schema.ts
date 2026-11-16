@@ -33,55 +33,6 @@ export type BlockSource = { url: string; title?: string; quote?: string; accesse
 
 const createdAt = () => integer("created_at", { mode: "timestamp_ms" }).notNull();
 
-/** 本机 Studio 使用自己的数据库文件；复用 Agent 身份、工具权限和调用记录。 */
-// 视频工坊的表：暂时还和博客共用一套迁移，拆分的第 1b 步会挪到工坊自己的迁移里（见 docs/design-studio-split.md）。
-// data 列的结构由工坊校验和解释（integrations/video-studio/core/types.ts），博客不认识它。
-export const studioProjects = sqliteTable("studio_projects", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  assignedAgentId: text("assigned_agent_id"),
-  currentRevisionId: text("current_revision_id").notNull(),
-  createdAt: createdAt(),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-});
-
-export const studioRevisions = sqliteTable("studio_revisions", {
-  id: text("id").primaryKey(),
-  projectId: text("project_id").notNull().references(() => studioProjects.id),
-  number: integer("number").notNull(),
-  data: text("data", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
-  createdAt: createdAt(),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
-}, (t) => [uniqueIndex("studio_revision_number_idx").on(t.projectId, t.number)]);
-
-export const studioComments = sqliteTable("studio_comments", {
-  id: text("id").primaryKey(),
-  projectId: text("project_id").notNull().references(() => studioProjects.id),
-  revisionId: text("revision_id").notNull().references(() => studioRevisions.id),
-  stage: text("stage", { enum: ["script", "video"] }).notNull(),
-  beatId: text("beat_id"),
-  timeMs: integer("time_ms"),
-  body: text("body").notNull(),
-  reply: text("reply"),
-  createdAt: createdAt(),
-});
-
-export const studioEvents = sqliteTable("studio_events", {
-  id: text("id").primaryKey(),
-  projectId: text("project_id").notNull().references(() => studioProjects.id),
-  revisionId: text("revision_id").notNull().references(() => studioRevisions.id),
-  actorName: text("actor_name").notNull(),
-  action: text("action").notNull(),
-  note: text("note").notNull().default(""),
-  createdAt: createdAt(),
-});
-
-export const studioConnection = sqliteTable("studio_connection", {
-  id: integer("id").primaryKey(),
-  url: text("url").notNull(),
-  token: text("token").notNull(),
-});
-
 /** 通过 MCP 接入的 Agent。只保存密钥的校验值。 */
 export const agents = sqliteTable("agents", {
   id: text("id").primaryKey(),

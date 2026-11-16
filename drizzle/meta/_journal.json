@@ -92,6 +92,13 @@
       "when": 1794641463240,
       "tag": "0012_fast_morgan_stark",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1794800116670,
+      "tag": "0013_drop_studio_tables",
+      "breakpoints": true
     }
   ]
 }

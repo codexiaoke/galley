@@ -24,4 +24,4 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - 后台的列表用表格，新建、编辑、确认类操作用 `ModalForm` 弹框；服务端操作统一走 `actions.ts` 里的 `run`。
 - 后台的视觉参照 Notion 和飞书：内容直接排在白底上，不套卡片，不用投影，不给图标加底色方块；颜色只用在标签（`Badge`）和主按钮上。新增页面时沿用 `ui.tsx` 里的零件，不要自己另写一套样式。
 - 后台不使用浏览器原生的 `<select>`，下拉选择一律用 `src/app/admin/select.tsx` 里的 `Select`。
-- 修改表结构后运行 `pnpm db:generate`。提交前运行 `pnpm test`、`pnpm typecheck`、`pnpm lint`。
+- 修改表结构后运行 `pnpm db:generate`。视频工坊有自己的表和迁移（`integrations/video-studio/core/schema.ts`、`integrations/video-studio/drizzle`），改了工坊的表，或者改了工坊借用的 Agent、技能表，运行 `pnpm db:generate:studio`。提交前运行 `pnpm test`、`pnpm typecheck`、`pnpm lint`。

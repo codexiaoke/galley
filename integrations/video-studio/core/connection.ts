@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import type { Actor } from "../../../src/core/actor";
 import type { Db } from "../../../src/core/db/client";
-import { studioConnection } from "../../../src/core/db/schema";
+import { studioConnection } from "./schema";
 import { forbidden, invalid } from "../../../src/core/errors";
 import { decryptSecret, encryptSecret } from "../../../src/core/secrets";
 

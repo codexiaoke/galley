@@ -10,6 +10,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
+    "db:generate:studio": "drizzle-kit generate --config integrations/video-studio/drizzle.config.ts",
     "agent:create": "tsx scripts/create-agent.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "codex-plugin": "tsx scripts/codex-plugin.ts",

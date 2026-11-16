@@ -5,6 +5,7 @@
 进度：
 - 2026-11-16 先修了两个缺陷：公开演示页不再带讲稿；Agent 通过 MCP 发布后缓存立刻失效。
 - 2026-11-16 完成 1a：工坊代码搬进 `integrations/video-studio/core/`，两边共用的格式放进 `src/contract/narration.ts`，工坊有了自己的工具清单；`src/core/__tests__/boundaries.test.ts` 检查依赖方向。
+- 2026-11-16 完成 1b：工坊有了自己的表定义（`core/schema.ts`）和迁移（`integrations/video-studio/drizzle`，记录在 `__studio_migrations`），不再跑博客的迁移；借用的 Agent、技能表沿用博客的定义，`core/__tests__/schema.test.ts` 检查两边建出来的一样。博客加了删除工坊 5 张表的迁移（0013）。在真实工坊库的副本上演练过：5 个项目、23 个版本、98 条事件、Agent 和调用记录前后一致，重复打开不会重复迁移。
 
 ## 为什么要拆
 

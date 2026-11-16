@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Actor } from "../../src/core/actor";
-import { openDb } from "../../src/core/db/client";
+import { openStudioDb } from "./core/db";
 import { invalid } from "../../src/core/errors";
 import { StudioConnection } from "./core/connection";
 import { StudioExports, exportIsActive } from "./core/exports";
@@ -21,7 +21,7 @@ export class StudioRuntime {
   private shuttingDown = false;
 
   constructor(readonly directory: string) {
-    this.db = openDb(path.join(directory, "studio.db"));
+    this.db = openStudioDb(path.join(directory, "studio.db"));
     this.projects = new StudioProjects(this.db); this.projects.recover();
     this.exports = new StudioExports(directory);
     const tokenFile = process.env.GALLEY_TOKEN_FILE;
