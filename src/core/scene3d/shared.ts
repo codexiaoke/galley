@@ -8,6 +8,7 @@ const store = globalThis as unknown as { __galleyScenes3D?: Map<string, Scene3DR
 export const scene3dCache = store.__galleyScenes3D ??= new Map<string, Scene3DResult>();
 export function rememberScene3D(key: string, result: Scene3DResult) {
   scene3dCache.delete(key); scene3dCache.set(key, result);
-  // 三维轨迹比二维结果大，只保留少量最近使用的内容。
-  while (scene3dCache.size > 12) scene3dCache.delete(scene3dCache.keys().next().value!);
+  // 保存时的检查和审阅页的渲染都从这里取结果，被挤掉会误报"尚未编译"。
+  // 三维结果比二维大，上限比二维的 200 小，但要容得下一篇文章的全部场景和同时进行的几次保存。
+  while (scene3dCache.size > 48) scene3dCache.delete(scene3dCache.keys().next().value!);
 }

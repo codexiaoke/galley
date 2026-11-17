@@ -13,7 +13,8 @@ import type { Scene3D } from "@/core/scene3d/schema";
 /** 把核心层校验过的场景数据搭成 Three.js 场景，按时间绘制。 */
 export async function createScene3DWorld(canvas: HTMLCanvasElement, host: HTMLElement, data: Scene3D) {
   const offline = new URLSearchParams(location.search).get("offline") === "1";
-  const renderer = new THREE.WebGLRenderer({canvas, antialias: !offline, preserveDrawingBuffer: true});
+  // 只有导出时要在绘制后抓帧，才需要保留画布内容；平时保留会拖慢渲染。
+  const renderer = new THREE.WebGLRenderer({canvas, antialias: !offline, preserveDrawingBuffer: offline});
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = data.world.exposure;
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
