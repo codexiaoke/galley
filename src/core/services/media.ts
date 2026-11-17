@@ -1,3 +1,4 @@
+import { validateGlb } from "../scene3d/glb";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import fs from "node:fs";
 import path from "node:path";
@@ -9,7 +10,7 @@ import { newId } from "../ids";
 import type { MarkupIssue, ParsedImage } from "../markup/parse";
 
 /**
- * 媒体库：站长上传的图片。
+ * 媒体库：图片、贴图和自包含三维模型。
  *
  * 文件存在数据目录的 media 文件夹里，数据库里记一行。文件名由程序生成，
  * 类型靠文件内容的开头几个字节判断，不相信上传时的文件名和声明的类型。
@@ -33,6 +34,7 @@ const ascii = (bytes: Uint8Array, from: number, to: number) => String.fromCharCo
 
 /** 支持的图片格式，以及怎样从文件开头认出它。不支持 SVG：它可以带脚本。 */
 const TYPES: { mime: string; ext: string; matches: (b: Uint8Array) => boolean }[] = [
+  { mime: "model/gltf-binary", ext: "glb", matches: (b) => ascii(b, 0, 4) === "glTF" },
   { mime: "image/png", ext: "png", matches: (b) => b[0] === 0x89 && ascii(b, 1, 4) === "PNG" },
   { mime: "image/jpeg", ext: "jpg", matches: (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff },
   { mime: "image/gif", ext: "gif", matches: (b) => ascii(b, 0, 6) === "GIF87a" || ascii(b, 0, 6) === "GIF89a" },
@@ -42,7 +44,7 @@ const TYPES: { mime: string; ext: string; matches: (b: Uint8Array) => boolean }[
 
 export const mediaDir = () => path.join(dataDir(), "media");
 
-export function saveMedia(db: Db, actor: Actor, input: { bytes: Uint8Array; originalName?: string; alt?: string }): Media {
+export function saveMedia(db: Db, actor: Actor, input: { bytes: Uint8Array; originalName?: string; alt?: string; family?: "image" | "model" }): Media {
   const who = actorColumns(actor);
   if (who.kind === "agent") {
     const used = usage(db);
@@ -57,10 +59,13 @@ export function saveMedia(db: Db, actor: Actor, input: { bytes: Uint8Array; orig
     }
   }
   const { bytes } = input;
-  if (bytes.length === 0) throw invalid("请选择一张图片。");
-  if (bytes.length > MAX_MEDIA_BYTES) throw invalid(`图片不能超过 ${MAX_MEDIA_BYTES / 1024 / 1024} MB。`);
+  if (bytes.length === 0) throw invalid("请选择图片或 GLB 模型。");
+  if (bytes.length > MAX_MEDIA_BYTES) throw invalid(`媒体文件不能超过 ${MAX_MEDIA_BYTES / 1024 / 1024} MB。`);
   const type = TYPES.find((t) => bytes.length >= 12 && t.matches(bytes));
-  if (!type) throw invalid("只支持 PNG、JPEG、GIF、WebP 和 AVIF 格式的图片。");
+  if (!type) throw invalid("只支持 PNG、JPEG、GIF、WebP、AVIF 图片和 GLB 模型。");
+
+  if (input.family && !type.mime.startsWith(`${input.family}/`)) throw invalid(`上传类型应为 ${input.family}。`);
+  if (type.ext === "glb") validateGlb(bytes);
 
   const id = newId();
   const row: Media = {
@@ -121,18 +126,18 @@ export function listMedia(db: Db) {
 }
 
 export function updateMediaAlt(db: Db, actor: Actor, id: string, alt: string) {
-  if (actor.kind !== "owner") throw forbidden("只有站长可以修改图片的说明。");
+  if (actor.kind !== "owner") throw forbidden("只有站长可以修改资源说明。");
   const result = db.update(media).set({ alt: alt.trim() }).where(eq(media.id, id)).run();
-  if (result.changes === 0) throw notFound("这张图片不存在。");
+  if (result.changes === 0) throw notFound("这个媒体文件不存在。");
 }
 
 /** 删除图片。还有文章在用的不能删，否则文章里会出现一张打不开的图。 */
 export function deleteMedia(db: Db, actor: Actor, id: string) {
-  if (actor.kind !== "owner") throw forbidden("只有站长可以删除图片。");
+  if (actor.kind !== "owner") throw forbidden("只有站长可以删除媒体文件。");
   const row = db.select().from(media).where(eq(media.id, id)).get();
-  if (!row) throw notFound("这张图片不存在。");
+  if (!row) throw notFound("这个媒体文件不存在。");
   const usedBy = usage(db).get(row.name)?.size ?? 0;
-  if (usedBy > 0) throw conflict(`还有 ${usedBy} 篇文章在用这张图片，不能删除。先把它从文章里去掉。`);
+  if (usedBy > 0) throw conflict(`还有 ${usedBy} 篇文章在用这个媒体文件，不能删除。先把它从文章里去掉。`);
   db.delete(media).where(eq(media.id, id)).run();
   fs.rmSync(path.join(mediaDir(), row.name), { force: true });
 }
@@ -156,5 +161,5 @@ export function checkImages(db: Db, images: ParsedImage[]): MarkupIssue[] {
   );
   return images
     .filter((image) => !known.has(image.name))
-    .map((image) => ({ level: "error" as const, message: `媒体库里没有 /media/${image.name} 这张图片。可用的图片用 list_media 查看。`, line: image.line }));
+    .map((image) => ({ level: "error" as const, message: `媒体库里没有 /media/${image.name} 这个资源。可用资源用 list_media 查看。`, line: image.line }));
 }

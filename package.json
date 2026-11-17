@@ -43,6 +43,7 @@
     "remark-parse": "^11.0.0",
     "remark-rehype": "^11.1.2",
     "shiki": "^4.6.0",
+    "three": "^0.187.0",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.2.0",
     "zod": "^4.6.7"
@@ -57,6 +58,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/three": "^0.187.0",
     "drizzle-kit": "^0.31.11",
     "esbuild": "^0.28.2",
     "eslint": "^9",

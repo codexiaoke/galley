@@ -1,3 +1,4 @@
+import { runScenes3D } from "@/core/scene3d/run";
 import { runScenes } from "@/core/scene/run";
 import { presentationVersion, structureFingerprint } from "@/core/presentation-version";
 import type { RenderableDocument } from "@/core/services/documents";
@@ -9,6 +10,7 @@ import { presentationBeats } from "@/render/beats";
  * - structure：结构指纹，只看有哪些拍、画面上写什么、能指向什么（见 core/presentation-version.ts）。
  */
 export async function presentationSource(doc: RenderableDocument & { body: string }, site: { name: string; url: string | null; theme: string }) {
-  const beats = presentationBeats(doc.body, await runScenes(doc.body));
+  const [scenes, scenes3d] = await Promise.all([runScenes(doc.body), runScenes3D(doc.body)]);
+  const beats = presentationBeats(doc.body, scenes, scenes3d);
   return { version: presentationVersion(doc, site), structure: structureFingerprint(beats), beats };
 }

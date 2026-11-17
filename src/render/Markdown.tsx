@@ -1,3 +1,5 @@
+import { scene3dCache, scene3dKey } from "@/core/scene3d/shared";
+import type { Scene3DResult } from "@/core/scene3d/schema";
 import { toJsxRuntime } from "hast-util-to-jsx-runtime";
 import type { Root as MdastRoot } from "mdast";
 import { toString } from "mdast-util-to-string";
@@ -12,9 +14,10 @@ import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
 import { unified } from "unified";
 import { BUILTIN_DIRECTIVES, getComponent } from "@/core/markup/components";
+import { Scene3DPlayer } from "./client/lazy";
 import { isBareText, isDirective } from "@/core/markup/parse";
 import type { FlowGraph } from "@/core/markup/flow";
-import { readCodeSteps, readFlow, readQuiz, readScene, readSteps, readTrace, STEP_LINES_PATTERN } from "@/core/markup/structure";
+import { readCodeSteps, readFlow, readQuiz, readScene3D, readScene, readSteps, readTrace, STEP_LINES_PATTERN } from "@/core/markup/structure";
 import { lineIdentities } from "./code-diff";
 import { traceCache, traceKey, type TraceResult } from "@/core/algo/trace-shared";
 import { sceneCache, sceneKey, stripNarration, withoutNarration } from "@/core/scene/shared";
@@ -247,6 +250,11 @@ function remarkGalley(options: { source: string }) {
         d.data = { hName: "galley-trace", hProperties: { attrs: JSON.stringify({ keys, code, title: t.title ?? "" }) }, hChildren: [] };
         return;
       }
+      if (d.name === "scene3d") {
+        const sc = readScene3D(d as never);
+        d.data = { hName: "galley-scene3d", hProperties: { attrs: JSON.stringify({ id: scene3dKey(sc.code ?? ""), title: sc.title }) }, hChildren: [] };
+        return;
+      }
       if (d.name === "scene") {
         const sc = readScene(d as never);
         const code = sc.code ?? "";
@@ -292,7 +300,7 @@ const formatDate = (d: Date) => new Date(d).toISOString().slice(0, 10);
  * 正文里只保留读者关心的东西（内容本身和数据的出处）。
  * 这些系统信息只在后台的审阅预览里显示，由 Markdown 的 review 参数打开。
  */
-type Ctx = { blocks: Record<string, BlockView>; posts: Record<string, PostCard>; review: boolean; traces: Record<string, TraceResult>; scenes: Record<string, SceneResult>; terms: Map<string, Term> };
+type Ctx = { blocks: Record<string, BlockView>; posts: Record<string, PostCard>; review: boolean; traces: Record<string, TraceResult>; scenes: Record<string, SceneResult>; scenes3d: Record<string, Scene3DResult>; terms: Map<string, Term> };
 
 function Sources({ block }: { block: BlockView }) {
   if (block.sources.length === 0) return null;
@@ -658,6 +666,12 @@ function Trace({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
  * 每一步有两句话：写给读者看的文字，和讲的时候说的话（讲稿）。讲稿只在演示里用，
  * 文章页面上先把它去掉再交给播放器，不会被送到读者的浏览器里。
  */
+function Scene3DView({ctx, props}: {ctx: Ctx; props: ElementProps}) {
+  const {id, title} = attrsOf<{id:string;title:string}>(props), result = ctx.scenes3d[id] ?? scene3dCache.get(id);
+  if (result?.ok) return <Scene3DPlayer id={id} title={title} scene={result.scene} />;
+  return ctx.review ? <p role="alert">{result && !result.ok ? result.error : "三维场景尚未编译"}</p> : null;
+}
+
 function SceneView({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
   const { id, title, code, ratio } = attrsOf<{ id: string; title: string; code: string; ratio: SceneRatio }>(props);
   const result = ctx.scenes[id] ?? sceneCache.get(id);
@@ -686,6 +700,7 @@ export function Markdown({
   review = false,
   traces = {},
   scenes = {},
+  scenes3d = {},
   terms = [],
   guidePage,
 }: {
@@ -699,11 +714,12 @@ export function Markdown({
   traces?: Record<string, TraceResult>;
   /** 场景代码的运行结果（prepareRender 的返回值）。服务端渲染时也可以省略，直接从缓存取。 */
   scenes?: Record<string, SceneResult>;
+  scenes3d?: Record<string, Scene3DResult>;
   /** 站点上的术语（见 core/services/knowledge.ts 的 listTerms）。给了才标，正文里每个术语只标第一次出现 */
   terms?: Term[];
   guidePage?: number;
 }) {
-  const ctx: Ctx = { blocks, posts, review, traces, scenes, terms: new Map(terms.map((t) => [t.id, t])) };
+  const ctx: Ctx = { blocks, posts, review, traces, scenes, scenes3d, terms: new Map(terms.map((t) => [t.id, t])) };
   const processor = unified()
     .use(remarkParse)
     .use(remarkGfm)
@@ -742,6 +758,7 @@ export function Markdown({
     "galley-algo": (props: ElementProps) => <Algo ctx={ctx} props={props} />,
     "galley-trace": (props: ElementProps) => <Trace ctx={ctx} props={props} />,
     "galley-race": (props: ElementProps) => <Race ctx={ctx} props={props} />,
+    "galley-scene3d": (props: ElementProps) => <Scene3DView ctx={ctx} props={props} />,
     "galley-scene": (props: ElementProps) => <SceneView ctx={ctx} props={props} />,
     "galley-code-steps": (props: ElementProps) => <CodeSteps props={props} />,
     // 讲稿只在演示模式和视频里用（见 render/slides.ts），文章里不显示

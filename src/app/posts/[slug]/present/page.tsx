@@ -7,6 +7,8 @@ import { presentSlides } from "@/render/present-slides";
 import { loadPublishedDocument } from "../../../data";
 import { loadSite } from "../../../site";
 import { presentationSource } from "../../../presentation-source";
+import { readImmersiveScene3D } from "@/render/scene3d-source";
+import { Scene3DPlayer } from "@/render/client/lazy";
 
 /**
  * 演示模式：文章变成全屏的幻灯片。
@@ -42,8 +44,14 @@ async function Present({ params, searchParams }: { params: Promise<{ slug: strin
     const source = await presentationSource(doc, site);
     if ((typeof query.structure === "string" && query.structure !== source.structure) || (typeof query.version === "string" && query.version !== source.version)) notFound();
   }
-  const prepared = await prepareRender(doc.body);
   const one = (k: string) => (typeof query[k] === "string" ? (query[k] as string) : undefined);
+  const prepared = await prepareRender(doc.body);
+  const immersive = readImmersiveScene3D(doc.body, prepared.scenes3d);
+  if (immersive) return <>
+    <title>{`${doc.title} · ${site.name}`}</title>
+    <meta name="robots" content="noindex" />
+    <Scene3DPlayer {...immersive} fullScreen controlled={one("controlled") === "1"} timing={parseTiming(one("timing"))} />
+  </>;
   const durations = one("durations")
     ?.split(",")
     .map((n) => Number(n))

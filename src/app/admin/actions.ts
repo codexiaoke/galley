@@ -135,8 +135,8 @@ export async function setDocumentStatus(_prev: FormState, formData: FormData) {
 export async function previewBody(body: string, changeSetId?: string) {
   await requireOwner();
   // 演示代码先在沙箱里跑一遍：检查时能报出代码的错误，预览也能直接播放
-  const { traces, scenes } = await prepareBody(body);
-  return { ...previewDocumentBody(getDb(), body, changeSetId), traces, scenes };
+  const { traces, scenes, scenes3d } = await prepareBody(body);
+  return { ...previewDocumentBody(getDb(), body, changeSetId), traces, scenes, scenes3d };
 }
 
 /**

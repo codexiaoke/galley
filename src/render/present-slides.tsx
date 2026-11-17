@@ -13,6 +13,6 @@ export function presentSlides(doc: Pick<RenderableDocument, "body" | "blocks" | 
     title: s.title,
     section: s.section,
     text: plainText(s.source).replace(/\s+/g, "").length,
-    content: <Markdown body={s.source} blocks={doc.blocks} posts={doc.posts} traces={prepared.traces} scenes={prepared.scenes} guidePage={i + 1} />,
+    content: <Markdown body={s.source} blocks={doc.blocks} posts={doc.posts} traces={prepared.traces} scenes={prepared.scenes} scenes3d={prepared.scenes3d} guidePage={i + 1} />,
   }));
 }

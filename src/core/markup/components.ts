@@ -1,3 +1,4 @@
+import { SCENE3D_API_DOC } from "../scene3d/doc";
 import { z } from "zod";
 import { ALGORITHM_NAMES, checkAlgorithmParams, describeAlgorithms, getAlgorithm } from "../algo";
 import { parsePresets } from "../algo/presets";
@@ -44,6 +45,12 @@ const PRESETS_HELP =
 const mediaUrl = z.string().regex(/^\/media\/[a-z0-9]+\.[a-z0-9]+$/, "只能用媒体库里的图片，地址以 /media/ 开头");
 
 export const COMPONENTS: ComponentDef[] = [
+  {
+    name: "scene3d", form: "container",
+    description: "内容驱动的三维场景。模型、材质、布局、动作和镜头全部由正文脚本提供；独立作为演示内容时全屏连续播放。",
+    example: ':::scene3d{title="产品演示"}\n```js\nworld({background:"#182232"});\ngeometry("cube",{kind:"box"});\nmaterial("metal",{color:"#4488cc",metalness:0.7});\nnode("product",{kind:"mesh",geometry:"cube",material:"metal"});\nnode("camera",{kind:"camera",position:[3,2,4]});\nshot("orbit","环绕",4000);\ntrack("product","rotation",[[0,[0,0,0]],[4000,[0,6.28,0]]]);\n```\n:::',
+    params: z.object({title:z.string().max(100).optional()}), details: () => SCENE3D_API_DOC,
+  },
   {
     name: "callout",
     form: "container",

@@ -1,3 +1,5 @@
+import { scene3dAssets } from "../scene3d/schema";
+import { scene3dCache, scene3dKey } from "../scene3d/shared";
 import { variantsOf } from "../algo/presets";
 import { TRACE_LANGS, traceCache, traceKey } from "../algo/trace-shared";
 import { narrationIsLiteral, SCENE_LANGS, sceneCache, sceneKey } from "../scene/shared";
@@ -155,7 +157,21 @@ export function readQuiz(container: Node): { parts?: QuizParts; errors: string[]
   return { parts: errors.length ? undefined : { listIndex, correct }, errors };
 }
 
+export function readScene3D(container: Node): { code?: string; title: string; errors: string[] } {
+  const children = container.children ?? [], code = children[0];
+  const title = container.attributes?.title ?? "三维场景";
+  if (children.length !== 1 || code?.type !== "code" || !SCENE_LANGS.includes((code.lang ?? "").toLowerCase())) return { title, errors: ["scene3d 里只放一个 ```js 代码块。"] };
+  return { title, code: code.value ?? "", errors: [] };
+}
+
 export function checkStructure(name: string, node: Node, source: string): string[] {
+  if (name === "scene3d") {
+    const sc = readScene3D(node);
+    if (sc.errors.length || sc.code === undefined) return sc.errors;
+    const result = scene3dCache.get(scene3dKey(sc.code));
+    if (result?.ok && scene3dAssets(result.scene).some((url) => !sc.code!.includes(url))) return ["三维资源地址必须完整写在场景代码中，不能拼接。这样媒体库才能记录引用。 "];
+    return !result ? ["三维场景尚未编译，请先准备正文。"] : !result.ok ? [`三维场景代码出错，${result.error}`] : [];
+  }
   if (name === "steps") return readSteps(node, source).errors;
   if (name === "flow") return readFlow(node, source).errors;
   if (name === "tabs") return readTabs(node).errors;

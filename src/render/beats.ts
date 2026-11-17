@@ -1,6 +1,9 @@
+import { readImmersiveScene3D } from "./scene3d-source";
+import { scene3dKey } from "@/core/scene3d/shared";
+import type { Scene3D, Scene3DResult } from "@/core/scene3d/schema";
 import { visit } from "unist-util-visit";
 import { parseToTree } from "@/core/markup/parse";
-import { readScene } from "@/core/markup/structure";
+import { readScene3D, readScene } from "@/core/markup/structure";
 import { plainText } from "@/core/markup/text";
 import { readingTime } from "@/core/scene/frame";
 import { sceneKey } from "@/core/scene/shared";
@@ -52,7 +55,9 @@ function anchorSceneTargets(targets: GuideTarget[], scene: string): GuideTarget[
  * - 步骤：场景的锚点加上画面上那句话的指纹；那句话改了，按 fallback（第几步）兜底；
  * - 正文元素：页的锚点加上这段源文的指纹；场景元素：场景的锚点加上元素的文字。
  */
-export function presentationBeats(body: string, scenes: Record<string, SceneResult>): StructureBeat[] {
+export function presentationBeats(body: string, scenes: Record<string, SceneResult>, scenes3d: Record<string, Scene3DResult> = {}): StructureBeat[] {
+  const immersive = readImmersiveScene3D(body, scenes3d);
+  if (immersive) return scene3dBeats(immersive.id, immersive.scene, 1, "scene3d");
   const beats: StructureBeat[] = [{ id: "p0", anchor: "cover", kind: "cover", page: 0, title: null, section: null, suggestedMs: TITLE_PAGE_MS, minMs: TITLE_PAGE_MS, targets: [{ id: "p0:title", label: "封面标题", anchor: "cover/title" }] }];
   const slides = splitSlides(body);
   const pageName = numbered();
@@ -70,6 +75,10 @@ export function presentationBeats(body: string, scenes: Record<string, SceneResu
       const d = node as Directive;
       if (d.type !== "containerDirective" && d.type !== "leafDirective") return;
       if (SELF_PACED.has(d.name ?? "")) selfPaced = true;
+      if (d.name === "scene3d") {
+        const sc = readScene3D(node as never), key = scene3dKey(sc.code ?? ""), result = scenes3d[key];
+        if (result?.ok) steps.push(...scene3dBeats(key, result.scene, page, `${pageAnchor}/scene3d${++sceneIndex}`));
+      }
       if (d.name !== "scene") return;
       const sc = readScene(node as never);
       if (sc.code === undefined) return;
@@ -127,4 +136,8 @@ export function parseTiming(text: string | undefined): Record<string, number> | 
     if (at > 0 && /^[a-z0-9.]{1,40}$/.test(id) && Number.isFinite(ms) && ms >= 0 && ms <= 600_000) out[id] = ms;
   }
   return Object.keys(out).length ? out : undefined;
+}
+
+function scene3dBeats(id: string, scene: Scene3D, page: number, anchor: string): StructureBeat[] {
+  return scene.shots.map((shot, i) => ({id:`${id}.${i}`,anchor:`${anchor}/${shot.id}`,kind:"step",page,title:shot.title,section:null,written:shot.text,suggestedMs:shot.duration,minMs:shot.duration,targets:[]}));
 }

@@ -505,6 +505,15 @@ export function createMcpServer(
   );
 
   tool(
+    "upload_model", "上传有权使用的自包含 GLB 2.0 模型到媒体库，返回 scene3d 可引用的地址。贴图和缓冲需内嵌，最大 10 MB。",
+    { data: z.string().describe("GLB 文件的 base64"), alt: z.string().min(1).describe("模型内容说明"), filename: z.string().optional() },
+    ({data, alt, filename}) => {
+      const saved = saveMedia(db, actor, {bytes: Buffer.from(data, "base64"), alt, originalName: filename, family:"model"});
+      return {url: `/media/${saved.name}`, alt:saved.alt};
+    },
+  );
+
+  tool(
     "upload_image",
     "往媒体库传一张图片，传完就能在正文里用 ![说明](返回的 url) 引用。只收你自己做出来的图：截图、自己画的图表、自己生成的插图。不要把从网上找到的图片传上来，版权不清楚；也不要传含有私人信息的截图。传上来的图片站长在审阅时会一起看到，不合适会被删掉。",
     {
@@ -519,7 +528,7 @@ export function createMcpServer(
       } catch {
         throw invalid("图片内容不是合法的 base64。");
       }
-      const saved = saveMedia(db, actor, { bytes: new Uint8Array(bytes), alt, originalName: filename });
+      const saved = saveMedia(db, actor, { bytes: new Uint8Array(bytes), alt, originalName: filename, family: "image" });
       return { url: `/media/${saved.name}`, alt: saved.alt, markdown: `![${saved.alt}](/media/${saved.name})` };
     },
   );
@@ -537,9 +546,9 @@ export function createMcpServer(
 
   tool(
     "list_media",
-    "列出媒体库里的图片。正文里只能用这里的图片，写法是 ![说明](url)；不能引用外部图片，也不能自己上传。需要新图片时在变更集的说明里告诉站长。",
+    "列出媒体库里的图片、贴图和 GLB 模型。图片可以按 markdown 引用，模型 url 用于 scene3d。上传分别使用 upload_image 和 upload_model（须已获工具权限）。",
     {},
-    () => listMedia(db).map((m) => ({ url: m.url, alt: m.alt, markdown: `![${m.alt}](${m.url})` })),
+    () => listMedia(db).map((m) => ({ url: m.url, mime: m.mime, alt: m.alt, ...(m.mime.startsWith("image/") ? {markdown: `![${m.alt}](${m.url})`} : {}) })),
   );
 
   return server;

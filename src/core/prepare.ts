@@ -1,5 +1,6 @@
 import { runTraces } from "./algo/trace";
 import { checkMermaid } from "./markup/mermaid";
+import { runScenes3D } from "./scene3d/run";
 import { runScenes } from "./scene/run";
 import { removeNarration } from "./markup/narration";
 
@@ -12,8 +13,8 @@ import { removeNarration } from "./markup/narration";
  */
 export async function prepareBody(source: string) {
   const body = removeNarration(source).body;
-  const [traces, scenes] = await Promise.all([runTraces(body), runScenes(body), checkMermaid(body)]);
-  return { traces, scenes };
+  const [traces, scenes, scenes3d] = await Promise.all([runTraces(body), runScenes(body), runScenes3D(body), checkMermaid(body)]);
+  return { traces, scenes, scenes3d };
 }
 
 /**
@@ -21,6 +22,6 @@ export async function prepareBody(source: string) {
  * 跑过的有缓存，不会重复运行。返回的结果交给 Markdown 组件。
  */
 export async function prepareRender(body: string) {
-  const [traces, scenes] = await Promise.all([runTraces(body), runScenes(body)]);
-  return { traces, scenes };
+  const [traces, scenes, scenes3d] = await Promise.all([runTraces(body), runScenes(body), runScenes3D(body)]);
+  return { traces, scenes, scenes3d };
 }

@@ -128,7 +128,7 @@ function splitHeavy(d: DraftPage, body: string): DraftPage[] {
 }
 
 /** 独占一页的东西：Mermaid 图和场景动画。它们要尽量大，和成段的文字挤在一页里两边都看不清。 */
-const isSolo = (n: Node) => (n.type === "code" && n.lang === "mermaid") || (n.type === "containerDirective" && n.name === "scene");
+const isSolo = (n: Node) => (n.type === "code" && n.lang === "mermaid") || (n.type === "containerDirective" && (n.name === "scene" || n.name === "scene3d"));
 
 /** 图和场景动画独占演示页，前后的说明留在相邻的页上，上方用小字标出这一节的标题。 */
 function splitSolo(d: DraftPage): DraftPage[] {

@@ -92,7 +92,8 @@ export async function exportVideo(input: ExportInput): Promise<{ frames: number;
   const abort = () => { void browser?.close(); };
   signal.addEventListener("abort", abort, { once: true });
   try {
-    browser = await chromium.launch({ headless: true });
+    // macOS 使用完整 Chromium 的新无头模式，允许本机 GPU 渲染三维；Linux 容器仍用已安装的 headless shell。
+    browser = await chromium.launch({ headless: true, ...(process.platform === "darwin" ? { channel: "chromium" } : {}) });
     signal.throwIfAborted();
     const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT }, deviceScaleFactor: 1 });
     // 开发模式先完成编译握手，资源就绪后冻结热更新；关闭连接会触发 Next 重连和刷新。
@@ -115,6 +116,7 @@ export async function exportVideo(input: ExportInput): Promise<{ frames: number;
     if (!response?.ok()) throw new Error(`演示页面读取失败：${response?.status()}`);
     await page.waitForSelector(".galley-present-stage[data-ready]", { timeout: 30000 });
     await page.waitForFunction(() => !document.querySelector(".galley-mermaid:not([data-ready]):not([data-error])"));
+    await page.waitForFunction(() => !document.querySelector("[data-render-surface]:not([data-ready]):not([data-error])"));
     await page.evaluate(async () => {
       await document.fonts.ready;
       for (const image of document.images) image.loading = "eager";
@@ -149,6 +151,11 @@ export async function exportVideo(input: ExportInput): Promise<{ frames: number;
       }
       return {
         frame() {
+          const failed = stage.matches("[data-render-surface][data-error]") ? stage : stage.querySelector<HTMLElement>("[data-render-surface][data-error]");
+          if (failed) throw new Error(failed.dataset.error);
+          // Canvas/WebGL 像素更新不会触发 DOM 观察器；先按当前时间绘制，再决定是否抓取新帧。
+          const rendered = new CustomEvent("galley-render-frame", { detail: { changed: false } });
+          window.dispatchEvent(rendered);
           const now = performance.now() - origin;
           let moving = false;
           for (const animation of stage.getAnimations({ subtree: true })) {
@@ -167,7 +174,7 @@ export async function exportVideo(input: ExportInput): Promise<{ frames: number;
           const t = last ? (now - last.at) / 1000 : 0;
           const text = voice?.cues.find((cue) => t >= cue.start && t < cue.end)?.text ?? "";
           if (subtitle.textContent !== text) { subtitle.textContent = text; subtitle.hidden = !text; dirty = true; }
-          const capture = dirty || moving;
+          const capture = dirty || moving || rendered.detail.changed;
           dirty = false;
           return { capture, timeline, done: !!w.__galleyPresentDone, missing: w.__galleyGuideReport?.missing ?? [] };
         },

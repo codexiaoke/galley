@@ -41,7 +41,8 @@ export const TOOLS: ToolInfo[] = [
   { name: "get_document", group: "文章", label: "读取文章正文" },
   { name: "save_document", group: "文章", label: "保存文章或页面" },
   { name: "edit_document", group: "文章", label: "只改正文里的一小段" },
-  { name: "list_media", group: "文章", label: "查看媒体库里的图片" },
+  { name: "list_media", group: "文章", label: "查看媒体库里的图片和模型" },
+  { name: "upload_model", group: "文章", label: "往媒体库传三维模型" },
   { name: "upload_image", group: "文章", label: "往媒体库传图片" },
 
   { name: "get_analytics", group: "访问数据", label: "读访问数据（只有汇总数字）" },

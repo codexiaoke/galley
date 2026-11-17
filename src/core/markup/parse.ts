@@ -1,3 +1,5 @@
+import { scene3dCache, scene3dKey } from "../scene3d/shared";
+import { scene3dAssets } from "../scene3d/schema";
 import type { Root } from "mdast";
 import remarkDirective from "remark-directive";
 import remarkGfm from "remark-gfm";
@@ -11,7 +13,7 @@ import type { RefMode } from "../db/schema";
 import { BLOCK_ID_PATTERN } from "../ids";
 import { getComponent } from "./components";
 import { mermaidResults } from "./mermaid-cache";
-import { checkStructure, readScene } from "./structure";
+import { checkStructure, readScene3D, readScene } from "./structure";
 import { sceneCache, sceneKey } from "../scene/shared";
 
 export type ParsedRef = {
@@ -167,6 +169,10 @@ export function parseMarkup(body: string): ParsedMarkup {
       addRef({ mode: valueKey !== undefined ? "value" : "embed", blockId, valueKey, directive: component.name, param, line });
     }
     for (const message of checkStructure(component.name, d as never, body)) error(message, line);
+    if (component.name === "scene3d") {
+      const sc = readScene3D(d as never), result = sc.code === undefined ? undefined : scene3dCache.get(scene3dKey(sc.code));
+      if (result?.ok) for (const url of scene3dAssets(result.scene)) images.push({name: MEDIA_URL_PATTERN.exec(url)![1], line});
+    }
     if (component.name === "scene") {
       // 场景里用到的图片也算这篇文章引用的图片：和正文里的图片一样检查在不在媒体库、记录用到了哪些
       const sc = readScene(d as never);

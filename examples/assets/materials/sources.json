@@ -1,0 +1,106 @@
+[
+  {
+    "token": "FLOOR_COLOR",
+    "file": "smooth_concrete_floor_diff_1k.jpg",
+    "source": "https://polyhaven.com/a/smooth_concrete_floor",
+    "download": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/smooth_concrete_floor/smooth_concrete_floor_diff_1k.jpg",
+    "license": "CC0-1.0",
+    "md5": "321efe0af2d0809ab958b78a008fa116"
+  },
+  {
+    "token": "FLOOR_NORMAL",
+    "file": "smooth_concrete_floor_nor_gl_1k.jpg",
+    "source": "https://polyhaven.com/a/smooth_concrete_floor",
+    "download": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/smooth_concrete_floor/smooth_concrete_floor_nor_gl_1k.jpg",
+    "license": "CC0-1.0",
+    "md5": "92b8f007ff471cecb2ef581615989a9d"
+  },
+  {
+    "token": "FLOOR_ROUGH",
+    "file": "smooth_concrete_floor_rough_1k.jpg",
+    "source": "https://polyhaven.com/a/smooth_concrete_floor",
+    "download": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/smooth_concrete_floor/smooth_concrete_floor_rough_1k.jpg",
+    "license": "CC0-1.0",
+    "md5": "d69e03eafb7442684db178e26896a1ee"
+  },
+  {
+    "token": "PLATE_COLOR",
+    "file": "metal_plate_02_diff_1k.jpg",
+    "source": "https://polyhaven.com/a/metal_plate_02",
+    "download": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/metal_plate_02/metal_plate_02_diff_1k.jpg",
+    "license": "CC0-1.0",
+    "md5": "531b7e067dc537e0b3c7962175e04ffd"
+  },
+  {
+    "token": "PLATE_NORMAL",
+    "file": "metal_plate_02_nor_gl_1k.jpg",
+    "source": "https://polyhaven.com/a/metal_plate_02",
+    "download": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/metal_plate_02/metal_plate_02_nor_gl_1k.jpg",
+    "license": "CC0-1.0",
+    "md5": "ce8198004fd9409f592a7f024be0c01e"
+  },
+  {
+    "token": "PLATE_ROUGH",
+    "file": "metal_plate_02_rough_1k.jpg",
+    "source": "https://polyhaven.com/a/metal_plate_02",
+    "download": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/metal_plate_02/metal_plate_02_rough_1k.jpg",
+    "license": "CC0-1.0",
+    "md5": "1fa97d5031aa575656a316bfd404ca4d"
+  },
+  {
+    "token": "PLATE_METAL",
+    "file": "metal_plate_02_metal_1k.jpg",
+    "source": "https://polyhaven.com/a/metal_plate_02",
+    "download": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/metal_plate_02/metal_plate_02_metal_1k.jpg",
+    "license": "CC0-1.0",
+    "md5": "6ecfe9cdb7e0147c3dd7b49776d4a7d6"
+  },
+  {
+    "token": "BRUSHED_NORMAL",
+    "file": "brushed-normal.png",
+    "source": "procedural",
+    "generator": "scripts/generate-3d-materials.mjs",
+    "license": "project-original",
+    "sha256": "265b12fa9aae689b785d3d14bb15ccb5a5506cf751124171cbb2d4aecdd5b7cc"
+  },
+  {
+    "token": "BRUSHED_ROUGH",
+    "file": "brushed-rough.png",
+    "source": "procedural",
+    "generator": "scripts/generate-3d-materials.mjs",
+    "license": "project-original",
+    "sha256": "f57309bbde6a7faccd4f97254b59657b519ea8784ecac25c326beed6f4c8d364"
+  },
+  {
+    "token": "PAINT_NORMAL",
+    "file": "paint-normal.png",
+    "source": "procedural",
+    "generator": "scripts/generate-3d-materials.mjs",
+    "license": "project-original",
+    "sha256": "7aeadc1a803d219ad3c7501b8ddb7041b175490aaccb9fe9e54a7873491b7147"
+  },
+  {
+    "token": "PAINT_ROUGH",
+    "file": "paint-rough.png",
+    "source": "procedural",
+    "generator": "scripts/generate-3d-materials.mjs",
+    "license": "project-original",
+    "sha256": "aa2ed600a6240c27d340aa2fabdae499a4eb36f08439ddf73abbaeba0d9e2f25"
+  },
+  {
+    "token": "RUBBER_NORMAL",
+    "file": "rubber-normal.png",
+    "source": "procedural",
+    "generator": "scripts/generate-3d-materials.mjs",
+    "license": "project-original",
+    "sha256": "e28814d7fa3eef9574e53aeaca3861a8790a6a39d7ae6dc4b62c81cba7f213b9"
+  },
+  {
+    "token": "RUBBER_ROUGH",
+    "file": "rubber-rough.png",
+    "source": "procedural",
+    "generator": "scripts/generate-3d-materials.mjs",
+    "license": "project-original",
+    "sha256": "e822ba8da942afea744ad86391803075765effb376f3c42e61b27e942bfd0c25"
+  }
+]

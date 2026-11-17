@@ -25,7 +25,7 @@ export default function AboutPage() {
 async function About() {
   const [doc, site] = await Promise.all([loadPublishedDocument("about"), loadSite()]);
   if (!doc || doc.kind !== "page") notFound();
-  const { traces, scenes } = await prepareRender(doc.body);
+  const { traces, scenes, scenes3d } = await prepareRender(doc.body);
   return (
     <>
       <SiteHeader />
@@ -34,7 +34,7 @@ async function About() {
         <header className="galley-article-header">
           <h1 className="galley-title">{doc.title}</h1>
         </header>
-        <Markdown body={doc.body} blocks={doc.blocks} posts={doc.posts} traces={traces} scenes={scenes} />
+        <Markdown body={doc.body} blocks={doc.blocks} posts={doc.posts} traces={traces} scenes={scenes} scenes3d={scenes3d} />
       </article>
       <SiteFooter from="/about" />
       <TrackView path="/about" />

@@ -1,0 +1,10 @@
+{
+  "blender": "5.3.0",
+  "bytes": 3596784,
+  "objects": 287,
+  "meshes": 282,
+  "materials": 9,
+  "animations": [
+    "GPU_Explode"
+  ]
+}

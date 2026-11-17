@@ -25,3 +25,5 @@ export const ZoomImage = dynamic(() => import("./image").then((m) => m.ZoomImage
 export const Quiz = dynamic(() => import("./quiz").then((m) => m.Quiz));
 export const ScenePlayer = dynamic(() => import("./scene").then((m) => m.ScenePlayer));
 export const CodeRunner = dynamic(() => import("./code-runner").then((m) => m.CodeRunner));
+
+export const Scene3DPlayer = dynamic(() => import("./scene3d").then((m) => m.Scene3DPlayer));

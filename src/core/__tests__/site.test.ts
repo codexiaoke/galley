@@ -1,3 +1,4 @@
+import { prepareBody } from "../prepare";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -98,6 +99,22 @@ describe("页脚文字", () => {
 });
 
 describe("媒体库", () => {
+  it("GLB 与图片分开校验，场景引用保护模型不被删除", async () => {
+    const json = Buffer.from(JSON.stringify({asset:{version:"2.0"},scenes:[{nodes:[]}],scene:0}));
+    const padded = Buffer.concat([json, Buffer.alloc((4-json.length%4)%4,32)]), bytes = Buffer.alloc(20+padded.length);
+    bytes.writeUInt32LE(0x46546c67,0);bytes.writeUInt32LE(2,4);bytes.writeUInt32LE(bytes.length,8);bytes.writeUInt32LE(padded.length,12);bytes.writeUInt32LE(0x4e4f534a,16);padded.copy(bytes,20);
+    expectError(() => saveMedia(db, agent, {bytes, family:"image"}), "invalid");
+    const model = saveMedia(db, agent, {bytes, family:"model"});
+    expect(findMediaFile(db, model.name)?.mime).toBe("model/gltf-binary");
+    const body = ':::scene3d\n```js\nnode("model",{kind:"model",src:"/media/'+model.name+'"});node("camera",{kind:"camera",position:[0,2,4]});shot("show","展示",2000);\n```\n:::';
+    await prepareBody(body); publish("model-scene",body);
+    expect(listMedia(db).find((m)=>m.id===model.id)?.usedBy).toBe(1);
+    expectError(()=>deleteMedia(db,OWNER,model.id),"conflict");
+    const missing=body.replace(model.name,"missing.glb");await prepareBody(missing);
+    const cs=openChangeSet(db,agent,{kind:"article",title:"缺失模型"});
+    expect(saveDocument(db,agent,{changeSetId:cs.id,kind:"article",slug:"missing-model",title:"缺失模型",body:missing}).saved).toBe(false);
+  });
+
   it("按文件内容认格式，文件名由程序生成", () => {
     const item = saveMedia(db, OWNER, { bytes: PNG, originalName: "../../evil.svg", alt: "一张图" });
     expect(item.name).toMatch(/^[a-z0-9]+\.png$/);
