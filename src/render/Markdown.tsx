@@ -658,6 +658,13 @@ function Trace({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
   );
 }
 
+/** 三维场景：脚本已在服务端沙箱编译成场景数据，读者的浏览器只拿到数据。出错时只在审阅预览里显示。 */
+function Scene3DView({ctx, props}: {ctx: Ctx; props: ElementProps}) {
+  const {id, title} = attrsOf<{id:string;title:string}>(props), result = ctx.scenes3d[id] ?? scene3dCache.get(id);
+  if (result?.ok) return <Scene3DPlayer id={id} title={title} scene={result.scene} />;
+  return ctx.review ? <p role="alert">{result && !result.ok ? result.error : "三维场景尚未编译"}</p> : null;
+}
+
 /**
  * 场景动画：代码已经在服务端的沙箱里跑过（页面渲染前调用 prepareRender），这里取结果交给播放器。
  * 读者的浏览器平时只拿到运行结果。场景里有读者能调的东西（滑块、能拖的点）时才把代码也给过去，
@@ -666,12 +673,6 @@ function Trace({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
  * 每一步有两句话：写给读者看的文字，和讲的时候说的话（讲稿）。讲稿只在演示里用，
  * 文章页面上先把它去掉再交给播放器，不会被送到读者的浏览器里。
  */
-function Scene3DView({ctx, props}: {ctx: Ctx; props: ElementProps}) {
-  const {id, title} = attrsOf<{id:string;title:string}>(props), result = ctx.scenes3d[id] ?? scene3dCache.get(id);
-  if (result?.ok) return <Scene3DPlayer id={id} title={title} scene={result.scene} />;
-  return ctx.review ? <p role="alert">{result && !result.ok ? result.error : "三维场景尚未编译"}</p> : null;
-}
-
 function SceneView({ ctx, props }: { ctx: Ctx; props: ElementProps }) {
   const { id, title, code, ratio } = attrsOf<{ id: string; title: string; code: string; ratio: SceneRatio }>(props);
   const result = ctx.scenes[id] ?? sceneCache.get(id);

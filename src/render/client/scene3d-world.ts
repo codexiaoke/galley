@@ -10,7 +10,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { scene3dFrame } from "@/core/scene3d/frame";
 import type { Scene3D } from "@/core/scene3d/schema";
 
-/** 只解释经核心层验证的数据；这里没有案例名称、设备类型或作者代码求值。 */
+/** 把核心层校验过的场景数据搭成 Three.js 场景，按时间绘制。 */
 export async function createScene3DWorld(canvas: HTMLCanvasElement, host: HTMLElement, data: Scene3D) {
   const offline = new URLSearchParams(location.search).get("offline") === "1";
   const renderer = new THREE.WebGLRenderer({canvas, antialias: !offline, preserveDrawingBuffer: true});
@@ -45,11 +45,6 @@ export async function createScene3DWorld(canvas: HTMLCanvasElement, host: HTMLEl
         case "plane": value = new THREE.PlaneGeometry(g.width, g.height); break;
         case "torus": value = new THREE.TorusGeometry(g.radius, g.tube, 12, g.segments); break;
         case "tube": value = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(g.points.map((p) => new THREE.Vector3(...p))), g.segments, g.radius, 8, false); break;
-        case "buffer":
-          value = new THREE.BufferGeometry(); value.setAttribute("position", new THREE.Float32BufferAttribute(g.positions, 3));
-          if (g.indices) value.setIndex(g.indices);
-          if (g.normals) value.setAttribute("normal", new THREE.Float32BufferAttribute(g.normals, 3)); else value.computeVertexNormals();
-          if (g.uv) value.setAttribute("uv", new THREE.Float32BufferAttribute(g.uv, 2));
       }
       geo.set(g.id, value); geometries.add(value);
     }
@@ -64,15 +59,13 @@ export async function createScene3DWorld(canvas: HTMLCanvasElement, host: HTMLEl
     for (const m of data.materials) {
       const value = m.unlit ? new THREE.MeshBasicMaterial() : new THREE.MeshPhysicalMaterial({metalness:m.metalness, roughness:m.roughness, emissive:m.emissive, emissiveIntensity:m.emissiveIntensity, normalScale:new THREE.Vector2(...m.normalScale),clearcoat:m.clearcoat,clearcoatRoughness:m.clearcoatRoughness,anisotropy:m.anisotropy,anisotropyRotation:m.anisotropyRotation});
       value.color.set(m.color); value.opacity = m.opacity;
-      value.transparent = m.opacity < 1 || data.tracks.some((tr) => tr.target === m.id && tr.property === "opacity");
+      value.transparent = m.opacity < 1;
       value.depthWrite = !value.transparent; value.side = m.side === "double" ? THREE.DoubleSide : THREE.FrontSide;
-      value.lightMapIntensity = m.lightMapIntensity;
       materials.add(value); mats.set(m.id, value);
-      for (const key of ["map", "normalMap", "roughnessMap", "metalnessMap", "emissiveMap", "aoMap", "lightMap"] as const) {
+      for (const key of ["map", "normalMap", "roughnessMap", "metalnessMap"] as const) {
         if (!m[key]) continue;
-        if (!(key in value)) throw new Error(`无光照材质 ${m.id} 不支持 ${key}`);
         const texture = await textureLoader.loadAsync(m[key]); textures.add(texture);
-        texture.colorSpace = ["map", "emissiveMap", "lightMap"].includes(key) ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+        texture.colorSpace = key === "map" ? THREE.SRGBColorSpace : THREE.NoColorSpace;
         texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
         texture.wrapS = texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(...m.repeat);
         (value as THREE.MeshStandardMaterial)[key] = texture;
@@ -84,7 +77,7 @@ export async function createScene3DWorld(canvas: HTMLCanvasElement, host: HTMLEl
       if (n.kind === "mesh") object = new THREE.Mesh(geo.get(n.geometry!)!, mats.get(n.material!)!);
       else if (n.kind === "camera") object = new THREE.PerspectiveCamera(n.fov, 16/9, 0.05, 10000);
       else if (n.kind === "light") {
-        object = n.light === "ambient" ? new THREE.AmbientLight(n.color,n.intensity) : n.light === "hemisphere" ? new THREE.HemisphereLight(n.color,n.ground,n.intensity) : n.light === "point" ? new THREE.PointLight(n.color,n.intensity,n.distance) : new THREE.DirectionalLight(n.color,n.intensity);
+        object = n.light === "hemisphere" ? new THREE.HemisphereLight(n.color,n.ground,n.intensity) : n.light === "point" ? new THREE.PointLight(n.color,n.intensity,n.distance) : new THREE.DirectionalLight(n.color,n.intensity);
         if (object instanceof THREE.DirectionalLight) {
           object.target.position.set(...n.target); scene.add(object.target);
           Object.assign(object.shadow.camera,{left:-n.shadowSpan,right:n.shadowSpan,top:n.shadowSpan,bottom:-n.shadowSpan,near:0.1,far:1000});
@@ -127,8 +120,6 @@ export async function createScene3DWorld(canvas: HTMLCanvasElement, host: HTMLEl
       const transformed = object.geometry.clone().applyMatrix4(object.matrixWorld);
       const part = transformed.index ? transformed.toNonIndexed() : transformed;
       if (part !== transformed) transformed.dispose();
-      // 合并只需标准顶点属性；缺少 UV 的自定义几何用零值，避免属性不一致。
-      if (!part.getAttribute("uv")) part.setAttribute("uv",new THREE.Float32BufferAttribute(new Float32Array(part.getAttribute("position").count*2),2));
       bucket.parts.push(part); object.removeFromParent();
     }
     for (const b of buckets.values()) {
@@ -157,7 +148,7 @@ export async function createScene3DWorld(canvas: HTMLCanvasElement, host: HTMLEl
             else if(key==="quaternion") object.quaternion.fromArray(value as number[]).normalize();
             else if(key==="target") targets.get(id)!.fromArray(value as number[]);
             else if(key==="animationTime") mixers.get(id)?.setTime((value as number)/1000);
-            else Object.assign(object,{[key]:value});
+            else object.visible=value as boolean;
           }
         }
         for(const [id,object] of objects) if(object instanceof THREE.DirectionalLight) object.target.position.copy(targets.get(id)!);

@@ -18,18 +18,16 @@ const geometry = z.discriminatedUnion("kind", [
   z.strictObject({ id, kind: z.literal("plane"), width: positive.default(1), height: positive.default(1) }),
   z.strictObject({ id, kind: z.literal("torus"), radius: positive.default(1), tube: positive.default(0.1), segments: segments.default(48) }),
   z.strictObject({ id, kind: z.literal("tube"), points: z.array(vector3).min(2).max(128), radius: positive.default(0.1), segments: segments.default(64) }),
-  z.strictObject({ id, kind: z.literal("buffer"), positions: z.array(coordinate).min(9).max(300_000), indices: z.array(z.number().int().nonnegative()).max(600_000).optional(), normals: z.array(number).max(300_000).optional(), uv: z.array(number).max(200_000).optional() }),
 ]);
 const material = z.strictObject({
   id, color: color.default("#ffffff"), metalness: number.min(0).max(1).default(0), roughness: number.min(0).max(1).default(0.6),
   emissive: color.default("#000000"), emissiveIntensity: number.min(0).max(20).default(0), opacity: number.min(0).max(1).default(1),
   side: z.enum(["front", "double"]).default("front"), unlit: z.boolean().default(false),
   map: scene3dImage.optional(), normalMap: scene3dImage.optional(), roughnessMap: scene3dImage.optional(), metalnessMap: scene3dImage.optional(),
-  emissiveMap: scene3dImage.optional(), aoMap: scene3dImage.optional(), lightMap: scene3dImage.optional(),
   normalScale: z.tuple([number.min(-4).max(4), number.min(-4).max(4)]).default([1, 1]),
   clearcoat: number.min(0).max(1).default(0), clearcoatRoughness: number.min(0).max(1).default(0.1),
   anisotropy: number.min(0).max(1).default(0), anisotropyRotation: number.default(0),
-  lightMapIntensity: number.min(0).max(10).default(1), repeat: z.tuple([positive, positive]).default([1, 1]),
+  repeat: z.tuple([positive, positive]).default([1, 1]),
 });
 const node = z.strictObject({
   id, kind: z.enum(["group", "mesh", "model", "camera", "light"]), parent: id.optional(),
@@ -37,10 +35,10 @@ const node = z.strictObject({
   visible: z.boolean().default(true), castShadow: z.boolean().default(true), receiveShadow: z.boolean().default(true),
   geometry: id.optional(), material: id.optional(), src: scene3dModel.optional(), animation: z.string().min(1).max(100).optional(),
   fov: number.min(5).max(120).default(45), target: vector3.default([0, 0, 0]),
-  light: z.enum(["ambient", "hemisphere", "directional", "point"]).optional(), color: color.default("#ffffff"), ground: color.default("#333333"),
+  light: z.enum(["hemisphere", "directional", "point"]).optional(), color: color.default("#ffffff"), ground: color.default("#333333"),
   intensity: number.min(0).max(1000).default(1), distance: number.min(0).max(10000).default(0), shadowSpan: positive.default(32),
 });
-export const SCENE3D_PROPERTIES = ["position", "rotation", "quaternion", "scale", "visible", "target", "fov", "intensity", "animationTime", "opacity", "roughness", "metalness", "emissiveIntensity"] as const;
+export const SCENE3D_PROPERTIES = ["position", "rotation", "quaternion", "scale", "visible", "target", "animationTime", "emissiveIntensity"] as const;
 const sample = z.union([number, z.boolean(), vector3, quaternion]);
 const track = z.strictObject({ target: id, property: z.enum(SCENE3D_PROPERTIES), times: z.array(number.min(0)).min(1).max(5402), values: z.array(sample).min(1).max(5402), interpolation: z.enum(["linear", "smooth", "step"]).default("linear") });
 
@@ -75,11 +73,7 @@ export function validateScene3D(raw: unknown): Scene3D {
     while (parent) { if (seen.has(parent)) fail(`父子关系形成循环：${n.id}`); seen.add(parent); const p = nodes.get(parent); if (!p || p.kind !== "group") fail(`${n.id} 的父节点必须是存在的 group。`); parent = p!.parent; }
   }
   for (const g of scene.geometries) if (g.kind === "box" && (g.size.some((v) => v <= 0) || g.bevel > Math.min(...g.size) / 2)) fail(`${g.id} 的尺寸必须为正，倒角不能超过最短边的一半。`);
-  for (const g of scene.geometries) if (g.kind === "buffer") {
-    if ((!g.indices && g.positions.length % 9) || g.positions.length % 3 || (g.normals && g.normals.length !== g.positions.length) || (g.uv && g.uv.length !== g.positions.length / 3 * 2)) fail(`${g.id} 的顶点属性长度不匹配。`);
-    if (g.indices && (g.indices.length % 3 || g.indices.some((i) => i >= g.positions.length / 3))) fail(`${g.id} 的三角形索引越界。`);
-  }
-  for (const m of scene.materials) if (m.unlit && (m.normalMap || m.roughnessMap || m.metalnessMap || m.emissiveMap || m.clearcoat || m.anisotropy)) fail(`无光照材质 ${m.id} 不支持法线、金属、粗糙度、自发光贴图或物理涂层参数。`);
+  for (const m of scene.materials) if (m.unlit && (m.normalMap || m.roughnessMap || m.metalnessMap || m.clearcoat || m.anisotropy)) fail(`无光照材质 ${m.id} 不支持法线、金属、粗糙度贴图或物理涂层参数。`);
   const seenTracks = new Set<string>(); let samples = 0;
   for (const tr of scene.tracks) {
     const n = nodes.get(tr.target), m = materials.get(tr.target), key = `${tr.target}.${tr.property}`;
@@ -90,11 +84,11 @@ export function validateScene3D(raw: unknown): Scene3D {
     samples += tr.times.length;
     if (tr.times.length !== tr.values.length || tr.times.some((t, i) => t > duration || (i > 0 && t <= tr.times[i - 1]))) fail(`${key} 的关键帧时间不合法。`);
     const vector = ["position", "rotation", "scale", "target"].includes(tr.property);
-    const allowed = m ? ["opacity", "roughness", "metalness", "emissiveIntensity"] : ["position", "rotation", "quaternion", "scale", "visible", ...(n?.kind === "camera" ? ["target", "fov"] : []), ...(n?.kind === "light" ? ["intensity"] : []), ...(n?.kind === "model" ? ["animationTime"] : [])];
+    const allowed = m ? ["emissiveIntensity"] : ["position", "rotation", "quaternion", "scale", "visible", ...(n?.kind === "camera" ? ["target"] : []), ...(n?.kind === "model" ? ["animationTime"] : [])];
     if (!allowed.includes(tr.property)) fail(`${key} 不是这个目标可动画的属性。`);
     for (const value of tr.values) {
       if (vector ? !Array.isArray(value) || value.length !== 3 : tr.property === "quaternion" ? !Array.isArray(value) || value.length !== 4 || Math.hypot(...value) < 0.001 : tr.property === "visible" ? typeof value !== "boolean" : typeof value !== "number") fail(`${key} 的关键帧值类型不正确。`);
-      if (typeof value === "number" && (["opacity", "roughness", "metalness"].includes(tr.property) ? value < 0 || value > 1 : tr.property === "fov" ? value < 5 || value > 120 : value < 0 || value > (tr.property === "emissiveIntensity" ? 20 : tr.property === "intensity" ? 1000 : 100000))) fail(`${key} 的关键帧值超出范围。`);
+      if (typeof value === "number" && (value < 0 || value > (tr.property === "emissiveIntensity" ? 20 : 100000))) fail(`${key} 的关键帧值超出范围。`);
     }
   }
   if (samples > SCENE3D_LIMITS.samples) fail("动画采样点过多，请减少动态物体或改用关键帧。");
@@ -103,5 +97,5 @@ export function validateScene3D(raw: unknown): Scene3D {
 }
 
 export function scene3dAssets(scene: Scene3D): string[] {
-  return [...new Set([...scene.nodes.flatMap((n) => n.src ? [n.src] : []), ...scene.materials.flatMap((m) => [m.map, m.normalMap, m.roughnessMap, m.metalnessMap, m.emissiveMap, m.aoMap, m.lightMap].filter((value): value is string => !!value))])];
+  return [...new Set([...scene.nodes.flatMap((n) => n.src ? [n.src] : []), ...scene.materials.flatMap((m) => [m.map, m.normalMap, m.roughnessMap, m.metalnessMap].filter((value): value is string => !!value))])];
 }

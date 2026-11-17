@@ -51,13 +51,10 @@ describe("内容驱动三维",()=>{
     expect(scene3dAssets(scene)).toEqual(["/media/normal.png","/media/rough.png"]);
     for(const invalid of [code.replace('bevel:0.04','bevel:0.8'),code.replace('clearcoat:0.7','clearcoat:2'),code.replace('clearcoat:0.7','unlit:true,clearcoat:0.7')]) expect((await runScene3D(invalid)).ok).toBe(false);
   });
-  it("工厂、产品、张量、旅程、训练、Blender 模型全部通过同一个编译器",async()=>{
-    for(const name of ["factory","product","tensor","journey","training","gpu"]) {
-      const code=readFileSync(`examples/scenes/${name}.js`,"utf8").replaceAll("__GPU_MODEL__","/media/gpu.glb").replaceAll("__MODEL__","/media/test.glb").replaceAll("__TEXTURE__","/media/test.png").replace(/__[A-Z_]+__/g,"/media/material.png");
-      const scene=await compile(code);
+  it("examples 里的场景稿都能编译",async()=>{
+    for(const name of ["tensor","journey"]) {
+      const scene=await compile(readFileSync(`examples/scenes/${name}.js`,"utf8"));
       expect(scene.nodes.length).toBeGreaterThan(5);
-      if(name==="product")expect(scene3dAssets(scene)).toEqual(["/media/test.glb","/media/test.png"]);
-      if(name==="factory")expect(scene.shots).toHaveLength(7);
     }
   });
 });

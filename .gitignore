@@ -51,5 +51,3 @@ next-env.d.ts
 # release.sh --pack 打出的部署包
 /dist
 
-# Local 3D experiment output
-.lab/

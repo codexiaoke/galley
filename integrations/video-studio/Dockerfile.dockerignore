@@ -5,7 +5,6 @@ node_modules
 .git
 .claude
 data
-.lab
 # release.sh 在本机打的部署包，几十 MB，构建用不到
 dist
 .env*
