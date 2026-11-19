@@ -15,7 +15,7 @@ export default function PanelLayout({ children }: { children: ReactNode }) {
           <Sidebar />
         </Suspense>
         <main className="min-w-0 px-5 py-8 lg:px-14 lg:py-12">
-          <div className="mx-auto max-w-5xl">{children}</div>
+          <div className="mx-auto max-w-5xl has-[[data-review-layout]]:max-w-[90rem]">{children}</div>
         </main>
       </div>
     </ToastProvider>

@@ -1,4 +1,4 @@
-import { ArrowLeft, PencilLine, Presentation } from "lucide-react";
+import { PencilLine, Presentation } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -18,6 +18,7 @@ import { DecisionForm } from "../../../forms";
 import { ModalForm } from "../../../modal";
 import { Badge, Card, Field, formatRelative, INPUT, PageSkeleton, ROW_LINK, type Tone } from "../../../ui";
 import { Commentable, CommentAction, CommentQuote } from "./comments";
+import { ReviewLayout } from "./review-layout";
 
 const STATUS: Record<string, { label: string; tone: Tone }> = {
   open: { label: "进行中", tone: "neutral" },
@@ -84,22 +85,19 @@ async function ChangeSetDetail({ params }: { params: Promise<{ id: string }> }) 
   const now = new Date();
 
   return (
-    <>
-      <Link href="/admin" className="mb-4 inline-flex items-center gap-1.5 rounded-md px-2 py-1 -ml-2 text-a-muted transition-colors hover:bg-a-subtle hover:text-a-text">
-        <ArrowLeft size={15} />
-        返回看板
-      </Link>
-      <div className="mb-6">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-[1.35rem] font-semibold leading-tight tracking-tight">{changeSet.title}</h1>
-          <Badge tone={status.tone} dot>
-            {status.label}
-          </Badge>
+    <ReviewLayout
+      heading={
+        <div className="mb-6">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-[1.35rem] font-semibold leading-tight tracking-tight">{changeSet.title}</h1>
+            <Badge tone={status.tone} dot>
+              {status.label}
+            </Badge>
+          </div>
+          {changeSet.summary && <p className="mt-1 max-w-3xl text-a-muted">{changeSet.summary}</p>}
         </div>
-        {changeSet.summary && <p className="mt-1 max-w-3xl text-a-muted">{changeSet.summary}</p>}
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
+      }
+    >
         <div className="min-w-0 space-y-6">
           {documentItems.map(({ document, revision }) => {
             const preview = getDocumentRevision(db, revision.id);
@@ -245,7 +243,7 @@ async function ChangeSetDetail({ params }: { params: Promise<{ id: string }> }) 
           )}
         </div>
 
-        <aside className="space-y-4 xl:sticky xl:top-8 xl:self-start">
+        <aside id="review-sidebar" aria-label="审阅栏" className="min-w-0 space-y-4">
           <Card title="结论">
             {inReview ? (
               <>
@@ -331,7 +329,6 @@ async function ChangeSetDetail({ params }: { params: Promise<{ id: string }> }) 
             </div>
           )}
         </aside>
-      </div>
-    </>
+    </ReviewLayout>
   );
 }
