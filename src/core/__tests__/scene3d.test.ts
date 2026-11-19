@@ -9,12 +9,30 @@ import { parseMarkup } from "../markup/parse";
 import { presentationBeats } from "../../render/beats";
 import { structureFingerprint } from "../presentation-version";
 import { validateGlb } from "../scene3d/glb";
+import { readImmersiveScene3D, readScene3DSlide } from "../../render/scene3d-source";
+import { splitSlides } from "../../render/slides";
+import { turnKind } from "../../render/turn";
 
 const BASIC=`world({});geometry("box",{kind:"box"});material("metal",{color:"#aabbcc"});node("part",{kind:"mesh",geometry:"box",material:"metal"});node("camera",{kind:"camera",position:[4,3,6]});shot("move","移动",4000);track("part","position",[[0,[0,0,0]],[4000,[4,0,0]]]);`;
 const body=(code:string)=>':::scene3d\n```js\n'+code+'\n```\n:::';
 const compile=async(code:string)=>{const result=await runScene3D(code);if(!result.ok)throw Error(result.error);return result.scene;};
 
 describe("内容驱动三维",()=>{
+  it("混合演示保留 PPT 页面与顺序，只把三维页铺满舞台，并双向切换", async () => {
+    const source = `## 原理\n\n先解释计算。\n\n## 观察\n\n${body(BASIC)}\n\n## 总结\n\n回到原理。`;
+    const scenes = await runScenes3D(source), pages = splitSlides(source);
+    expect(readImmersiveScene3D(source, scenes)).toBeNull();
+    const modes = pages.map((page) => ({ ...page, scene3d: readScene3DSlide(page.source, scenes) }));
+    expect(modes.map((page) => !!page.scene3d)).toEqual([false, true, false]);
+    expect(turnKind(modes, 1, 2)).toBe("scene-enter");
+    expect(turnKind(modes, 2, 3)).toBe("scene-exit");
+    expect(turnKind(modes, 3, 2)).toBe("scene-enter");
+    expect(turnKind(modes, 2, 1)).toBe("scene-exit");
+    const beats = presentationBeats(source, {}, scenes);
+    expect(beats.map((beat) => beat.kind)).toEqual(["cover", "page", "page", "step", "page", "ending"]);
+    expect(beats.filter((beat) => beat.kind === "step")[0]).toMatchObject({ page: 2, minMs: 4000 });
+    expect(readImmersiveScene3D(body(BASIC), scenes)?.scene.shots).toHaveLength(1);
+  });
   it("从内容生成任意布局；正放、回退、重播使用绝对时间",async()=>{
     const scene=await compile(BASIC);
     expect(scene3dFrame(scene,3000).part.position).toEqual([3,0,0]);
@@ -56,6 +74,10 @@ describe("内容驱动三维",()=>{
       const scene=await compile(readFileSync(`examples/scenes/${name}.js`,"utf8"));
       expect(scene.nodes.length).toBeGreaterThan(5);
     }
+    const source = readFileSync("examples/scenes/hybrid.md", "utf8");
+    const scenes = await runScenes3D(source);
+    expect(splitSlides(source).map((page) => !!readScene3DSlide(page.source, scenes))).toEqual([false, true, false]);
+    expect(presentationBeats(source, {}, scenes).filter((beat) => beat.kind === "step")).toHaveLength(3);
   });
 });
 

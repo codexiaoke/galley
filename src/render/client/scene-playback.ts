@@ -8,11 +8,23 @@ export function createScenePlayback({ element, id, steps, speed, draw, changed, 
   changed: (index: number, playing: boolean) => void;
   finished?: () => void;
 }) {
-  let index = -1, start = performance.now(), animate = false, playing = false;
+  let index = -1, start = performance.now(), rate = speed(), animate = false, playing = false;
   let pausedMs: number | undefined;
   let raf = 0;
   const offline = new URLSearchParams(location.search).get("offline") === "1";
-  const elapsed = () => pausedMs ?? (animate ? (performance.now() - start) * speed() : Infinity);
+  const elapsed = () => {
+    if (pausedMs !== undefined) return pausedMs;
+    if (!animate) return Infinity;
+    const now = performance.now(), ms = (now - start) * rate, nextRate = speed();
+    if (nextRate !== rate) { start = now - ms / nextRate; rate = nextRate; }
+    return ms;
+  };
+  const setPaused = (pause: boolean) => {
+    if (pause && pausedMs === undefined) pausedMs = elapsed();
+    else if (!pause && pausedMs !== undefined) {
+      rate = speed(); start = performance.now() - pausedMs / rate; pausedMs = undefined;
+    }
+  };
   const render = () => {
     const ms = elapsed();
     const moving = String(index >= 0 && ms < steps[index].duration);
@@ -21,15 +33,15 @@ export function createScenePlayback({ element, id, steps, speed, draw, changed, 
   };
   const go = (next: number, animation: boolean, autoplay = false) => {
     index = Math.max(-1, Math.min(steps.length - 1, next));
-    start = performance.now(); animate = animation; playing = autoplay; pausedMs = undefined;
+    start = performance.now(); rate = speed(); animate = animation; playing = autoplay; pausedMs = undefined;
     element.dataset.step = String(index);
     changed(index, playing); render();
   };
   const toggle = () => {
-    if (playing) { pausedMs = elapsed(); playing = false; changed(index, false); }
+    if (playing) { setPaused(true); playing = false; changed(index, false); }
     else if (index < 0 || (index === steps.length - 1 && elapsed() >= steps[index].duration)) go(0, true, true);
     else {
-      start = performance.now() - (pausedMs ?? 0) / speed(); pausedMs = undefined;
+      setPaused(false);
       animate = true; playing = true; changed(index, true);
     }
   };
@@ -50,7 +62,7 @@ export function createScenePlayback({ element, id, steps, speed, draw, changed, 
   };
   const tick = () => {
     if (!offline) render();
-    if (playing && elapsed() >= steps[index].stay) {
+    if (playing && pausedMs === undefined && elapsed() >= steps[index].stay) {
       if (index < steps.length - 1) go(index + 1, true, true);
       else { playing = false; changed(index, false); finished?.(); }
     }
@@ -59,7 +71,7 @@ export function createScenePlayback({ element, id, steps, speed, draw, changed, 
   element.addEventListener("galley-step", onStep);
   window.addEventListener("galley-render-frame", onFrame);
   render(); raf = requestAnimationFrame(tick);
-  return { go, toggle, dispose() {
+  return { go, toggle, setPaused, dispose() {
     cancelAnimationFrame(raf);
     element.removeEventListener("galley-step", onStep);
     window.removeEventListener("galley-render-frame", onFrame);

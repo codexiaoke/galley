@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Scene3D } from "@/core/scene3d/schema";
 import { createScene3DWorld } from "./scene3d-world";
 import { createScenePlayback } from "./scene-playback";
+import { usePresentSpeed } from "./speed";
 
 type Props = { id: string; title: string; scene: Scene3D; fullScreen?: boolean; controlled?: boolean; timing?: Record<string, number> };
 type FilmWindow = Window & { __galleyTimeline?: { id: string; at: number }[]; __galleyPresentDone?: boolean };
@@ -12,6 +13,8 @@ type FilmWindow = Window & { __galleyTimeline?: { id: string; at: number }[]; __
 export function Scene3DPlayer({ id, title, scene, fullScreen = false, controlled = false, timing }: Props) {
   const root = useRef<HTMLElement>(null), canvas = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState("");
+  const speed = usePresentSpeed(), speedRef = useRef(speed);
+  useEffect(() => { speedRef.current = speed; }, [speed]);
   useEffect(() => {
     const element = root.current!, surface = canvas.current!, filmWindow = window as FilmWindow;
     let cancelled = false, cleanup: (() => void) | undefined;
@@ -35,7 +38,7 @@ export function Scene3DPlayer({ id, title, scene, fullScreen = false, controlled
         if (fullScreen) window.parent.postMessage({ source: "galley-present", ...data }, "*");
       };
       const playback = createScenePlayback({
-        element, id, steps, speed: () => 1,
+        element, id, steps, speed: () => speedRef.current,
         draw(index, elapsed) {
           const time = index < 0 ? 0 : starts[index] + Math.min(1, elapsed / steps[index].stay) * scene.shots[index].duration;
           return world.draw(time);
@@ -73,6 +76,8 @@ export function Scene3DPlayer({ id, title, scene, fullScreen = false, controlled
       const onLost = (event: Event) => {
         event.preventDefault(); element.dataset.error = "WebGL 上下文丢失，请重新加载"; setError(element.dataset.error);
       };
+      const onPause = (event: Event) => playback.setPaused((event as CustomEvent<{ paused: boolean }>).detail.paused);
+      element.addEventListener("galley-scene-pause", onPause);
       window.addEventListener("message", onMessage); window.addEventListener("keydown", onKey);
       surface.addEventListener("webglcontextlost", onLost);
       element.dataset.ready = "true";
@@ -82,6 +87,7 @@ export function Scene3DPlayer({ id, title, scene, fullScreen = false, controlled
         cancelAnimationFrame(readyFrame); playback.dispose(); world.dispose();
         window.removeEventListener("message", onMessage); window.removeEventListener("keydown", onKey);
         surface.removeEventListener("webglcontextlost", onLost);
+        element.removeEventListener("galley-scene-pause", onPause);
       };
     };
     void setup();

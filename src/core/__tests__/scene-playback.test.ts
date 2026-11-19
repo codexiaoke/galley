@@ -3,7 +3,7 @@ import { createScenePlayback } from "../../render/client/scene-playback";
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
-function setup(offline = false) {
+function setup(offline = false, speed = () => 1) {
   let now = 0;
   let tick: FrameRequestCallback = () => {};
   vi.spyOn(performance, "now").mockImplementation(() => now);
@@ -14,11 +14,31 @@ function setup(offline = false) {
   const element = Object.assign(new EventTarget(), { dataset: {} }) as HTMLElement;
   const draw = vi.fn(() => true);
   const finished = vi.fn();
-  const playback = createScenePlayback({ element, id: "demo", steps: [{ duration: 1000, stay: 2000 }, { duration: 1000, stay: 2000 }], speed: () => 1, draw, changed: vi.fn(), finished });
+  const playback = createScenePlayback({ element, id: "demo", steps: [{ duration: 1000, stay: 2000 }, { duration: 1000, stay: 2000 }], speed, draw, changed: vi.fn(), finished });
   return { playback, element, draw, finished, advance(ms: number) { now += ms; tick(now); } };
 }
 
 describe("三维播放共用时钟", () => {
+  it("PPT 暂停后冻结当前镜头，恢复不跳过余下动作", () => {
+    const { playback, element, draw, advance } = setup();
+    element.dispatchEvent(new CustomEvent("galley-step", { cancelable: true, detail: { dir: 1 } }));
+    advance(350); playback.setPaused(true); advance(3000);
+    expect(draw).toHaveBeenLastCalledWith(0, 350);
+    playback.setPaused(false); advance(250);
+    expect(draw).toHaveBeenLastCalledWith(0, 600);
+    playback.dispose();
+  });
+  it("倍速改变保留当前姿态，下一镜头的等待时间也跟随倍速", () => {
+    let speed = 1;
+    const { playback, element, draw, advance } = setup(false, () => speed);
+    playback.go(0, true); advance(300);
+    speed = 2; advance(0); advance(200);
+    expect(draw).toHaveBeenLastCalledWith(0, 700);
+    const event = new CustomEvent("galley-step", { cancelable: true, detail: { dir: 1 } });
+    element.dispatchEvent(event);
+    expect(event.detail).toMatchObject({ beat: "demo.1", anim: 500, wait: 1000 });
+    playback.dispose();
+  });
   it("只在最后一拍自然结束时通知电影导出完成", () => {
     const { playback, finished, advance } = setup(true);
     playback.go(0, true, true); advance(2000); expect(finished).not.toHaveBeenCalled();

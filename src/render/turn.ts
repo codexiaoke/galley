@@ -3,12 +3,15 @@
  * - within  同一节里翻页：上下接续，标题留在原处；
  * - section 换了一节：左右推开；
  * - cover   进出封面和结尾：推近、拉远。
+ * - scene-enter / scene-exit  进入全屏三维、返回 PPT。
  *
  * 页码从 0 开始：第 0 页是封面，最后一页是结尾，中间是正文的各页。
  */
-export type TurnKind = "within" | "section" | "cover";
+export type TurnKind = "within" | "section" | "cover" | "scene-enter" | "scene-exit";
 
-export function turnKind(slides: { title?: string; section?: string }[], from: number, to: number): TurnKind {
+export function turnKind(slides: { title?: string; section?: string; scene3d?: unknown }[], from: number, to: number): TurnKind {
+  if (slides[to - 1]?.scene3d) return "scene-enter";
+  if (slides[from - 1]?.scene3d) return "scene-exit";
   const last = slides.length + 1;
   if (from <= 0 || to <= 0 || from >= last || to >= last) return "cover";
   // 一页属于哪一节：小节页上方标着的那个二级标题；二级标题自己那一页就是它的标题

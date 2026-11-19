@@ -114,7 +114,11 @@ export async function exportVideo(input: ExportInput): Promise<{ frames: number;
     url.searchParams.set("timing", timingParam(input.beats, input.voices, input.production));
     const response = await page.goto(url.toString(), { waitUntil: "domcontentloaded", timeout: 60000 });
     if (!response?.ok()) throw new Error(`演示页面读取失败：${response?.status()}`);
-    await page.waitForSelector(".galley-present-stage[data-ready]", { timeout: 30000 });
+    await page.waitForSelector(".galley-present-stage[data-ready], .galley-present-stage[data-error]", { timeout: 30000 });
+    await page.evaluate(() => {
+      const failed = document.querySelector<HTMLElement>(".galley-present-stage[data-error]");
+      if (failed) throw new Error(failed.dataset.error);
+    });
     await page.waitForFunction(() => !document.querySelector(".galley-mermaid:not([data-ready]):not([data-error])"));
     await page.waitForFunction(() => !document.querySelector("[data-render-surface]:not([data-ready]):not([data-error])"));
     await page.evaluate(async () => {

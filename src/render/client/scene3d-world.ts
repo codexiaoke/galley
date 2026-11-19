@@ -136,6 +136,7 @@ export async function createScene3DWorld(canvas: HTMLCanvasElement, host: HTMLEl
     let last="";
     return {
       draw(time:number) {
+        if (host.closest("[hidden]")) return false;
         const rect=host.getBoundingClientRect(),dpr=Math.min(window.devicePixelRatio,2),width=Math.max(1,Math.round(rect.width*dpr)),height=Math.max(1,Math.round(rect.height*dpr));
         const signature=`${time}:${width}:${height}`; if(signature===last) return false; last=signature;
         if(canvas.width!==width || canvas.height!==height) {renderer.setSize(width,height,false);composer?.setSize(width,height);}

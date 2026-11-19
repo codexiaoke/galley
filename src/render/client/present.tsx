@@ -9,6 +9,8 @@ import { formatSpeed, PresentSpeed, SPEEDS } from "./speed";
 import { printWhenDiagramsReady } from "../print-readiness";
 import { turnKind } from "../turn";
 import { GuideFocus } from "./guide-focus";
+import { Scene3DPlayer } from "./lazy";
+import type { Scene3D } from "@/core/scene3d/schema";
 
 /**
  * 演示模式：文章变成全屏的幻灯片。
@@ -40,7 +42,7 @@ import { GuideFocus } from "./guide-focus";
  * 可以自动播放，也可以自己翻页、同时用麦克风配音。录完直接下载，不上传。
  */
 
-export type PresentSlide = { title?: string; section?: string; text: number; content: ReactNode };
+export type PresentSlide = { title?: string; section?: string; text: number; content: ReactNode; scene3d?: { id: string; title: string; scene: Scene3D } };
 export type Cover = { title: string; summary?: string; site: string; date?: string; url?: string };
 type Orientation = "landscape" | "portrait";
 
@@ -174,6 +176,9 @@ export function Presentation({
   const [speed, setSpeed] = useState(1);
   const changeSpeed = (dir: number) => setSpeed((v) => SPEEDS[Math.max(0, Math.min(SPEEDS.length - 1, SPEEDS.indexOf(v) + dir))]);
   const [scale, setScale] = useState(1);
+  const [viewport, setViewport] = useState(DESIGN.landscape);
+  const [resourcesReady, setResourcesReady] = useState(false);
+  const [resourceError, setResourceError] = useState("");
   const [chrome, setChrome] = useState(!autoParam);
   const slideRefs = useRef<(HTMLElement | null)[]>([]);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -187,6 +192,8 @@ export function Presentation({
   const turnToken = useRef(0);
   /** 自动播放时，当前这一页按计划是什么时刻开始的（见自动播放那一段） */
   const planned = useRef<number | null>(null);
+  const autoWait = useRef<{ page: number; ms: number } | null>(null);
+  const navigation = useRef({ epoch: 0 });
 
   /** 记下一拍开始了，并告诉关心的人：页面上的脚本（事件 galley-beat）、把演示嵌在里面的外层页面（postMessage） */
   const logBeat = useCallback((id: string) => {
@@ -198,14 +205,39 @@ export function Presentation({
     if (window.parent !== window) window.parent.postMessage({ source: "galley-present", type: "beat", ...entry }, "*");
   }, []);
   useEffect(() => {
-    if (!print && started) logBeat(`p${page}`);
-  }, [page, run, print, started, logBeat]);
+    if (!print && started && resourcesReady) logBeat(`p${page}`);
+  }, [page, run, print, started, resourcesReady, logBeat]);
+
+  // 隐藏的三维页也先加载；封面准备好不代表模型准备好，工坊只接收一次完整 ready。
+  useEffect(() => {
+    const stage = stageRef.current!;
+    let cancelled = false, fontsReady = false, frame = 0;
+    const check = () => {
+      if (cancelled || !fontsReady) return;
+      const failed = stage.querySelector<HTMLElement>("[data-render-surface][data-error]");
+      if (failed) {
+        const message = failed.dataset.error!;
+        if (stage.dataset.error !== message) stage.dataset.error = message;
+        setResourceError(message); setResourcesReady(false); return;
+      }
+      const slots = Array.from(stage.querySelectorAll("[data-scene3d-slot]"));
+      if (slots.some((slot) => !slot.querySelector('[data-render-surface][data-ready="true"]'))) return;
+      if (stage.dataset.ready === "true") return;
+      stage.dataset.ready = "true";
+      setResourcesReady(true);
+      frame = requestAnimationFrame(() => {
+        if (controlled && !print) window.parent.postMessage({ source: "galley-present", type: "ready" }, "*");
+      });
+    };
+    const observer = new MutationObserver(check);
+    observer.observe(stage, { childList: true, subtree: true, attributes: true, attributeFilter: ["data-ready", "data-error"] });
+    void document.fonts.ready.then(() => { fontsReady = true; check(); });
+    return () => { cancelled = true; observer.disconnect(); cancelAnimationFrame(frame); delete stage.dataset.ready; };
+  }, [controlled, print, run]);
 
   // 外层先拿到已排好版的封面，再启动录制；收到 start 才推进时间轴和配音。
   useEffect(() => {
     if (!controlled || print) return;
-    let cancelled = false;
-    let frame = 0;
     const start = (event: MessageEvent) => {
       if (event.source !== window.parent || event.data?.source !== "galley-studio" || event.data.type !== "start") return;
       flushSync(() => {
@@ -214,18 +246,7 @@ export function Presentation({
       });
     };
     window.addEventListener("message", start);
-    void document.fonts.ready.then(() => {
-      if (cancelled) return;
-      frame = requestAnimationFrame(() => {
-        frame = requestAnimationFrame(() => {
-          if (stageRef.current) stageRef.current.dataset.ready = "true";
-          window.parent.postMessage({ source: "galley-present", type: "ready" }, "*");
-        });
-      });
-    });
     return () => {
-      cancelled = true;
-      cancelAnimationFrame(frame);
       window.removeEventListener("message", start);
     };
   }, [controlled, print]);
@@ -236,17 +257,20 @@ export function Presentation({
       const from = pageRef.current;
       const next = Math.max(0, Math.min(total - 1, to));
       if (next === from) return;
+      navigation.current.epoch++; autoWait.current = null;
       pageRef.current = next;
       // 离开的这一页：内容的进场动画到此为止；上一次转场接过的大块也放开
       const leaving = slideRefs.current[from];
       if (leaving) delete leaving.dataset.enter;
+      leaving?.querySelector('[data-render-surface="scene3d"]')?.dispatchEvent(new CustomEvent("galley-scene-pause", { detail: { paused: true } }));
       document.querySelectorAll("[data-slide-hero]").forEach((el) => el.removeAttribute("data-slide-hero"));
       const doc = document as TransitionDocument;
       const kind = turnKind(slides, from, next);
       const dir = next > from ? "forward" : "back";
       // 受控播放：用舞台里的普通动画换页（样式见 globals.css 的"受控播放的换页"），动画结束后放下旧的一页。
       // 导出时定时器走的是虚拟时钟，和画面同一个时间。
-      if (animate && !print && (offline || controlled)) {
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (animate && !print && !reducedMotion && (offline || controlled || kind.startsWith("scene-"))) {
         const token = ++turnToken.current;
         setTurning({ from, to: next, kind, dir });
         setPage(next);
@@ -256,7 +280,7 @@ export function Presentation({
         return;
       }
       // 页面在后台时浏览器不出画面，视图过渡会一直等着：直接换页
-      if (!animate || print || offline || controlled || !doc.startViewTransition || document.hidden || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      if (!animate || print || offline || controlled || !doc.startViewTransition || document.hidden || reducedMotion) {
         setPage(next);
         return;
       }
@@ -288,6 +312,15 @@ export function Presentation({
     [total, print, offline, controlled, slides],
   );
 
+  const rewind = useCallback(() => {
+    turnTo(0, false);
+    planned.current = null; autoWait.current = null;
+    setResourcesReady(false); setResourceError(""); setRun((n) => n + 1);
+    const w = window as unknown as { __galleyTimeline?: TimelineEntry[]; __galleyPresentDone?: boolean };
+    w.__galleyTimeline = []; w.__galleyPresentDone = false;
+    if (stageRef.current) delete stageRef.current.dataset.error;
+  }, [turnTo]);
+
   // ---- 录制 ----
   const [rec, setRec] = useState<RecState>("idle");
   const [recOptions, setRecOptions] = useState<RecOptions>({ orientation: orientationParam ?? "landscape", captions: "space", mic: false, pacing: "auto", speed: 1 });
@@ -313,7 +346,11 @@ export function Presentation({
 
   // 缩放到窗口大小（录制时下面留出提示条）
   useLayoutEffect(() => {
-    const fit = () => setScale(Math.min(window.innerWidth / size.w, (window.innerHeight - (recording_ ? REC_BAR : 0)) / size.h));
+    const fit = () => {
+      const h = window.innerHeight - (recording_ ? REC_BAR : 0);
+      setViewport({ w: window.innerWidth, h });
+      setScale(Math.min(window.innerWidth / size.w, h / size.h));
+    };
     fit();
     window.addEventListener("resize", fit);
     return () => window.removeEventListener("resize", fit);
@@ -328,7 +365,7 @@ export function Presentation({
     const targets = print ? slideRefs.current : [slideRefs.current[page]];
     const observers = targets.map((slide) => {
       const el = slide?.querySelector<HTMLElement>(".galley-slide-body");
-      if (!slide || !el) return null;
+      if (!slide || !el || slide.hasAttribute("data-scene3d-slot")) return null;
       const fit = () => fitSlide(slide, el);
       fit();
       const ro = new ResizeObserver(fit);
@@ -413,6 +450,8 @@ export function Presentation({
 
   const move = useCallback(
     (dir: number) => {
+      if (!resourcesReady) return null;
+      navigation.current.epoch++; autoWait.current = null;
       const inner = stepInside(dir);
       if (inner) {
         if (inner.beat) logBeat(inner.beat);
@@ -421,7 +460,7 @@ export function Presentation({
       turnTo(page + dir);
       return null;
     },
-    [stepInside, turnTo, page, logBeat],
+    [stepInside, turnTo, page, logBeat, resourcesReady],
   );
 
   const stopRecording = useCallback(async () => {
@@ -456,8 +495,7 @@ export function Presentation({
       });
       recording.current = r;
       // 从头开始：回到封面，所有动画重新挂载
-      turnTo(0, false);
-      setRun((n) => n + 1);
+      rewind();
       setCountdown(3);
       setRec("countdown");
     } catch (e) {
@@ -528,6 +566,7 @@ export function Presentation({
         move(next ? 1 : -1);
       } else if (rec === "idle") {
         if (e.key === "a" || e.key === "A") setAuto((v) => !v);
+        else if (e.key === "r" || e.key === "R") { rewind(); setAuto(true); }
         else if (e.key === "-" || e.key === "_") changeSpeed(-1);
         else if (e.key === "=" || e.key === "+") changeSpeed(1);
         else if (e.key === "Home") turnTo(0);
@@ -540,7 +579,7 @@ export function Presentation({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [auto, move, turnTo, total, backHref, rec, stopRecording, print, controlled]);
+  }, [auto, move, turnTo, rewind, total, backHref, rec, stopRecording, print, controlled]);
 
   // 控制条：鼠标不动两秒后隐藏
   useEffect(() => {
@@ -560,8 +599,15 @@ export function Presentation({
   }, [autoParam, controlled, rec]);
 
   // 自动播放
+  const previousAuto = useRef(auto);
   useEffect(() => {
-    if (!auto || rec === "countdown") return;
+    if (previousAuto.current === auto) return;
+    previousAuto.current = auto;
+    slideRefs.current[page]?.querySelector('[data-render-surface="scene3d"]')?.dispatchEvent(new CustomEvent("galley-scene-pause", { detail: { paused: !auto } }));
+  }, [auto, page]);
+
+  useEffect(() => {
+    if (!auto || !resourcesReady || rec === "countdown") return;
     const w = window as unknown as { __galleyPresentDone?: boolean; __galleyPage?: number };
     w.__galleyPage = page;
     if (page >= total - 1) {
@@ -575,6 +621,7 @@ export function Presentation({
       return () => clearTimeout(t);
     }
     const reading = pageStay(page);
+    const cursor = navigation.current, epoch = cursor.epoch;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
     // 按计划的时刻排，不按"上一下实际发生的时刻"排：定时器每次都会晚一点点，一拍一拍累加起来，
@@ -612,12 +659,15 @@ export function Presentation({
     const share = firstShare(slideRefs.current[page]);
     const given = timing?.[`p${page}`] !== undefined;
     const lead = share > 0 ? reading * share : given ? reading : 0;
-    after(given && share === 0 ? lead : Math.max(1200 / speed, lead), tick);
+    const remaining = autoWait.current;
+    autoWait.current = null;
+    after(remaining?.page === page ? remaining.ms / speed : given && share === 0 ? lead : Math.max(1200 / speed, lead), tick);
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      if (cursor.epoch === epoch) autoWait.current = { page, ms: Math.max(0, at - performance.now()) * speed };
     };
-  }, [auto, autoParam, speed, page, total, stepInside, turnTo, pageStay, stepWait, logBeat, timing, rec, stopRecording]);
+  }, [auto, autoParam, speed, page, total, stepInside, turnTo, pageStay, stepWait, logBeat, timing, rec, stopRecording, resourcesReady]);
 
   // 结果里的视频地址用完就释放
   useEffect(() => () => void (result && URL.revokeObjectURL(result.url)), [result]);
@@ -628,6 +678,8 @@ export function Presentation({
     return { hidden: false, "data-turn": turning.kind, "data-dir": turning.dir, "data-leaving": i === turning.from || undefined };
   };
   const idle = rec === "idle";
+  const immersive = !!slides[page - 1]?.scene3d;
+  const immersiveFrame = immersive || !!(turning && (slides[turning.from - 1]?.scene3d || slides[turning.to - 1]?.scene3d));
 
   return (
     <div
@@ -639,16 +691,18 @@ export function Presentation({
       data-print={print || undefined}
       data-offline={offline || undefined}
       data-controlled={controlled || undefined}
+      data-immersive={immersive || undefined}
       style={print ? ({ "--slide-w": `${size.w}px`, "--slide-h": `${size.h}px` } as CSSProperties) : undefined}
       onClick={(e) => idle && !auto && !controlled && e.target === e.currentTarget && move(1)}
     >
+      {resourceError && <p role="alert" className="galley-present-resource-error">{resourceError}</p>}
       <div
         ref={stageRef}
         className="galley-present-stage"
         style={
           (print
             ? { width: size.w }
-            : { width: size.w, height: size.h, top: recording_ ? `calc(50% - ${REC_BAR / 2}px)` : "50%", transform: `translate(-50%, -50%) scale(${scale})` }) as CSSProperties
+            : { width: immersiveFrame ? viewport.w / scale : size.w, height: immersiveFrame ? viewport.h / scale : size.h, top: recording_ ? `calc(50% - ${REC_BAR / 2}px)` : "50%", transform: `translate(-50%, -50%) scale(${scale})` }) as CSSProperties
         }
       >
         <PresentSpeed.Provider value={speed}>
@@ -660,11 +714,11 @@ export function Presentation({
             {cover.date && <p className="galley-slide-date">{cover.date}</p>}
           </section>
           {slides.map((s, i) => (
-            <section key={i} ref={(el) => void (slideRefs.current[i + 1] = el)} className="galley-slide" data-current={page === i + 1 || undefined} {...turnProps(i + 1)}>
-              <div className="galley-slide-body galley-prose">
+            <section key={i} ref={(el) => void (slideRefs.current[i + 1] = el)} className="galley-slide" data-scene3d-slot={s.scene3d ? "" : undefined} data-current={page === i + 1 || undefined} {...turnProps(i + 1)}>
+              {s.scene3d ? <Scene3DPlayer {...s.scene3d} timing={timing} /> : <div className="galley-slide-body galley-prose">
                 {s.section && <p className="galley-slide-section">{s.section}</p>}
                 {s.content}
-              </div>
+              </div>}
             </section>
           ))}
           <section ref={(el) => void (slideRefs.current[total - 1] = el)} className="galley-slide galley-slide-cover" data-current={page === total - 1 || undefined} {...turnProps(total - 1)}>

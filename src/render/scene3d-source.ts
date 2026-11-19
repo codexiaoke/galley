@@ -6,9 +6,14 @@ import { splitSlides } from "./slides";
 export function readImmersiveScene3D(body: string, scenes: Record<string, Scene3DResult>) {
   const slides = splitSlides(body);
   if (slides.length !== 1) return null;
-  const nodes = parseToTree(slides[0].source).children.filter((node) => node.type !== "heading");
+  return readScene3DSlide(slides[0].source, scenes);
+}
+
+/** 单页与整篇共用识别规则；混合演示里的三维页也占满舞台。 */
+export function readScene3DSlide(source: string, scenes: Record<string, Scene3DResult>) {
+  const nodes = parseToTree(source).children.filter((node) => node.type !== "heading");
   const node = nodes[0] as {type:string;name?:string} | undefined;
   if (nodes.length !== 1 || node?.type !== "containerDirective" || node.name !== "scene3d") return null;
-  const source = readScene3D(node), id = scene3dKey(source.code ?? ""), result = scenes[id];
-  return result?.ok ? {id, title: source.title, scene: result.scene} : null;
+  const script = readScene3D(node), id = scene3dKey(script.code ?? ""), result = scenes[id];
+  return result?.ok ? {id, title: script.title, scene: result.scene} : null;
 }
